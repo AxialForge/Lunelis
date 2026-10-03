@@ -1,0 +1,1278 @@
+{
+ "chapters": [
+  {
+   "id": "albums",
+   "title": "Albums",
+   "screens": [
+    "albums",
+    "dialog_new_album"
+   ],
+   "purpose": "The Albums page shows your collections as cover tiles: albums you make yourself, your events (trips, shoots, days out), and automatic albums that Lunelis keeps up to date. Use it to open a collection, make a new album, or rename and remove albums and events. Albums and events live only in the catalog - nothing here ever moves or changes a photo.",
+   "intro": [
+    "A photo can be in as many albums as you like, but in at most one event. When you open an album or event, the library shows only its photos with a chip at the top such as \"Album: Best of 2024\"; click the chip's x to go back to everything. The photo view's Info panel lists the albums a photo is in.",
+    "The automatic albums are Favorites (4 or 5 stars), Picks, Videos, RAW files, Recently imported (the last 30 days), Screenshots, and one album for each of your eight most-used cameras. Automatic albums with nothing in them are not shown, and they can't be renamed or removed."
+   ],
+   "workflows": [
+    {
+     "title": "Make an album from photos you've picked",
+     "steps": [
+      "In the library, select the photos (Ctrl+click or Shift+click).",
+      "Choose Photo > Album > New album from selection….",
+      "Type a name and press OK.",
+      "The status line confirms how many photos the album was made from; it appears under Your albums."
+     ]
+    },
+    {
+     "title": "Make an empty album and fill it later",
+     "steps": [
+      "On the Albums page, click the dashed New album tile.",
+      "Type a name and press OK.",
+      "In the library, select photos and press Ctrl+Shift+A (Photo > Album > Add to album…).",
+      "Pick the album, or make a new one right there."
+     ]
+    },
+    {
+     "title": "Take photos out of an album",
+     "steps": [
+      "Click the album's tile to open it in the library.",
+      "Select the photos to take out.",
+      "Choose Photo > Album > Remove from this album.",
+      "The photos leave the album only - the files themselves are untouched."
+     ]
+    },
+    {
+     "title": "Rename or remove an album or event",
+     "steps": [
+      "Right-click its tile on the Albums page.",
+      "Choose Rename… and type the new name, or choose Remove album / Remove event.",
+      "When removing, read the question and press Yes. Its photos stay exactly where and as they are."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "You choose New album from selection… with no photos selected.",
+     "what_happens": "Lunelis says \"Select some photos in the library first.\" Select photos and try again."
+    },
+    {
+     "situation": "You leave the album name blank or press Cancel.",
+     "what_happens": "No album is made."
+    },
+    {
+     "situation": "You right-click an automatic album such as Favorites.",
+     "what_happens": "Nothing happens - automatic albums are kept up to date by Lunelis and can't be renamed or removed."
+    },
+    {
+     "situation": "An automatic album you expect, such as Videos, is missing.",
+     "what_happens": "Automatic albums with nothing in them are hidden. Recently imported is also hidden while it would be the whole library."
+    },
+    {
+     "situation": "The Automatic section says \"Couldn't count the automatic albums\".",
+     "what_happens": "Counting failed in the background; the rest of the page still works. Leave the page and come back to try again."
+    },
+    {
+     "situation": "You add a photo to an event while it already belongs to another event.",
+     "what_happens": "Lunelis asks first, then moves it - a photo is in at most one event."
+    }
+   ]
+  },
+  {
+   "id": "events",
+   "title": "Event suggestions",
+   "screens": [
+    "events"
+   ],
+   "purpose": "An event is a trip, a shoot or a day out: a name plus the photos that belong to it. This page lists your events and suggests new ones, found in folder names you already gave your trips and in gaps between capture times. Use it after importing or scanning a lot of photos, to group them into events in a few clicks.",
+   "intro": [
+    "Nothing changes until you press Create ticked events, and events never touch your files or folders. An event's dates always come from the capture dates of its photos.",
+    "You can also make an event from photos you pick (select them, then Photo > Event > New event from selection…, Ctrl+E), or by typing an event name on the Import page."
+   ],
+   "workflows": [
+    {
+     "title": "Turn your existing trip folders into events",
+     "steps": [
+      "On the Albums page, click Event suggestions….",
+      "Wait for the suggestions to appear (they are found by themselves the first time).",
+      "Click Tick all from folder names.",
+      "Check the names; click a name to edit it.",
+      "Untick anything you don't want, then press Create ticked events."
+     ]
+    },
+    {
+     "title": "Find events among loose photos",
+     "steps": [
+      "Set Gap between shoots to how long a pause should split two events (18 hours by default).",
+      "Set the smallest event (30 photos by default).",
+      "Press Find suggestions.",
+      "Tick the suggestions you want and rename them (they are named by their dates, such as \"Jun 19 - 21, 2026\"), then press Create ticked events."
+     ]
+    },
+    {
+     "title": "Stop a suggestion from coming back",
+     "steps": [
+      "Tick the unwanted suggestions.",
+      "Press Dismiss ticked. They won't be suggested again."
+     ]
+    },
+    {
+     "title": "See or tidy an event",
+     "steps": [
+      "Select it in the Your events table.",
+      "Press Show photos (or double-click) to see its photos in the library.",
+      "Press Rename… to change its name, or Remove event to remove it - its photos stay exactly as they are."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "You press Create ticked events with nothing ticked.",
+     "what_happens": "Lunelis says \"Tick the suggestions you want to keep.\""
+    },
+    {
+     "situation": "You clear a suggestion's name completely before creating.",
+     "what_happens": "The suggested name is used instead."
+    },
+    {
+     "situation": "A trip is spread over several day folders, or the same name appears on consecutive days.",
+     "what_happens": "It becomes a single suggestion. The outermost named folder is the event, so day folders and working folders (such as Clips or JPEG Files) belong to it, and workflow folders such as Edits or ARW are never suggested on their own."
+    },
+    {
+     "situation": "You remove an event.",
+     "what_happens": "Only the event goes; Lunelis looks for suggestions again, so its photos may be suggested again."
+    },
+    {
+     "situation": "The status line says \"Couldn't look for suggestions: …\".",
+     "what_happens": "The search failed in the background; nothing was changed. Press Find suggestions to try again."
+    },
+    {
+     "situation": "A run of photos has fewer photos than Smallest event, or spreads over more than about three weeks.",
+     "what_happens": "It isn't suggested. Lower Smallest event, or make the event yourself from a selection (Ctrl+E)."
+    }
+   ]
+  },
+  {
+   "id": "tags",
+   "title": "Tags",
+   "screens": [
+    "tags"
+   ],
+   "purpose": "Tags are words you attach to photos, like \"Beach\" or \"Grandma\", so you can find them again later. The Tags page shows every tag as a tree with photo counts, and is where you rename, merge, nest and delete tags. Tagging itself happens in the library (Ctrl+T) or in the photo view's Info panel.",
+   "intro": [
+    "Type a tag such as Places > Ohio > Cleveland (or Places|Ohio|Cleveland) to file it inside other tags; the parent tags are made for you. Capitals don't matter: \"beach\" and \"Beach\" are the same tag.",
+    "Tags are written to each photo's XMP sidecar, following your sidecar settings, in the standard places darktable and Lightroom read."
+   ],
+   "workflows": [
+    {
+     "title": "Tag several photos at once",
+     "steps": [
+      "In the library, select the photos.",
+      "Press Ctrl+T (Photo > Tags > Tag photos…).",
+      "Type a tag and press Enter; commas add several at once.",
+      "Click a tag's x to take it off every selected photo."
+     ]
+    },
+    {
+     "title": "See every photo with a tag",
+     "steps": [
+      "Open Tags in the sidebar.",
+      "Type part of the name in Find a tag… to narrow the tree.",
+      "Double-click the tag. The library shows its photos; remove the chip to go back."
+     ]
+    },
+    {
+     "title": "Merge two tags that mean the same thing",
+     "steps": [
+      "Right-click the tag you want to get rid of.",
+      "Choose Merge into… and pick the tag to keep.",
+      "Every photo with the first tag now has the second one."
+     ]
+    },
+    {
+     "title": "Organise tags inside other tags",
+     "steps": [
+      "Right-click the parent tag and choose New tag inside…, or",
+      "Right-click an existing tag, choose Rename… and type the full path, such as Places > Ohio > Cleveland."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "You rename a tag to a name that already exists.",
+     "what_happens": "The two tags are merged."
+    },
+    {
+     "situation": "You delete a parent tag.",
+     "what_happens": "After asking, it and every tag inside it are taken off every photo. The photos themselves aren't touched."
+    },
+    {
+     "situation": "You choose Merge into… when there is no other tag to merge into.",
+     "what_happens": "Nothing happens."
+    },
+    {
+     "situation": "A rename is refused.",
+     "what_happens": "Lunelis shows the reason in a message and leaves the tag as it was."
+    },
+    {
+     "situation": "You remove a tag in darktable or another program.",
+     "what_happens": "Tags from other programs are only ever added when a folder is scanned, never removed, so a tool that rewrites a sidecar can't wipe your tags. Remove it in Lunelis instead."
+    },
+    {
+     "situation": "darktable's automatic tags (such as darktable|format|arw) are in a sidecar.",
+     "what_happens": "They are kept in the sidecar but never shown as tags."
+    }
+   ]
+  },
+  {
+   "id": "import",
+   "title": "Importing photos",
+   "screens": [
+    "import"
+   ],
+   "purpose": "The Import page copies photos and videos off a memory card, USB drive or folder, checks every copy, and files them into your library in the folder layout you choose. File names are never changed. Use it every time you come back from a shoot.",
+   "intro": [
+    "Two messages matter. \"Everything is copied and verified - you can remove the card\" means every file has been copied to a staging folder and read back. \"All in the library and verified. It's safe to format the card.\" means every file is in the library and checked again against the card's original fingerprint. Don't format the card before the second message.",
+    "Copying off the card goes first to a local staging folder, so the card is free quickly. When the local disk would drop below 50 GB free, staging spills over to the network staging folder set in Settings."
+   ],
+   "workflows": [
+    {
+     "title": "Import a memory card into dated folders",
+     "steps": [
+      "Insert the card. With the tray on, click the \"Memory card inserted\" notification; otherwise open Import (Ctrl+I) and click the card under Memory cards.",
+      "Check the Destination; use Change… if it isn't your library folder.",
+      "Leave Folders at the default {YYYY}\\{M}-{D}-{YYYY}[ {import_name}] to get folders like 2026\\6-19-2026\\.",
+      "Check the preview of where every photo will be filed.",
+      "Press Import. When you see \"you can remove the card\", you may take it out; wait for \"It's safe to format the card\" before formatting it."
+     ]
+    },
+    {
+     "title": "Import a trip as an event",
+     "steps": [
+      "Pick the card or folder.",
+      "Type a name in Event name, for example Cleveland Air Show.",
+      "Check the preview: everything is filed under the event's start date, so a multi-day trip lands in one folder such as 2026\\6-17-2026 Cleveland Air Show\\.",
+      "Press Import. Once cataloged, the photos are added to the event."
+     ]
+    },
+    {
+     "title": "Import photos already on a drive",
+     "steps": [
+      "Click a USB drive under Drives to import everything on it, or click an internal or network drive and pick a folder, or press Import from a folder….",
+      "Check the preview and press Import.",
+      "The folder is remembered under Recent folders for next time."
+     ]
+    },
+    {
+     "title": "Use your own folder layout",
+     "steps": [
+      "Click in the Folders box and type a template, for example {YYYY}\\{MM}\\{DD}.",
+      "Watch the example line under it; a template that can't be used is reported at the top right and not saved.",
+      "Check the preview, then Import."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "The card is pulled out while copying.",
+     "what_happens": "The import pauses and waits. Every file's progress is saved, so copying carries on by itself when that same card is inserted again."
+    },
+    {
+     "situation": "The library destination (for example a sleeping NAS) can't be reached.",
+     "what_happens": "The page says \"Paused - waiting for …\" and the import carries on by itself when it is back. Filing into the library also resumes when Lunelis next starts."
+    },
+    {
+     "situation": "The local disk is low and the network staging folder is missing or full.",
+     "what_happens": "A \"No room to stage\" message appears and the import pauses. Free space on the PC, or make the network staging folder reachable, then start the import again."
+    },
+    {
+     "situation": "A file with the same name but different content is already in the target folder.",
+     "what_happens": "The new one goes into a sibling folder such as 6-19-2026 (2)\\ - nothing is renamed or overwritten."
+    },
+    {
+     "situation": "You insert a card you've already imported.",
+     "what_happens": "Identical files already anywhere in your library are skipped, so re-importing never creates duplicates. The summary says how many were already in your library."
+    },
+    {
+     "situation": "Some files fail to copy.",
+     "what_happens": "The summary says how many failed; the rest of the import still completes. Import the card again to retry them."
+    },
+    {
+     "situation": "Photos have no capture date.",
+     "what_happens": "Without an event name they go to an Undated folder; with an event name they go with the rest of the event."
+    },
+    {
+     "situation": "The page says \"No photos or videos found in …\".",
+     "what_happens": "That card or folder has no files Lunelis recognises. Pick another folder."
+    }
+   ]
+  },
+  {
+   "id": "migrate",
+   "title": "Migrating to a new library",
+   "screens": [
+    "migrate"
+   ],
+   "purpose": "Migrate copies your library from all its sources onto one drive or share, laid out with a folder template, with one good copy of each photo. Use it to bring a messy library - several pools, old backups, a Google Takeout export - together into a single tidy library on a new drive.",
+   "intro": [
+    "Every file is copied and checked against the original before anything else happens, and the same catalog entry is pointed at the new copy, so ratings, labels, picks, events and thumbnails all stay. File names never change, sidecars travel with their photos, and RAW+JPEG pairs always stay together.",
+    "Nothing is ever deleted. By default the originals stay where they are until you say you're happy; then they are moved into a \"_Lunelis Quarantine\" folder on their own drive, where you can restore or empty them from the Quarantine page. The catalog is backed up before the migration starts."
+   ],
+   "workflows": [
+    {
+     "title": "Migrate a messy library to a new drive",
+     "steps": [
+      "First, on the Duplicates page, press Verify likely groups… so duplicates are known.",
+      "Open Migrate. Under 1. What to move, tick every source.",
+      "Under 2. Where to, press Choose… and pick the new, empty drive.",
+      "Under 3. Folders, keep the default template or pick another.",
+      "Under 4. How, keep the defaults: one copy of each verified duplicate, leave damaged files behind, include videos, keep the originals until reviewed.",
+      "Press Preview - nothing is moved. Read the summary and the Worth a look list, then press Start migration… and confirm."
+     ]
+    },
+    {
+     "title": "Check the plan before anything moves",
+     "steps": [
+      "After Preview, read the summary: how many files and how much data, duplicates and damaged copies left behind, sibling folders, undated files, and free space.",
+      "Look through New folders and Worth a look.",
+      "If something is wrong, change the settings and press Preview again (it replaces the old plan), or press Discard this plan."
+     ]
+    },
+    {
+     "title": "Release the originals after reviewing",
+     "steps": [
+      "When the migration says Finished, browse the new library and check it.",
+      "Press Release originals… and confirm.",
+      "The originals move into \"_Lunelis Quarantine\" on their own drives. Empty them from the Quarantine page when you're sure."
+     ]
+    },
+    {
+     "title": "Follow or pause a running migration",
+     "steps": [
+      "Press Ctrl+J to open Jobs.",
+      "Pause, resume or cancel the migration job there. It survives a restart and waits for a sleeping NAS."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "The target is inside one of your sources (or a source is inside it).",
+     "what_happens": "Preview stops with \"The target overlaps the source …\". Choose a folder outside your current sources."
+    },
+    {
+     "situation": "The target can't be reached.",
+     "what_happens": "Preview stops with \"… can't be reached - is the drive plugged in / the NAS awake?\". Connect the drive or wake the NAS and try again."
+    },
+    {
+     "situation": "The target doesn't have enough free space.",
+     "what_happens": "The summary shows \"Not enough space\" and Start migration… stays greyed out. Choose a bigger target or fewer sources."
+    },
+    {
+     "situation": "A copy doesn't match its original when read back.",
+     "what_happens": "The copy is removed and the original is left alone; the file is listed as Failed in Worth a look."
+    },
+    {
+     "situation": "Two files look like copies (same name, size and date) but haven't been verified.",
+     "what_happens": "They are planned to the same place. When the second arrives, the bytes are compared: if identical it isn't copied again and its rating and label are merged; if different it goes to a sibling folder."
+    },
+    {
+     "situation": "A damaged file is the only copy.",
+     "what_happens": "It still moves, flagged in the preview."
+    },
+    {
+     "situation": "You press Preview with nothing ticked or no target.",
+     "what_happens": "Lunelis says \"Tick at least one source and choose a target first.\""
+    },
+    {
+     "situation": "Another migration is still running.",
+     "what_happens": "Lunelis refuses a new plan until it finishes or is cancelled."
+    }
+   ]
+  },
+  {
+   "id": "duplicates",
+   "title": "Duplicates",
+   "screens": [
+    "dupes_exact",
+    "dupes_near"
+   ],
+   "purpose": "The Duplicates page finds photos saved more than once and lets you set the extra copies aside safely. The Exact copies tab handles byte-identical files; the Near-duplicates tab handles the same photo saved as a different file (resized, re-compressed, a Google Takeout re-encode or an export). Use it to win back space, and before a migration.",
+   "intro": [
+    "Lunelis never deletes duplicates. Extra copies are renamed into a \"_Lunelis Quarantine\" folder on the same drive (instant - nothing is copied), the catalog is backed up first, and the kept copy receives their ratings, labels and albums. You restore or empty them on the Quarantine page.",
+    "Start with Library > Find duplicates…: tick the sources, choose when to run, and the job compares each folder against your whole library as it goes. Possible copies get a quick sampled fingerprint and form Likely groups; Verify likely groups… then compares every byte."
+   ],
+   "workflows": [
+    {
+     "title": "Verify and quarantine duplicate copies",
+     "steps": [
+      "Choose Library > Find duplicates…, tick the sources and start the job.",
+      "On the Exact copies tab, press Verify likely groups…; follow progress in Jobs.",
+      "In Keep copies in:, choose which source the kept copy should come from (or leave Wherever).",
+      "Click a few groups and check the copies below; use Show in Explorer if in doubt.",
+      "Press Move extra copies to quarantine… and confirm."
+     ]
+    },
+    {
+     "title": "Set aside near-duplicates of one photo",
+     "steps": [
+      "Click the Near-duplicates tab and pick a group.",
+      "Compare the copies side by side; tick or untick Set aside on each.",
+      "Press Set aside ticked copies and confirm."
+     ]
+    },
+    {
+     "title": "Set aside every suggested near-duplicate",
+     "steps": [
+      "Look through a few groups first to check the suggestions.",
+      "Press Set aside all suggested… and confirm.",
+      "Edited exports are never moved, and the catalog is backed up first."
+     ]
+    },
+    {
+     "title": "Undo a mistake",
+     "steps": [
+      "Open Quarantine in the sidebar.",
+      "Set Show: to Exact copy or Near-duplicate.",
+      "Select the files and press Restore - each goes back where it came from."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "Move extra copies to quarantine… is greyed out.",
+     "what_happens": "No group is verified yet. Press Verify likely groups… first - nothing is ever moved on a sampled fingerprint alone."
+    },
+    {
+     "situation": "A Likely group disappears after verifying.",
+     "what_happens": "It was a rare lookalike, not a real duplicate, so the group was dissolved."
+    },
+    {
+     "situation": "Some groups are reported as skipped.",
+     "what_happens": "Lunelis refuses a group that isn't verified, would lose its last copy, or where something already exists at the quarantine spot. The rest still move; the message lists the reasons."
+    },
+    {
+     "situation": "A copy shows \"Edit - kept\" with no tick box.",
+     "what_happens": "It looks like an edited export (a folder or name with \"edit\" or \"export\"), so it is never set aside."
+    },
+    {
+     "situation": "Burst frames aren't shown as near-duplicates.",
+     "what_happens": "That's on purpose: burst frames have different contents and capture times a fraction of a second apart. The library shows them as stacks instead."
+    },
+    {
+     "situation": "The Near-duplicates tab says \"Not searched yet\".",
+     "what_happens": "Press Find again; comparing every photo takes about a minute."
+    },
+    {
+     "situation": "RAW files, or two copies of exactly the same size, aren't on the Near-duplicates tab.",
+     "what_happens": "Near-duplicates skip RAW files, and same-size copies belong on the Exact copies tab."
+    }
+   ]
+  },
+  {
+   "id": "damaged",
+   "title": "Damaged files",
+   "screens": [
+    "damaged"
+   ],
+   "purpose": "The Damaged files page lists files that can't be what they claim - empty, filled with zeros, cut short, not a recognisable photo, corrupt, or changed on disk - and, for each, where an intact copy survives in your library. Use it to find photos at risk before the only good copy is lost.",
+   "intro": [
+    "The check runs after every scan and reads almost nothing. Files with no intact copy anywhere are listed first. Lunelis never repairs or replaces a file by itself; it shows you the good copy so you can decide.",
+    "To catch silent corruption, run Library > Hash everything (integrity baseline)… while your files are known to be good, then Library > Check integrity against the baseline… every few months. A file whose fingerprint changed while its size and date didn't shows up as Changed on disk."
+   ],
+   "workflows": [
+    {
+     "title": "Replace a damaged photo with an intact copy",
+     "steps": [
+      "Open Damaged files and click the file.",
+      "In the lower table, look at the intact copies, best first.",
+      "Press Show in Explorer next to the best one.",
+      "Copy it over the damaged file yourself in Explorer.",
+      "Press Check now; the file drops off the list."
+     ]
+    },
+    {
+     "title": "Check for damage now",
+     "steps": [
+      "Press Check now.",
+      "Wait for the summary line to update."
+     ]
+    },
+    {
+     "title": "Hide a file you've dealt with",
+     "steps": [
+      "Press Dismiss on its row.",
+      "To see it again, tick Show dismissed; its button then reads Restore, which puts it back on the list."
+     ]
+    },
+    {
+     "title": "Catch silent corruption",
+     "steps": [
+      "Run Library > Hash everything (integrity baseline)… once.",
+      "Every few months, run Library > Check integrity against the baseline… (it can be scheduled overnight).",
+      "Check this page for files marked Changed on disk."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "A damaged file has no intact copy.",
+     "what_happens": "Its Best surviving copy reads \"No intact copy found in the library\" and it is listed first. Look in your photo backups (Backups > Restore…) or other old drives; Lunelis can't recover it on its own."
+    },
+    {
+     "situation": "The only surviving copy is a Google Takeout copy.",
+     "what_happens": "It is listed as an intact copy: lower quality because Google re-encoded it, but the picture survives."
+    },
+    {
+     "situation": "A damaged JPEG has its RAW in the same folder.",
+     "what_happens": "The RAW original is listed as an intact copy."
+    },
+    {
+     "situation": "Nothing ever shows as Changed on disk.",
+     "what_happens": "That check needs an integrity baseline first: run Library > Hash everything… and later Check integrity…."
+    },
+    {
+     "situation": "You replaced a file with a good copy.",
+     "what_happens": "It drops off the list on the next check (press Check now)."
+    },
+    {
+     "situation": "You migrate with Leave damaged files behind ticked.",
+     "what_happens": "The intact copy is migrated instead; a damaged file that is the only copy still moves, flagged."
+    }
+   ]
+  },
+  {
+   "id": "backups",
+   "title": "Photo backups",
+   "screens": [
+    "backups",
+    "dialog_new_backup"
+   ],
+   "purpose": "A backup mirrors the sources you choose onto a USB drive, stick or network folder. After the first run only new and changed files are copied, every copy is checked, nothing is ever deleted from a backup, and the catalog (ratings, picks, events) goes with it, so a new PC can be set up from the backup alone.",
+   "intro": [
+    "The backup is plain files and folders: your folders as they are, plus a _Lunelis folder with the backup's description, catalog snapshots (the newest five), Lunelis's sidecar folder, and previous-versions with older copies of changed files. You can browse it or copy things back by hand without Lunelis.",
+    "A backup runs as a background job: it can be paused, carries on after a restart, waits for the drive or the NAS, and never fills the drive to the last byte. Catalog backups (in Settings) protect your ratings and events; this page protects the photos themselves."
+   ],
+   "workflows": [
+    {
+     "title": "Set up a USB backup that runs when plugged in",
+     "steps": [
+      "Plug in the USB drive.",
+      "Open Backups and press New backup….",
+      "Press Choose… and pick a folder on the USB drive.",
+      "Give it a name you'll recognise, such as Blue USB drive.",
+      "Tick what to back up, and check the space line.",
+      "Leave Back up automatically whenever this drive is connected ticked, press OK, and answer Yes to start the first backup now."
+     ]
+    },
+    {
+     "title": "Check a backup is still readable",
+     "steps": [
+      "Connect the backup drive.",
+      "Select the backup and press Verify.",
+      "When it finishes, the Status column says if any copies need attention; press Back up now to replace them."
+     ]
+    },
+    {
+     "title": "Bring back lost or damaged photos",
+     "steps": [
+      "Connect the backup drive.",
+      "Select the backup and press Restore….",
+      "Choose Bring back the missing or damaged library files, to where they were, and press OK.",
+      "Each file is checked; a damaged file still in the library is moved to quarantine first, never overwritten."
+     ]
+    },
+    {
+     "title": "Rebuild after a drive has died",
+     "steps": [
+      "Connect the backup drive.",
+      "Press Restore… and choose Copy everything in this backup into a new folder….",
+      "Pick the new folder and press OK."
+     ]
+    },
+    {
+     "title": "Restore ratings and events",
+     "steps": [
+      "Press Restore… and choose Restore the catalog (ratings, events…) from this backup.",
+      "Lunelis restarts and puts the backup's catalog in place, keeping the current catalog alongside."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "The backup drive isn't connected.",
+     "what_happens": "Status reads \"Drive not connected\" (plus \"- backs up when it is\" when automatic backup is on). Restore… says \"Connect the backup drive first.\""
+    },
+    {
+     "situation": "Windows gives the USB drive a different letter.",
+     "what_happens": "No problem - a removable drive is recognised by its serial number."
+    },
+    {
+     "situation": "The backup drive fills up.",
+     "what_happens": "The backup stops and the status says \"The backup drive is full - free some space or choose fewer sources\". The drive is never filled to the last byte."
+    },
+    {
+     "situation": "You choose a backup folder inside your library (or a library folder is inside it).",
+     "what_happens": "Lunelis refuses: \"The backup folder overlaps the source … - choose a folder outside your library.\""
+    },
+    {
+     "situation": "You press OK with no source ticked, or the folder can't be reached.",
+     "what_happens": "Lunelis says \"Choose at least one source to back up.\" or \"… can't be reached - is the drive plugged in?\" and keeps the dialog open."
+    },
+    {
+     "situation": "A photo is deleted, changed or moved in the library.",
+     "what_happens": "A deleted photo stays in the backup. A changed file's old copy is kept in _Lunelis\\previous-versions. A file moved or renamed in the library is renamed in the backup too, not copied again."
+    },
+    {
+     "situation": "You restore the catalog from a backup that has never run.",
+     "what_happens": "Lunelis says \"This backup has no catalog snapshot yet - run it once first.\""
+    },
+    {
+     "situation": "You press Forget this backup.",
+     "what_happens": "After asking, Lunelis stops using it. The files on the drive are not deleted."
+    }
+   ]
+  },
+  {
+   "id": "quarantine",
+   "title": "Quarantine",
+   "screens": [
+    "quarantine",
+    "dialog_confirm_empty"
+   ],
+   "purpose": "Lunelis never deletes a photo on its own. When it removes a copy - setting aside exact or near-duplicates, skipping duplicate copies during a migration, or moving originals out of the way after one - it renames the file into a \"_Lunelis Quarantine\" folder on the same drive. The Quarantine page lists all of it, and is where you put files back or remove them for good.",
+   "intro": [
+    "Emptying is the only step in Lunelis that removes files, and only you can start it. Files on this PC go to the Recycle Bin, so you can still get them back from there. Files on network drives (your NAS) are deleted permanently, because Windows has no Recycle Bin for network shares, so you must tick \"I understand the network files can't be recovered\" first.",
+    "A file whose kept copy is missing or a different size always stays in quarantine. The catalog is backed up before emptying, and every file removed is written to a log in the catalog. Emptied files leave the catalog; their stars, labels, albums and events were already moved to the kept copy when they were set aside."
+   ],
+   "workflows": [
+    {
+     "title": "Restore a file from quarantine",
+     "steps": [
+      "Open Quarantine in the sidebar.",
+      "Use Show: to narrow the list if it is long.",
+      "Select the file (Ctrl+click or Shift+click for several).",
+      "Press Restore. Each goes back exactly where it came from, and a message confirms it."
+     ]
+    },
+    {
+     "title": "Empty quarantine safely",
+     "steps": [
+      "Look down the Kept copy column: every file you empty should have a check mark.",
+      "Select the files and press Empty selected…, or press Empty all… to empty everything the list is showing.",
+      "Read the confirmation: how many go to the Recycle Bin, how many are deleted from network drives, and how many stay because their kept copy can't be found.",
+      "If network files are included, tick \"I understand the network files can't be recovered\".",
+      "Press Empty. A summary says what was recycled, deleted or kept, and how much space was freed."
+     ]
+    },
+    {
+     "title": "Empty only one kind of file",
+     "steps": [
+      "Set Show: to the reason, for example Exact copy.",
+      "Press Empty all… - only the files shown are included.",
+      "Confirm as above."
+     ]
+    },
+    {
+     "title": "Look at a quarantined file before deciding",
+     "steps": [
+      "Hover over the File cell to see where it was and where it is now.",
+      "Select it and press Show in Explorer."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "The kept copy shows a warning sign (missing or a different size).",
+     "what_happens": "That file will not be emptied - it stays in quarantine and the confirmation says so. Restore it, or find out what happened to the kept copy."
+    },
+    {
+     "situation": "Files are on a network drive.",
+     "what_happens": "They can't go to the Recycle Bin. The Empty button stays greyed out until you tick the tick box, and then they are deleted permanently."
+    },
+    {
+     "situation": "Something already sits at a file's original location when you restore.",
+     "what_happens": "That file stays in quarantine and the message lists it under \"Not restored\" with the reason."
+    },
+    {
+     "situation": "You restore a migrated original.",
+     "what_happens": "It becomes a second copy of a photo that now lives in its new place, so the next scan lists it again."
+    },
+    {
+     "situation": "A file shows \"No longer in the quarantine folder\".",
+     "what_happens": "It was moved or deleted outside Lunelis. It is left out of emptying."
+    },
+    {
+     "situation": "The Recycle Bin refuses a file.",
+     "what_happens": "That file stays in quarantine and the summary lists it with the reason."
+    },
+    {
+     "situation": "You press Stop while emptying.",
+     "what_happens": "Lunelis stops before the next file. Files already handled stay handled; the rest stay in quarantine."
+    }
+   ]
+  }
+ ],
+ "screen_text": {
+  "albums": "Open Albums in the sidebar (under Photos). The page shows three sections of cover tiles: Your albums (with the dashed New album tile), Events (with the Event suggestions… button) and Automatic albums that Lunelis keeps up to date. The demo library has two albums and two events.",
+  "dialog_new_album": "Select photos in the library, then choose Photo > Album > New album from selection…. This small dialog asks for the album's name; the label shows how many photos are selected.",
+  "events": "Open it from the Albums page with Event suggestions…. The top half lists your events; the bottom half suggests new ones found in folder names and capture times, which you tick, rename and create.",
+  "tags": "Open Tags in the sidebar (under Photos). It shows every tag as a tree with photo counts; double-click a tag to see its photos, or right-click it to rename, merge or delete.",
+  "import": "Open Import in the sidebar (under Bring in & organize) or press Ctrl+I. Choose a card, drive or folder on the left, check the preview of where the photos will go, set the destination, folder layout and optional event name along the bottom, then press Import.",
+  "migrate": "Open Migrate in the sidebar. The left side is the four-step plan (what to move, where to, folders, how); the right side shows the result after you press Preview - nothing is moved, and then Start migration….",
+  "dupes_exact": "Open Duplicates in the sidebar; the Exact copies tab lists byte-identical files. The top table lists the groups and the lower table shows every copy of the selected group. Run Library > Find duplicates… first to fill it.",
+  "dupes_near": "On the Duplicates page, click the Near-duplicates tab. Pick a group at the top to see every copy side by side below, with Set aside tick boxes on the lesser copies.",
+  "damaged": "Open Damaged files in the sidebar. The top table lists files that can't be what they claim, and the lower table shows the intact copies of the selected file.",
+  "backups": "Open Backups in the sidebar (under Keep safe). The table lists your backups and their state; the buttons under it run, verify, restore or forget the selected one.",
+  "dialog_new_backup": "Click New backup… on the Backups page. Choose where the backup goes, give it a name, tick what to back up, and decide whether it runs by itself when the drive is plugged in.",
+  "quarantine": "Open Quarantine in the sidebar (under Keep safe). It lists every file Lunelis has set aside instead of deleting, why, and whether the copy that stayed is still there. The demo library has one exact copy in quarantine.",
+  "dialog_confirm_empty": "Appears after Empty selected… or Empty all… on the Quarantine page. It spells out what will happen to each file before anything is removed; when network files are included it also shows a tick box you must tick first."
+ },
+ "controls": {
+  "albums": {
+   "New album tile": {
+    "does": "Makes a new, empty album. Lunelis asks for a name, creates the album and then reminds you how to fill it: select photos in the library and choose Photo > Album > Add to album (Ctrl+Shift+A).",
+    "inputs": "Any name; a blank name (or Cancel) makes nothing.",
+    "default": "-",
+    "notes": "To make an album straight from photos you have already selected, use Photo > Album > New album from selection… instead (see the New album dialog)."
+   },
+   "Album tile: Best of 2024": {
+    "does": "An album you made (\"Best of 2024\" in the demo library). The tile shows its cover photo, its name and how many items are in it. Click it to see its photos in the library, with an \"Album: Best of 2024\" chip at the top; the chip's x takes you back to everything.",
+    "inputs": "Click to open; right-click for Open, Rename… and Remove album.",
+    "default": "-",
+    "notes": "A photo can be in as many albums as you like. Removing the album asks first and never touches its photos."
+   },
+   "Album tile: Mountain Trip": {
+    "does": "An event (\"Mountain Trip\" in the demo library), shown in the Events section. The tile shows the event's dates and how many photos and videos it has. Click it to see its photos in the library.",
+    "inputs": "Click to open; right-click for Open, Rename… and Remove event.",
+    "default": "-",
+    "notes": "A photo is in at most one event. Removing an event asks first; its photos stay exactly where and as they are."
+   },
+   "Album tile: Lakeside Weekend": {
+    "does": "Another event (\"Lakeside Weekend\" in the demo library). Works exactly like the other event tiles: click to see its photos, right-click to open, rename or remove it.",
+    "inputs": "Click to open; right-click for Open, Rename… and Remove event.",
+    "default": "-",
+    "notes": "The dates under the name always come from the capture dates of the event's photos."
+   },
+   "Album tile: Wallpapers": {
+    "does": "Another album you made (\"Wallpapers\" in the demo library). Click it to see its photos; right-click to open, rename or remove it.",
+    "inputs": "Click to open; right-click for Open, Rename… and Remove album.",
+    "default": "-",
+    "notes": "Removing an album never touches the photos themselves."
+   },
+   "Event suggestions…": {
+    "does": "Opens the Event suggestions page, which finds likely events in your folder names and in gaps between capture times, and lets you create the ones you want.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Nothing changes until you tick suggestions and press Create ticked events on that page."
+   }
+  },
+  "dialog_new_album": {
+   "OK": {
+    "does": "Creates the album from the photos you selected, using the name you typed. The status line confirms how many photos it was made from.",
+    "inputs": "Enter key also confirms.",
+    "default": "-",
+    "notes": "If the name is blank, nothing is made."
+   },
+   "Name for an album of 2 photos:": {
+    "does": "The name for the new album. The label tells you how many photos are selected (2 in the demo).",
+    "inputs": "Any text; spaces at the start and end are removed.",
+    "default": "Empty",
+    "notes": "You can rename the album later by right-clicking its tile on the Albums page."
+   },
+   "Cancel": {
+    "does": "Closes the dialog without making an album.",
+    "inputs": "Esc key also cancels.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "events": {
+   "‹ Albums": {
+    "does": "Goes back to the Albums page.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "-"
+   },
+   "Show photos": {
+    "does": "Shows the selected event's photos in the library, with an \"Event: name\" chip at the top. Click the chip's x to see everything again.",
+    "inputs": "Select an event in the Your events table first. Double-clicking an event does the same.",
+    "default": "-",
+    "notes": "Greyed out while you have no events."
+   },
+   "Rename…": {
+    "does": "Renames the selected event.",
+    "inputs": "Any non-blank name.",
+    "default": "-",
+    "notes": "Only the name in the catalog changes - no folders or files are renamed."
+   },
+   "Remove event": {
+    "does": "Removes the selected event after asking. Its photos stay exactly where and as they are; only the event goes.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Afterwards Lunelis looks for suggestions again, so those photos can be suggested as an event again."
+   },
+   "Gap between shoots (hours)": {
+    "does": "How long a pause between shots starts a new event when Lunelis looks for events in capture times. Photos taken closer together than this are treated as one run.",
+    "inputs": "1 to 336 hours (two weeks).",
+    "default": "18 hours",
+    "notes": "Saved as a setting as soon as you change it. Press Find suggestions to use the new value."
+   },
+   "Tick all from folder names": {
+    "does": "Ticks every suggestion that came from a folder name (and unticks the ones found from gaps in capture time).",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Folder-name suggestions are usually the safest to accept in bulk; check the names before creating."
+   },
+   "Tick none": {
+    "does": "Unticks every suggestion.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "-"
+   },
+   "Table: Event, Dates, Photos & videos, Made from": {
+    "does": "Your events: each event's name, its dates, how many photos and videos it holds, and how it was made (Made by you, Folder name, Suggested or Named import).",
+    "inputs": "Click to select a row; double-click to see its photos.",
+    "default": "-",
+    "notes": "The dates always come from the capture dates of the event's photos."
+   },
+   "Smallest event (photos)": {
+    "does": "The smallest run of photos (found from gaps in capture time) that is worth suggesting as an event.",
+    "inputs": "2 to 100,000 photos.",
+    "default": "30 photos",
+    "notes": "Saved as a setting as soon as you change it. Press Find suggestions to use the new value. Runs spread over more than about three weeks are not suggested."
+   },
+   "Find suggestions": {
+    "does": "Looks again for event suggestions in your folder names and capture times, using the two numbers beside it. It runs in the background and is quick even on a large catalog.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Lunelis also does this by itself the first time you open the page."
+   },
+   "Table: Name (click to edit), Dates, Photos & videos, Found in": {
+    "does": "The suggestions. Tick the ones you want in the first column, and click a name to change it before creating. Dates, the number of photos and videos, and where the suggestion was found are shown for each.",
+    "inputs": "Tick boxes; the Name column can be edited.",
+    "default": "Nothing ticked",
+    "notes": "Hover over a folder-name suggestion's Found in cell to see the folders it came from. If you clear a name completely, the suggested name is used."
+   },
+   "Dismiss ticked": {
+    "does": "Hides the ticked suggestions for good - they won't be suggested again.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Does nothing when nothing is ticked."
+   },
+   "Create ticked events": {
+    "does": "Creates an event from every ticked suggestion, using the name in the table, then looks for suggestions again.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Nothing in your folders or files changes - events live only in the catalog. If nothing is ticked, Lunelis says so."
+   }
+  },
+  "tags": {
+   "Find a tag…": {
+    "does": "Narrows the tag tree to tags whose name contains what you type, and opens up the parents of any match.",
+    "inputs": "Any text; capitals don't matter.",
+    "default": "Empty (all tags shown)",
+    "notes": "-"
+   },
+   "New tag…": {
+    "does": "Makes a new top-level tag. It starts with no photos.",
+    "inputs": "A tag name. To file it inside another tag, right-click that tag and choose New tag inside… instead.",
+    "default": "-",
+    "notes": "To tag photos, select them in the library and press Ctrl+T, or use the Tags box in the photo view's Info panel."
+   },
+   "Tree: Tag, Photos": {
+    "does": "All your tags as a tree, with how many photos each one has (a parent counts the photos of every tag inside it). Double-click a tag to see its photos in the library.",
+    "inputs": "Double-click or Enter opens a tag; right-click for Show its photos, Rename…, Merge into…, New tag inside… and Delete….",
+    "default": "-",
+    "notes": "Renaming onto a name that already exists merges the two tags. Delete takes the tag and every tag inside it off every photo, after asking; the photos themselves are not touched."
+   }
+  },
+  "import": {
+   "Memory cards": {
+    "does": "Memory cards that are in the PC right now. Click one to read it and preview where its photos will go.",
+    "inputs": "Click a card.",
+    "default": "Shows \"No memory card detected\" when there is none.",
+    "notes": "With the tray on, inserting a card also shows a notification you can click to come here."
+   },
+   "Drives": {
+    "does": "Every other drive. A USB drive imports everything on it. An internal or network drive opens a folder picker on that drive, because importing a whole system drive is never what you want.",
+    "inputs": "Click a drive.",
+    "default": "-",
+    "notes": "Each line shows the drive's free and total space."
+   },
+   "Recent folders": {
+    "does": "The last six folders you imported from (not memory cards), newest first, one click away.",
+    "inputs": "Click a folder.",
+    "default": "Empty: \"Folders you import from appear here\".",
+    "notes": "Hover to see the full path."
+   },
+   "Import from a folder…": {
+    "does": "Picks any folder to import from, using the standard Windows folder picker.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "The folder is added to Recent folders."
+   },
+   "Change…": {
+    "does": "Changes the Destination: the library folder that imports are filed into.",
+    "inputs": "Any folder you can reach.",
+    "default": "The import destination set in Settings.",
+    "notes": "Saved as a setting, so the next import uses it too."
+   },
+   "Table: Will be filed into, Files, Size": {
+    "does": "The preview: exactly which library folders the photos will be filed into, with the number of files and their size for each, before anything is copied.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Updates as you change the template or type an event name."
+   },
+   "Import": {
+    "does": "Starts the import. Lunelis copies everything off the card into a staging folder and checks every copy, then files the photos into the library and checks them again.",
+    "inputs": "-",
+    "default": "Greyed out until a card or folder has been read; then it reads \"Import N files\".",
+    "notes": "Two messages matter: \"Everything is copied and verified - you can remove the card\" and later \"All in the library and verified. It's safe to format the card.\" Don't format the card before the second one. A Stop button appears while it runs."
+   },
+   "e.g. Cleveland Air Show": {
+    "does": "Event name (optional). Typing a name makes this import an event: the name is added to the folder, and the whole card is filed under the event's start date so a multi-day trip stays in one folder. Once cataloged, the photos are added to the event.",
+    "inputs": "Any text, for example Cleveland Air Show.",
+    "default": "Empty",
+    "notes": "Leave it empty to file each photo by its own capture date."
+   },
+   "Folders": {
+    "does": "The Folders template: how imported photos are sorted into folders inside the Destination. Pick a ready-made layout or type your own. The line under it shows an example such as 2026\\6-19-2026\\IMG_0001.JPG.",
+    "inputs": "Ready-made layouts: Year \\ M-D-Year (the default), Year, Year \\ Month, Year \\ Month \\ Day, Year \\ Date, Import date \\ name, Camera \\ Year, Year \\ Event (else the date). Your own template can use {YYYY} {YY} {M} {MM} {D} {DD} {month_name} {date} {camera} {event} {import_name} {import_date} {original_folder}; text in [square brackets] only appears when every token inside has a value, and {event|date} uses the first that has a value.",
+    "default": "{YYYY}\\{M}-{D}-{YYYY}[ {import_name}]",
+    "notes": "File names are never changed - the template only picks folders. A template Lunelis can't use is reported at the top right and not saved. On screen this box is labelled Folders and sits next to the Destination."
+   }
+  },
+  "migrate": {
+   "1. What to move": {
+    "does": "Step 1: tick the sources (library folders) to move. Each line shows how many files and how much data it holds.",
+    "inputs": "Tick boxes.",
+    "default": "Nothing ticked",
+    "notes": "At least one source must be ticked before Preview."
+   },
+   "Choose an empty drive or folder": {
+    "does": "Step 2: shows the target - the drive or folder the new library will be built in.",
+    "inputs": "Read only; use Choose… to fill it.",
+    "default": "Empty",
+    "notes": "It must be outside your current sources and outside Lunelis's data folder. It becomes a source itself when the migration starts."
+   },
+   "Choose…": {
+    "does": "Picks the target drive or folder.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "An empty drive or network share is ideal."
+   },
+   "Move one copy of each verified duplicate": {
+    "does": "Moves only one copy of each verified duplicate group. The help line under it says how many groups are verified and how many likely groups are still unverified.",
+    "inputs": "Tick box.",
+    "default": "Ticked",
+    "notes": "Verify likely groups on the Duplicates page first. Unverified copies still move, but an identical file that lands in the same place is recognised and not copied twice."
+   },
+   "Leave damaged files behind when an intact copy exists": {
+    "does": "When a damaged file has an intact copy elsewhere, the good copy goes instead and the damaged one stays behind.",
+    "inputs": "Tick box.",
+    "default": "Ticked",
+    "notes": "A damaged file that is the only copy still moves, flagged in the preview."
+   },
+   "Include videos": {
+    "does": "Includes video files in the migration.",
+    "inputs": "Tick box.",
+    "default": "Ticked",
+    "notes": "-"
+   },
+   "Keep the originals until I've reviewed the new library": {
+    "does": "Review mode: every original stays exactly where it is after its copy is verified. When you're happy with the new library, press Release originals… to move them into quarantine.",
+    "inputs": "Choose one of the two options.",
+    "default": "Selected",
+    "notes": "Lunelis won't catalog the kept originals a second time - their catalog entries now point at the new copies."
+   },
+   "Move each original to quarantine as soon as its copy is verified": {
+    "does": "Moves each original into a \"_Lunelis Quarantine\" folder on its own drive as soon as its copy has been verified.",
+    "inputs": "Choose one of the two options.",
+    "default": "Not selected",
+    "notes": "Nothing is deleted either way; quarantined originals can be restored or emptied on the Quarantine page."
+   },
+   "Table: Top folder, Files, Size": {
+    "does": "New folders: after a Preview, the top-level folders (for example the year folders) that will be created in the target, with file counts and sizes.",
+    "inputs": "-",
+    "default": "Empty until you press Preview.",
+    "notes": "-"
+   },
+   "Table: File, What happens, Status": {
+    "does": "Worth a look: every file with something to note - duplicates and damaged copies left behind, files that look like copies of others, names already taken (sibling folder), undated files, and any failures - with what happens to it and its status.",
+    "inputs": "-",
+    "default": "Empty until you press Preview.",
+    "notes": "Statuses include Waiting, Copied (original pending), Done, Done - original kept for review, Done - original released, Skipped and Failed. Failures are listed first."
+   },
+   "Folders": {
+    "does": "Step 3: the Folders template for the new library. In a migration, {import_name} is the photo's event name, so event folders get named, and a whole event is filed under its start date. The line underneath shows an example, with and without an event.",
+    "inputs": "Ready-made layouts: Year \\ M-D-Year, Year, Year \\ Month, Year \\ Month \\ Day, Year \\ Date, Camera \\ Year, Year \\ Event (else the date); or type your own using the same tokens as the Import page.",
+    "default": "Your import template from Settings - {YYYY}\\{M}-{D}-{YYYY}[ {import_name}] on a fresh install.",
+    "notes": "File names are never changed. A different photo whose name is already taken goes to a sibling folder such as \"6-19-2026 (2)\". A template that can't be used is shown as an error under the box."
+   }
+  },
+  "dupes_exact": {
+   "Exact copies": {
+    "does": "Shows the Exact copies tab: byte-identical files saved in more than one place.",
+    "inputs": "-",
+    "default": "Selected when the page opens.",
+    "notes": "-"
+   },
+   "Near-duplicates": {
+    "does": "Switches to the Near-duplicates tab: the same photo saved as a different file (resized, re-compressed, re-encoded by Google Takeout, or exported).",
+    "inputs": "-",
+    "default": "-",
+    "notes": "-"
+   },
+   "Keep copies in:": {
+    "does": "Chooses which source the kept copy should come from, for example your main library over an old backup drive.",
+    "inputs": "\"Wherever (shallowest folder, not Takeout)\" or one of your sources (C:\\LunelisDemo\\Demo Library or C:\\LunelisDemo\\Old Backup Drive in the demo).",
+    "default": "Wherever (shallowest folder, not Takeout)",
+    "notes": "With Wherever, Lunelis keeps the copy that isn't in a Google Takeout export and sits in the least-nested folder. Saved as a setting; it is also used on the Near-duplicates tab and by migrations."
+   },
+   "Verify likely groups…": {
+    "does": "Starts a background job that compares every byte of the Likely groups. Groups that really are identical become Verified; a rare lookalike is dissolved. The Jobs panel opens to show progress.",
+    "inputs": "-",
+    "default": "Greyed out when there are no likely groups.",
+    "notes": "Nothing is ever moved on a sampled fingerprint alone - only verified groups can be quarantined."
+   },
+   "Move extra copies to quarantine…": {
+    "does": "After asking, moves the extra copies of every verified group into a \"_Lunelis Quarantine\" folder on the same drive. One copy of each photo stays exactly where it is.",
+    "inputs": "-",
+    "default": "Greyed out until at least one group is verified.",
+    "notes": "Nothing is deleted - each copy is only renamed into the quarantine folder (instant, nothing is copied). The catalog is backed up first. Lunelis refuses a group that isn't verified, and never moves the last copy. Restore or empty them later on the Quarantine page."
+   },
+   "Table: Status, Copies, Size, Extra space, Keep, Other copies": {
+    "does": "The duplicate groups: whether each is Verified or Likely, how many copies, the file size, the space the extra copies take, which copy is kept, and where the other copies are.",
+    "inputs": "Click a group to see its copies below.",
+    "default": "The first group is selected.",
+    "notes": "The line at the top totals the groups, the space in extra copies and how many are verified."
+   },
+   "Show in Explorer": {
+    "does": "Opens Windows Explorer with that copy selected.",
+    "inputs": "One button per copy in the lower table.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Table: Location": {
+    "does": "Every copy of the selected group, with a thumbnail, its full location, and whether it is the copy to Keep or an Extra copy.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Use the Keep copies in: list to change which copy is kept."
+   }
+  },
+  "dupes_near": {
+   "Exact copies": {
+    "does": "Switches back to the Exact copies tab.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "-"
+   },
+   "Near-duplicates": {
+    "does": "Shows the Near-duplicates tab: the same photo saved as a different file.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Every photo gets a small fingerprint of what it looks like, made from its thumbnail on this PC, so no network reads are needed."
+   },
+   "Find again": {
+    "does": "Compares every photo again and rebuilds the near-duplicate groups.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "It also runs by itself after thumbnails are made; the first time takes about a minute for 160,000 photos."
+   },
+   "Set aside ticked copies": {
+    "does": "After asking, moves the ticked copies of the selected group into the \"_Lunelis Quarantine\" folder on the same drive. The kept copy stays where it is and receives their ratings, labels and albums.",
+    "inputs": "-",
+    "default": "Greyed out until at least one copy is ticked.",
+    "notes": "Nothing is deleted. Restore or empty the copies later on the Quarantine page."
+   },
+   "Set aside all suggested…": {
+    "does": "After asking, sets aside every suggested copy in every group at once.",
+    "inputs": "-",
+    "default": "Greyed out when nothing is suggested.",
+    "notes": "The catalog is backed up first and edited exports are never moved. Look through a few groups before using this."
+   },
+   "Table: Copies, Suggested, Kept copy": {
+    "does": "The near-duplicate groups: how many copies each has, how many are suggested to set aside, and the copy that is kept.",
+    "inputs": "Click a group to see its copies below.",
+    "default": "The first group is selected.",
+    "notes": "The kept copy is chosen in this order: not damaged, most pixels, not a Google Takeout re-encode, your preferred source, the biggest file."
+   },
+   "Table: Location, Size": {
+    "does": "Every copy of the selected group side by side, with a large thumbnail, its location, and its pixel size and file size. The last column says Kept, \"Edit - kept\", or has a Set aside tick box.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Edited exports (a folder or name with \"edit\" or \"export\") are shown as \"Edit - kept\" and can't be ticked."
+   },
+   "Set aside": {
+    "does": "Ticks or unticks this copy for setting aside. Suggested copies start ticked; you can tick any other copy yourself.",
+    "inputs": "Tick box.",
+    "default": "Ticked when Lunelis suggests the copy; otherwise not ticked.",
+    "notes": "A copy is only suggested when it is plainly lesser: fewer pixels, a Takeout re-encode, or exactly the kept copy's name. Nothing moves until you press Set aside ticked copies and confirm."
+   }
+  },
+  "damaged": {
+   "Show dismissed": {
+    "does": "Also lists files you have dismissed, marked \"(dismissed)\". Their button changes to Restore, which puts them back on the normal list.",
+    "inputs": "Tick box.",
+    "default": "Not ticked",
+    "notes": "-"
+   },
+   "Check now": {
+    "does": "Runs the damaged-file check again now. It reads almost nothing: problems are already known from earlier passes, and only files whose start wasn't recognisable are opened.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "The check also runs by itself after every scan."
+   },
+   "Dismiss": {
+    "does": "Hides this file from the list once you've dealt with it.",
+    "inputs": "One button per row.",
+    "default": "-",
+    "notes": "Dismissing changes nothing on disk. If you replace the file with a good copy, it drops off the list on the next check anyway."
+   },
+   "Table: Problem, File, Best surviving copy": {
+    "does": "The damaged files: what is wrong with each (Empty file, Filled with zeros, Not a recognisable photo or video, Cut short, Corrupt image data, or Changed on disk), where it is, and the best intact copy Lunelis found.",
+    "inputs": "Click a row to see all its intact copies below.",
+    "default": "The first row is selected.",
+    "notes": "Files with no intact copy anywhere are listed first - they are the ones at risk. The line at the top counts each kind of problem."
+   },
+   "Table: Intact copy, Why it's a good copy": {
+    "does": "The intact copies of the selected file, best first, with why each is a good copy (the same file in another location, the RAW original, or a Google Takeout copy) and a Show in Explorer button.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Lunelis never repairs or replaces a file by itself - use Show in Explorer and copy the good one back yourself."
+   }
+  },
+  "backups": {
+   "Back up now": {
+    "does": "Starts a backup of the selected set as a background job. After the first run only new and changed files are copied, and every copy is read back and checked.",
+    "inputs": "Select a backup in the table first.",
+    "default": "Greyed out until a backup is selected.",
+    "notes": "Progress is in Jobs (Ctrl+J); it can be paused and carries on where it stopped. A changed file's old copy is kept in _Lunelis\\previous-versions on the backup."
+   },
+   "Verify": {
+    "does": "Re-reads every copy in the backup and compares it with the fingerprint (hash) taken when it was made. Catches a failing drive or slowly decaying data before you need the backup.",
+    "inputs": "Select a backup first.",
+    "default": "-",
+    "notes": "Copies that don't match are reported in the Status column; the next Back up now replaces them."
+   },
+   "Restore…": {
+    "does": "Opens the restore choices: bring back missing or damaged library files to where they were; copy everything in the backup into a new folder; or restore the catalog (ratings, events…) from the backup, which restarts Lunelis.",
+    "inputs": "Select a backup first; the backup drive must be connected.",
+    "default": "The first choice is selected when there are files to bring back; otherwise the second.",
+    "notes": "Every file is checked against its fingerprint. A damaged file still in the library is moved to quarantine first - nothing is overwritten, and healthy files are never touched. A catalog restore keeps the current catalog alongside."
+   },
+   "New backup…": {
+    "does": "Opens the New backup dialog to set up a backup on a USB drive, stick or network folder.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "-"
+   },
+   "Table: Backup, Where, Status, Backed up, To do, Last backup, Last verified": {
+    "does": "Your backups: name, where it is (with the drive's label), status, how many files are backed up, what is still to do, and when it was last backed up and last verified.",
+    "inputs": "Click a row to select it.",
+    "default": "The first backup is selected.",
+    "notes": "Status shows, for example, \"Drive not connected - backs up when it is\" or how many copies need attention."
+   },
+   "Forget this backup": {
+    "does": "Stops Lunelis using this backup, after asking. The files on the backup drive are left exactly as they are.",
+    "inputs": "Select a backup first.",
+    "default": "-",
+    "notes": "You can still copy the files back by hand - a backup is plain files and folders."
+   }
+  },
+  "dialog_new_backup": {
+   "Back up to (a USB drive, stick or network folder outside your library):": {
+    "does": "Shows the folder the backup will be written to.",
+    "inputs": "Read only; use Choose… to fill it.",
+    "default": "Empty",
+    "notes": "It must be outside your library and outside Lunelis's data folder, and must be reachable now."
+   },
+   "Choose…": {
+    "does": "Picks the backup folder on a USB drive, stick or network share. If the Name box is empty, it is filled with the drive's label or the folder's name. The line above the buttons then shows how much there is to back up and how much space the drive has.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "A removable drive is recognised by its serial number, so a different drive letter next time doesn't matter."
+   },
+   "e.g. Blue USB drive": {
+    "does": "A name for this backup, so you can tell your drives apart.",
+    "inputs": "Any text, for example Blue USB drive.",
+    "default": "Empty (filled in when you choose a folder)",
+    "notes": "If left blank, the folder's name is used."
+   },
+   "What to back up:": {
+    "does": "Tick the sources (library folders) to back up. Each line shows the number of files and their size.",
+    "inputs": "Tick boxes.",
+    "default": "Nothing ticked",
+    "notes": "At least one source must be ticked. If the drive is too small for everything, the dialog warns that it will fill up and then wait."
+   },
+   "Back up automatically whenever this drive is connected": {
+    "does": "Starts this backup by itself whenever the drive is plugged in, and shows a notification.",
+    "inputs": "Tick box.",
+    "default": "Ticked",
+    "notes": "Lunelis checks for newly connected drives every few seconds while it is running. This only works for a drive in or attached to this PC (recognised by its serial number, such as a USB drive or stick); a network folder is never 'plugged in', so back it up with Back up now."
+   },
+   "OK": {
+    "does": "Creates the backup and closes the dialog. Lunelis then asks whether to start the first backup now.",
+    "inputs": "Enter key also confirms.",
+    "default": "-",
+    "notes": "Lunelis refuses, with a message, if no source is ticked, the folder can't be reached, or it overlaps your library or its data folder."
+   },
+   "Cancel": {
+    "does": "Closes the dialog without creating a backup.",
+    "inputs": "Esc key also cancels.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "quarantine": {
+   "Restore": {
+    "does": "Puts the selected files back exactly where they came from.",
+    "inputs": "Select one or more rows (Ctrl+click or Shift+click for several).",
+    "default": "Greyed out until something is selected.",
+    "notes": "If something already sits at the original spot, that file stays in quarantine and Lunelis says why. A migrated original that comes back is a second copy of a photo that now lives in its new place, so the next scan lists it again."
+   },
+   "Show in Explorer": {
+    "does": "Opens Windows Explorer with the first selected file selected in its quarantine folder.",
+    "inputs": "Select a row first.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Show:": {
+    "does": "Narrows the list to one reason for setting files aside.",
+    "inputs": "Everything, Exact copy, Near-duplicate, Migration copy, Migrated original.",
+    "default": "Everything",
+    "notes": "Empty all… empties only what this list is showing."
+   },
+   "Table: File, Why, Set aside, Size, Kept copy": {
+    "does": "Everything in quarantine: a thumbnail, the file (where it was; hover to see where it is now), why it was set aside, when, its size, and the kept copy - the copy that made setting this one aside safe.",
+    "inputs": "Click, Ctrl+click or Shift+click to select rows.",
+    "default": "-",
+    "notes": "A check mark before the kept copy means it is there. A warning sign means it can't be found (or is a different size) - that file will NOT be emptied. The line at the top totals the files and space per drive."
+   },
+   "Empty selected…": {
+    "does": "Removes the selected files for good, after a confirmation that says exactly what will happen to them.",
+    "inputs": "Select one or more rows first.",
+    "default": "Greyed out until something is selected.",
+    "notes": "Files on this PC go to the Recycle Bin; files on network drives are deleted permanently. A file whose kept copy is missing stays in quarantine. The catalog is backed up first and each removed file is logged."
+   },
+   "Empty all…": {
+    "does": "Removes every file the list is currently showing for good, after the same confirmation.",
+    "inputs": "-",
+    "default": "Greyed out when the list is empty.",
+    "notes": "Set the Show: list first if you only want to empty one kind. A Stop button lets you halt part-way; files already handled stay handled."
+   }
+  },
+  "dialog_confirm_empty": {
+   "Empty": {
+    "does": "Empties the listed files: those on this PC go to the Recycle Bin (you can still get them back there), those on network drives are deleted permanently. Files whose kept copy can't be found stay in quarantine.",
+    "inputs": "-",
+    "default": "Available straight away when every file is on this PC. When any file is on a network drive, it stays greyed out until you tick \"I understand the network files can't be recovered\".",
+    "notes": "The catalog is backed up first, and every file removed is written to a log in the catalog (where it was, its size and fingerprint, why, and the copy that was kept). A sidecar file next to it goes the same way. A summary at the end says how many were recycled, deleted or kept, and how much space was freed."
+   },
+   "Cancel": {
+    "does": "Closes the dialog without removing anything.",
+    "inputs": "Esc key also cancels.",
+    "default": "-",
+    "notes": "-"
+   }
+  }
+ }
+}

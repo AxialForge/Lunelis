@@ -1,0 +1,138 @@
+# Importing from a memory card
+
+Insert a card, check where the photos will go, press **Import** - Lunelis
+copies everything off the card, checks every copy, and files the photos
+into your library in the folder layout you choose. **File names are never
+changed.**
+
+## Starting an import
+
+- **With the tray on** (the default when you run Lunelis normally): insert a
+  card and a notification appears - *"Memory card inserted: 312 photos and
+  videos. Click to import."* Click it.
+- **Or** open the **Import** page (sidebar, or `Ctrl+I`) and pick the card
+  under *Memory cards*, or **Import from a folder...** for photos already on a
+  drive.
+
+You can also import from any other drive or folder. The Import page lists:
+
+- **Memory cards**.
+- **Drives:** a USB drive imports everything on it. An internal or network
+  drive opens a folder picker on that drive, since importing all of `C:\`
+  is never what you want.
+- **Recent folders:** the last six folders you imported from, one click
+  away.
+
+Lunelis reads the card and shows **exactly which library folders** the
+photos will be filed into, with counts and sizes, before anything is copied.
+Type an **event name** (optional) and the import becomes an
+[event](Events.md): the name is added to the folder, and the whole card is
+filed by the event's start date, so a multi-day trip stays in one folder.
+
+## The two moments that matter
+
+1. **"Everything is copied and verified - you can remove the card."**
+   Every file has been copied into a staging folder and read back to check it
+   matches the card exactly.
+2. **"All in the library and verified. It's safe to format the card."**
+   Every file has been filed into the library and checked again against the
+   card's original fingerprint. Only then are the staging copies removed.
+
+Don't format the card before the second message.
+
+## Camera profiles
+
+Lunelis recognises the card from its layout and reads it the way that
+camera writes it:
+
+| Camera | What's read | What's left on the card |
+|---|---|---|
+| Sony | DCIM (every 100MSDCF, 101MSDCF... folder), XAVC clips in PRIVATE/M4ROOT/CLIP, AVCHD | SUB proxies, THMBNL thumbnails |
+| Canon, Nikon, Fujifilm | DCIM | Canon's CANONMSC and MISC folders |
+| GoPro | DCIM | LRV proxies and THM thumbnails |
+| Anything else | DCIM, or the whole folder | - |
+
+**Sidecars travel with their file.** A Sony clip's metadata file
+(`C0001M01.XML` beside `C0001.MP4`) and any `.XMP` beside a photo are
+copied, verified and filed into the same folder as their photo or clip -
+never on their own, never renamed, and a different file already there is
+kept. Lunelis looks once more for sidecars a camera writes a moment late
+before it says the card can be removed.
+
+**A card you insert again** isn't copied again: files that card already gave
+Lunelis are recognised and skipped.
+
+**More cameras** are a config file, not a program change: a
+`camera_profiles.json` in the data folder adds or replaces profiles (the
+format is in the developer docs, `docs/Schemas.md`).
+
+## Clearing the card
+
+When everything on the card is verified in your library, the Import page
+offers **Clear the card...**. It deletes only the files Lunelis imported and
+verified (and leaves any that changed on the card since), asks first, and is
+never offered for a folder you imported from - only for a memory card.
+Formatting the card in your camera does the same and more.
+
+## Where the photos go
+
+**Destination** is the library folder imports go into, for example
+`\\nas\photos`. There is no default: the first import asks for it, and
+**Change...** picks another.
+
+**Folders** is the storage template. The default matches your existing
+layout:
+
+| Template | A photo taken 19 June 2026 goes to |
+|---|---|
+| `{YYYY}\{M}-{D}-{YYYY}[ {import_name}]` (default) | `2026\6-19-2026\` - or `2026\6-19-2026 Air Show\` with an event name |
+| Year | `2026\` |
+| Year \ Month | `2026\06\` |
+| Year \ Month \ Day | `2026\06\19\` |
+| Year \ Date | `2026\2026-06-19\` |
+| Import date \ name | `Imports\2026-09-27 Air Show\` |
+| Camera \ Year | `ILCE-7RM5\2026\` |
+| Year \ Event (else the date) | `2026\Air Show\` - or `2026\2026-06-19\` with no event |
+
+Without an event name, a card spanning several days is split by each
+photo's own capture date, and photos with no date go to `Undated\`. With an
+event name, everything goes under the event's start date.
+
+You can type your own template. Tokens: `{YYYY}` `{YY}` `{M}` `{MM}` `{D}`
+`{DD}` `{month_name}` `{date}` `{camera}` `{event}` `{import_name}`
+`{import_date}` `{original_folder}`. Anything in `[square brackets]` is only
+included when every token inside has a value, and `{event|date}` uses the
+first of the two that has a value.
+
+## Names are never changed
+
+- If an **identical** file is already in the target folder, or anywhere in
+  your library, it's skipped - re-inserting a card never creates duplicates.
+- If a **different** file already has the same name (camera counters roll
+  over, especially at high burst rates), the new one goes into a sibling
+  folder - `6-19-2026 (2)\` - instead of being renamed or overwriting anything.
+
+## Staging
+
+Copying off the card first into a **local staging folder** frees the card
+quickly. When the local disk would drop below **50 GB free**, staging
+spills over to a network staging folder, if you set one in **Settings >
+Import** (for example `\\nas\staging\Lunelis`; it must be outside your photo
+sources, so half-finished imports are never cataloged). If neither has room,
+or no network folder is set, the import pauses and says so.
+
+## If something is interrupted
+
+Every file's progress is recorded, so an import survives closing Lunelis, a
+crash or a power cut:
+
+- Filing into the library (after the card was copied) carries on by itself
+  when Lunelis starts.
+- Copying off the card carries on when **that same card** is inserted again.
+- If the NAS is asleep, the import waits for it.
+
+## Starting with Windows
+
+Right-click the tray icon > **Start with Windows** to have Lunelis start
+hidden in the tray when you sign in, ready for cards. Closing the window
+keeps it in the tray; use **Quit Lunelis** from the tray menu to exit.

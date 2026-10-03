@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lunelis"
+version = "0.16.1"
+description = "Local, Windows-first photo library: RAW + standard formats, EXIF, ratings, albums, non-destructive editing."
+requires-python = ">=3.13"
+license = "MIT"
+# Exact pins live in requirements.txt; these are the floors.
+dependencies = [
+    "PySide6>=6.8",
+    "rawpy>=0.23",
+    "Pillow>=11",
+    "pillow-heif>=0.18",
+    "exifread>=3.5",
+    "av>=14",
+    "piexif>=1.1",
+    "numpy>=2.0",
+    "onnxruntime>=1.20",
+    "lensfunpy>=1.15",
+    "opencv-python-headless>=4.10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyinstaller>=6.11", "lupa>=2.0"]
+
+[project.gui-scripts]
+lunelis = "lunelis.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lunelis = ["darktable/*.lua", "importing/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

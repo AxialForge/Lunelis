@@ -1,0 +1,150 @@
+"""
+Library settings, stored in the catalog's `settings` table as JSON values.
+
+Every setting has a default here, so an unset key means "default" and adding
+a setting never needs a migration. Settings belong to the library (they
+travel with the catalog and its backups); where the data folder itself lives
+is the one exception - see paths.py.
+"""
+from __future__ import annotations
+
+import json
+import sqlite3
+from typing import Any
+
+SIDECAR_MODES = ("central", "beside", "catalog")
+
+DEFAULTS: dict[str, Any] = {
+    # Where Lunelis writes ratings/labels: its own central store (photo
+    # folders stay clean), next to the photos (visible to darktable/Lightroom),
+    # or nowhere but the catalog.
+    "sidecar_mode": "central",
+    # Also keep sidecars that ALREADY exist next to photos (darktable's,
+    # Lightroom's) in step - without ever creating new ones there.
+    "update_existing_sidecars": True,
+    # Central store location; None = <data dir>/sidecars.
+    "sidecar_store_dir": None,
+    # Catalog snapshots: where, and how many to keep.
+    "catalog_backup_dir": None,          # None = <data dir>/backups
+    "catalog_backups_keep": 10,
+    "catalog_backup_every_hours": 24,
+    # Duplicates: keep the copy in the first of these roots (ids) that has one.
+    "preferred_roots": [],
+    # Card import. Files are never renamed; the template only picks folders.
+    "import_destination": None,          # None = ask at the first import (no machine-specific default)
+    "import_template": r"{YYYY}\{M}-{D}-{YYYY}[ {import_name}]",
+    "import_staging_local": None,        # None = <data dir>/staging
+    "import_staging_network": None,      # None = no spill-over: pause when the local disk is full
+    "import_local_reserve_gb": 50,
+    "import_recent": [],                 # folders imported from, newest first (Import page)       # never let staging take C: below this much free
+    # Tray: keep running in the notification area and watch for memory cards.
+    "tray_enabled": True,
+    "start_with_windows": False,
+    # Defaults offered when starting a background job (each job keeps its own).
+    "job_default_when": "now",           # now | idle | window
+    "job_idle_minutes": 5,
+    "job_window_start_hour": 22,
+    "job_window_end_hour": 6,
+    "job_mb_per_s": 0,                   # 0 = no speed limit
+    # Event suggestions from gaps in capture time.
+    "event_gap_hours": 18,               # a longer gap between shots starts a new event
+    "event_min_photos": 30,              # fewer photos than this isn't suggested
+    # Editing: a filter every newly imported photo starts with (None = none).
+    "import_filter": None,
+    "export_last": None,
+    "merge_last_dir": None,
+    "tags_recent": [],                   # the last tags used, offered first when tagging              # where the last HDR/panorama was saved (the save dialog starts there)                 # the Export dialog's last settings (edit/export.ExportOptions)
+    # Burst stacks: frames shot in quick succession show as one tile.
+    "stack_bursts": True,
+    "burst_gap_seconds": 1.0,            # frames at most this far apart (sub-second times) are one burst
+    "burst_min_frames": 3,               # fewer shots than this isn't a burst
+    # Appearance.
+    "theme": "system",                   # system | graphite | midnight | high_contrast
+    "sidebar_collapsed": [],             # sidebar sections folded away
+    "sidebar_compact": False,            # True = the sidebar shows icons only (Ctrl+B)
+    "sidebar_auto": True,                # fold to icons by itself on narrow windows
+    "grid_default_sort": "date_desc",
+    "window_geometry": None,             # the window's size, place and monitor (Qt saveGeometry, hex)
+    "grid_default_size": 180,            # tile edge in px (the Grid size slider starts here)
+    "show_videos": True,                 # videos in the library grid
+    "hover_info": True,
+    "start_page": "Library",             # Library | Albums | last (the page open when Lunelis closed)
+    "last_page": "Library",
+    "wheel_action": "zoom",              # the photo view's mouse wheel: zoom | step (next/previous photo)
+    "date_format": "long",               # long | iso | day_first | short (photoinfo.DATE_FORMATS)
+    "confirm_quit": True,                # ask before quitting while an export, merge or job runs
+    "edit_live_quality": "fast",         # fast (half size while dragging) | sharp
+    "detail_strip_height": 88,
+    "edit_sections_closed": ["Masks", "Lens corrections", "Effects"],   # folded Edit panel sections           # the photo view's filmstrip (drag its divider)                  # the info card over a photo the mouse rests on
+    # Updates (packaged builds): check the public releases once a day at start-up.
+    "update_check": True,
+    "update_last_check": None,           # ISO time of the last check
+    "update_skip_version": None,         # "not this one" - stays quiet until a newer one
+    # darktable plugin: ratings swapped through files in this folder (None = <data dir>/darktable).
+    "darktable_sync": False,             # turned on by installing the plugin
+    "darktable_exchange_dir": None,
+}
+
+JOB_WHEN = ("now", "idle", "window")
+
+
+def validate(key: str, value: Any) -> None:
+    """Refuse values that would break something later, with a message a
+    person can act on (the Settings screen shows it next to the field)."""
+    if key == "sidecar_mode" and value not in SIDECAR_MODES:
+        raise ValueError(f"sidecar_mode must be one of {SIDECAR_MODES}")
+    if key in ("sidebar_compact", "sidebar_auto") and not isinstance(value, bool):
+        raise ValueError("sidebar_compact must be true or false")
+    if key == "theme" and value not in ("system", "graphite", "midnight", "high_contrast"):
+        raise ValueError("theme must be system, graphite, midnight or high_contrast")
+    if key == "job_default_when" and value not in JOB_WHEN:
+        raise ValueError(f"job_default_when must be one of {JOB_WHEN}")
+    if key == "import_template":
+        from lunelis.importing.templates import validate as check_template
+        check_template(value)
+    ranges = {
+        "import_local_reserve_gb": (0, 100_000), "catalog_backups_keep": (1, 1000),
+        "catalog_backup_every_hours": (1, 24 * 365), "job_idle_minutes": (1, 24 * 60),
+        "job_window_start_hour": (0, 23), "job_window_end_hour": (0, 23), "job_mb_per_s": (0, 100_000),
+        "event_gap_hours": (1, 24 * 14), "event_min_photos": (2, 100_000),
+        "burst_gap_seconds": (0.1, 5), "burst_min_frames": (2, 50),
+    }
+    if key in ranges:
+        lo, hi = ranges[key]
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not lo <= value <= hi:
+            raise ValueError(f"{key} must be a number from {lo} to {hi}")
+    if key in ("import_destination",) and not (value or "").strip():
+        raise ValueError("the import destination can't be empty")
+    if key == "import_filter" and value is not None and not (isinstance(value, str) and value.strip()):
+        raise ValueError("import_filter must be a filter name or None")
+    if key == "preferred_roots" and not (isinstance(value, list) and all(isinstance(v, int) for v in value)):
+        raise ValueError("preferred_roots must be a list of source ids")
+
+
+class Settings:
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self.conn = conn
+
+    def get(self, key: str) -> Any:
+        if key not in DEFAULTS:
+            raise KeyError(f"unknown setting {key!r}")
+        row = self.conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return json.loads(row[0]) if row else DEFAULTS[key]
+
+    def set(self, key: str, value: Any) -> None:
+        if key not in DEFAULTS:
+            raise KeyError(f"unknown setting {key!r}")
+        validate(key, value)
+        self.conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, json.dumps(value)))
+        self.conn.commit()
+
+    def reset(self, key: str) -> None:
+        self.conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+        self.conn.commit()
+
+    def all(self) -> dict[str, Any]:
+        stored = {k: json.loads(v) for k, v in self.conn.execute("SELECT key, value FROM settings")}
+        return {k: stored.get(k, d) for k, d in DEFAULTS.items()}

@@ -1,0 +1,44 @@
+name: Bug report
+description: Something behaves differently than it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag, or the commit SHA if you built it yourself.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS and version, plus anything relevant (hardware, runtime version).
+      placeholder: Windows 11 26200
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error output
+      description: Pasted here directly — it gets formatted as code automatically.
+      render: shell

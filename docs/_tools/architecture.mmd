@@ -1,0 +1,48 @@
+flowchart LR
+    user([You]) --> ui
+
+    subgraph app["Lunelis.exe - one Python 3.13 process"]
+        direction TB
+        ui["<b>User interface</b> (PySide6 / Qt 6)<br/>main window, pages, photo view, Edit panel, dialogs, tray icon"]
+        subgraph workers["Background work (Qt worker threads)"]
+            direction LR
+            scan["<b>Library worker</b><br/>scan, sidecars, metadata,<br/>Takeout dates, thumbnails, damage"]
+            jobs["<b>Jobs engine</b><br/>duplicates, hashing, integrity<br/>pause / idle / night / speed limit"]
+            ingest["<b>Import, migrate,<br/>photo backups</b>"]
+            render["<b>Edit renderer</b><br/>previews, exports, merges"]
+        end
+        subgraph core["Core packages (no user interface)"]
+            direction LR
+            catalog["<b>catalog</b><br/>SQLite schema v25,<br/>migrations, backups"]
+            media["<b>importers, raw, albums, events,<br/>tags, search, stacks</b><br/>EXIF, RAW, HEIC, video; organising"]
+            dupes["<b>dupes, damage</b><br/>exact / near copies,<br/>quarantine"]
+            edit["<b>edit</b><br/>pipeline, masks, AI, lens,<br/>noise reduction, merge, export"]
+            xmp["<b>xmp, updater</b><br/>sidecars; checked updates"]
+        end
+        ui --> workers --> core
+    end
+
+    subgraph data["Data folder - %LOCALAPPDATA%\Lunelis by default"]
+        direction LR
+        db[("catalog.db")]
+        caches["cache: thumbnails,<br/>edits, masks"]
+        sidecars["sidecars (XMP)"]
+        other["backups, logs,<br/>models, staging"]
+    end
+
+    subgraph photos["Your photo folders - local drives, USB, NAS"]
+        direction LR
+        originals["Originals<br/>never changed or renamed"]
+        quarantine["_Lunelis Quarantine<br/>set-aside files"]
+    end
+
+    subgraph net["Internet - optional"]
+        direction LR
+        releases["GitHub releases<br/>updates, SHA-256 checked"]
+        models["AI mask models<br/>pinned SHA-256"]
+    end
+
+    core --> data
+    core -- "read; copy in; move aside" --> photos
+    core -. "only when asked" .-> net
+    dt["darktable<br/>(Lua plugin)"] <-.-> sidecars

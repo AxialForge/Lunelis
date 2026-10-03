@@ -1,0 +1,18 @@
+# Normalize to LF in the repository regardless of the Windows working copy.
+# Without this, a shell script or workflow authored here can reach a Linux CI
+# runner with CRLF endings and fail with an unreadable `\r: command not found`.
+* text=auto eol=lf
+
+# Windows-native scripts must keep CRLF to run correctly.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# Never touch these.
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.exe  binary
+*.bin  binary
+*.pdf  binary
+*.traineddata binary

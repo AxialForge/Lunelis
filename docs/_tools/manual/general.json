@@ -1,0 +1,351 @@
+{
+ "about": [
+  "This manual covers Lunelis 0.12.0 for Windows 10 and Windows 11. It describes every window, page, tab, dialog and menu of the program, and every control on them.",
+  "Each section shows a screenshot with numbered callouts. The table under the screenshot has one row per callout number, so you can find any button by its number. Screenshots were taken automatically from the real program at 100 % scale, on a made-up demo library: the photos, names, places and folders in them are invented.",
+  "Where this manual says \"UNVERIFIED\", the behaviour could not be confirmed from the program's source code when the manual was made. Treat those notes with care."
+ ],
+ "principles": [
+  [
+   "Your photos are never changed",
+   "Lunelis never edits, renames or rewrites an original file. Edits are stored as instructions and only applied when you export a copy."
+  ],
+  [
+   "Nothing is deleted behind your back",
+   "When Lunelis sets a file aside (an extra duplicate copy, an original after a migration) it moves it into a \"_Lunelis Quarantine\" folder on the same drive. Only you can empty quarantine, from the Quarantine page."
+  ],
+  [
+   "Your library is yours",
+   "Everything runs on your own PC. There are no accounts, no cloud and no paid services. The only things Lunelis downloads are its own updates and, if you ask for them, the two optional AI mask models."
+  ],
+  [
+   "The catalog is backed up",
+   "The catalog (ratings, labels, tags, albums, edits) is backed up automatically every 24 hours, and ratings, labels and tags are also written to standard XMP sidecar files that other programs can read."
+  ]
+ ],
+ "requirements": [
+  [
+   "Operating system",
+   "Windows 10 or Windows 11, 64-bit."
+  ],
+  [
+   "Disk space",
+   "About 420 MB for the program once unzipped. The catalog and thumbnails need roughly 25 KB per photo: a 160,000-photo library uses about 3.7 GB. The optional AI models need 220 MB."
+  ],
+  [
+   "Memory",
+   "8 GB is enough for browsing; 16 GB or more is recommended for editing and merging large RAW files. UNVERIFIED: no formal minimum has been measured."
+  ],
+  [
+   "Photo folders",
+   "Any local drive, USB drive, mapped drive or network path (for example a NAS share)."
+  ],
+  [
+   "Internet",
+   "Only for updates and the optional AI model download. Everything else works offline."
+  ]
+ ],
+ "install_steps": [
+  "Open the public releases page, github.com/AxialForge/Lunelis/releases, and download Lunelis-v0.12.0-windows.zip from the newest release (about 168 MB). The file Lunelis-v0.12.0-windows.zip.sha256 next to it holds its checksum.",
+  "Unzip it into a folder of your own, for example %LOCALAPPDATA%\\Programs or your Documents folder. Avoid C:\\Program Files: the built-in updater cannot replace files there without administrator rights.",
+  "Run Lunelis\\Lunelis.exe.",
+  "The first time, Windows SmartScreen may say \"Windows protected your PC\". Lunelis is not code-signed, so Windows does not know the publisher. Click More info, then Run anyway. You only need to do this once per version."
+ ],
+ "install_notes": [
+  "To check the download, open PowerShell in the download folder and run: Get-FileHash Lunelis-v0.12.0-windows.zip. The result must match the text in the .sha256 file.",
+  "Updating: Lunelis updates itself from Settings > Updates (see the Settings chapter). The library is not kept in the program folder, so updating or reinstalling never touches it.",
+  "Uninstalling: close Lunelis (also from the tray icon) and delete the program folder. To remove your catalog too, delete the data folder (by default %LOCALAPPDATA%\\Lunelis). Your photos are never inside either folder.",
+  "Running from the source code instead is described in the Developer Guide."
+ ],
+ "first_run": [
+  "Lunelis opens on an empty library. Choose Library > Add folder... (Ctrl+O) and pick a folder of photos: a local drive, a mapped drive or a network path all work.",
+  "Lunelis then works through the folder in the background, in this order: it lists every photo and video; reads ratings and labels from existing XMP sidecars (darktable, Lightroom, culling tools); reads camera, lens, exposure, date and GPS details; reads Google Takeout dates if the folder is a Takeout export; makes a 512-pixel thumbnail for each file from the preview the camera already embedded; and checks for empty, zero-filled or corrupt files.",
+  "The status bar at the bottom shows progress. You can browse while it runs; thumbnails fill in as they are made. Add more folders the same way, and press F5 to rescan everything later."
+ ],
+ "data_folder": {
+  "text": "Lunelis never writes its own files into your photo folders. Everything it needs lives in one data folder, %LOCALAPPDATA%\\Lunelis by default (Settings > Advanced > Data folder can move it):",
+  "rows": [
+   [
+    "catalog.db",
+    "The catalog: every file, its ratings, labels, tags, albums, events, edits and jobs."
+   ],
+   [
+    "cache\\thumbnails",
+    "Thumbnails. Safe to delete: they are made again."
+   ],
+   [
+    "cache\\edits, cache\\masks",
+    "Rendered previews of edited photos and the AI subject and sky masks. Safe to delete: made again when needed."
+   ],
+   [
+    "backups",
+    "Automatic catalog backups (every 24 hours, newest 10 kept)."
+   ],
+   [
+    "sidecars",
+    "Ratings, labels and tags as XMP files, when the central sidecar folder is used (the default)."
+   ],
+   [
+    "logs\\lunelis.log",
+    "What Lunelis did, and every error. Used by Help > Report a problem."
+   ],
+   [
+    "models",
+    "The optional AI mask models, once downloaded."
+   ],
+   [
+    "staging",
+    "Card imports in progress: files are copied here first, checked, then filed into the library."
+   ]
+  ]
+ },
+ "extra_shortcuts": [
+  [
+   "Library",
+   "Enter",
+   "Open the selected photo"
+  ],
+  [
+   "Library",
+   "Ctrl+A / Esc",
+   "Select all / select none"
+  ],
+  [
+   "Library",
+   "Ctrl+click, Shift+click",
+   "Add one photo to the selection / select a range"
+  ],
+  [
+   "Library",
+   "Arrow keys, Page Up, Page Down, Home, End",
+   "Move through the grid (with Shift: extend the selection)"
+  ],
+  [
+   "Photo view",
+   "Left / Right (also Up / Down, Space)",
+   "Previous / next photo"
+  ],
+  [
+   "Photo view",
+   "Tilt the mouse wheel left / right",
+   "Previous / next photo (on mice with a tilting wheel); hold it to keep going, about three photos a second"
+  ],
+  [
+   "Photo view",
+   "Home / End",
+   "First / last photo"
+  ],
+  [
+   "Photo view",
+   "Z, or double-click",
+   "Switch between fit-to-window and 100 % zoom"
+  ],
+  [
+   "Photo view",
+   "Mouse wheel",
+   "Zoom around the pointer (or change photo, if Settings > General says so; then Ctrl+wheel zooms)"
+  ],
+  [
+   "Photo view",
+   "Esc or Backspace",
+   "Back to the library"
+  ],
+  [
+   "Photo view",
+   "E",
+   "Open or close the Edit panel"
+  ],
+  [
+   "Edit panel",
+   "\\ (backslash)",
+   "Show the original while the key is toggled on"
+  ],
+  [
+   "Edit panel",
+   "Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y",
+   "Undo / redo edits on this photo"
+  ],
+  [
+   "Edit panel",
+   "R",
+   "Start or finish cropping"
+  ],
+  [
+   "Edit panel",
+   "Enter or Esc while cropping",
+   "Finish cropping"
+  ],
+  [
+   "Edit panel",
+   "O",
+   "Show or hide the selected mask's red overlay"
+  ],
+  [
+   "Edit panel",
+   "Esc",
+   "Deselect the mask; with no mask selected, close the Edit panel"
+  ],
+  [
+   "Edit panel",
+   "Alt while painting a brush mask",
+   "Erase instead of paint"
+  ],
+  [
+   "Edit panel",
+   "Double-click a slider or its name",
+   "Put that slider back to 0"
+  ],
+  [
+   "Edit panel",
+   "Middle mouse button drag",
+   "Pan the picture, even while cropping or painting"
+  ]
+ ],
+ "troubleshooting": [
+  [
+   "Lunelis says an unexpected error happened.",
+   "It keeps running. Choose Help > Report a problem..., press Copy and send the text with a description of what you were doing. The text holds versions, folder names and the recent log, but no photos."
+  ],
+  [
+   "A tile says \"Preview pending\".",
+   "Its thumbnail has not been made yet. It fills in while a scan runs; otherwise press F5."
+  ],
+  [
+   "A tile says \"Preview unavailable\".",
+   "The file could not be read as an image. Check the Damaged files page: it may be empty, zero-filled or corrupt, and the page shows any intact copy."
+  ],
+  [
+   "Photos sort in the wrong place.",
+   "They have no capture date, so they sort by the file's date. In a Google Takeout export Lunelis uses Google's JSON dates instead; undated Takeout files sort last."
+  ],
+  [
+   "A network folder shows as unavailable.",
+   "The NAS may be asleep or the share disconnected. Open it once in Explorer and press F5. Lunelis never marks photos missing just because a share was offline."
+  ],
+  [
+   "A job says \"Waiting for ... to come back online\".",
+   "Its network folder dropped out. The job retries every minute and carries on by itself; nothing is lost."
+  ],
+  [
+   "I moved or renamed photos in Explorer.",
+   "The next rescan recognises moved and renamed files and keeps their ratings, labels, tags and edits."
+  ],
+  [
+   "darktable does not show the ratings I set.",
+   "In the default central sidecar mode Lunelis only updates sidecars darktable already has. Choose Settings > Ratings & sidecars > Next to each photo, or install the darktable link on the darktable tab."
+  ],
+  [
+   "Where did a quarantined file go?",
+   "Into a \"_Lunelis Quarantine\" folder at the top of the same drive or source, keeping its folder structure. The Quarantine page lists it and can put it back with Restore."
+  ],
+  [
+   "I emptied quarantine by mistake.",
+   "Files from local drives went to the Windows Recycle Bin and can be restored from there. Files on network shares cannot be recovered (Lunelis asks for an extra tick before deleting those)."
+  ],
+  [
+   "The catalog seems wrong after a mistake.",
+   "Settings > Backups > Restore a backup... puts an automatic catalog backup back. The catalog it replaces is kept beside it as catalog.db.before-restore-..."
+  ],
+  [
+   "The Subject or Sky mask button asks to download something.",
+   "Those masks use local AI models (44 MB and 176 MB). They are downloaded once, only after you agree, and checked against a fixed checksum. Settings > Edit can remove them again."
+  ],
+  [
+   "Canon CR3 files have no camera details.",
+   "A CR3 metadata reader is not built yet. The files are catalogued and will be read once it is."
+  ],
+  [
+   "The window keeps running after I close it.",
+   "Settings > General > Keep Lunelis in the tray is on: Lunelis keeps watching for memory cards. Right-click the tray icon and choose Quit Lunelis, or untick the setting."
+  ]
+ ],
+ "glossary": [
+  [
+   "Album",
+   "A hand-picked collection of photos. A photo can be in any number of albums; removing it from an album never removes the file."
+  ],
+  [
+   "Burst stack",
+   "Shots taken in quick succession (by default 3 or more, at most 1 second apart), shown as one tile with a frame count. Press S to open or close a stack."
+  ],
+  [
+   "Catalog",
+   "Lunelis's database (catalog.db) of every file and everything you have set on it."
+  ],
+  [
+   "Data folder",
+   "Where Lunelis keeps the catalog, thumbnails, backups, sidecars and logs. Never inside a photo folder."
+  ],
+  [
+   "Duplicate (exact copy)",
+   "Two files with exactly the same content, confirmed by a byte-for-byte checksum."
+  ],
+  [
+   "Edit stack",
+   "The list of edit instructions stored for a photo. The original file is never changed."
+  ],
+  [
+   "Event",
+   "A named stretch of time (a trip, a wedding) that groups photos; suggested from folder names and gaps in shooting time."
+  ],
+  [
+   "EXIF",
+   "The camera's own record inside a photo: date, camera, lens, exposure, GPS."
+  ],
+  [
+   "Filter (look)",
+   "A ready-made set of edit values such as Vivid or B&W Classic, applied with an adjustable amount."
+  ],
+  [
+   "Flag",
+   "Pick or Reject, for culling."
+  ],
+  [
+   "HDR merge",
+   "Combining a bracket of differently exposed shots into one photo with more detail in shadows and highlights."
+  ],
+  [
+   "Job",
+   "A long background task (finding duplicates, hashing, integrity checks) that can be paused, limited in speed or kept to idle or night hours."
+  ],
+  [
+   "Label",
+   "A colour (red, yellow, green, blue, purple) you give a photo for your own sorting."
+  ],
+  [
+   "Mask",
+   "An area of a photo where an adjustment applies: a gradient, a radial shape, a brushed area, or the subject or sky found by an AI model."
+  ],
+  [
+   "Near-duplicate",
+   "A photo that looks almost the same as another (a resized or re-saved copy), found by comparing image fingerprints."
+  ],
+  [
+   "Quarantine",
+   "The \"_Lunelis Quarantine\" folder where set-aside files wait until you restore or empty them."
+  ],
+  [
+   "RAW",
+   "A camera's unprocessed sensor file (ARW, NEF, CR2, DNG...)."
+  ],
+  [
+   "Sidecar (XMP)",
+   "A small text file next to (or for) a photo that holds its rating, label and tags in a standard format other programs can read."
+  ],
+  [
+   "Source",
+   "A folder you have added to the library. Lunelis scans every source."
+  ],
+  [
+   "Staging folder",
+   "Where a memory card is copied before its files are checked and filed into the library."
+  ],
+  [
+   "Tag",
+   "A keyword on a photo. Tags can be nested with \">\", for example Places > Ohio."
+  ]
+ ],
+ "gaps_found": [
+  "The wiki's Troubleshooting page still says to delete the quarantine folder in Explorer; since 0.11.0 the Quarantine page empties it (to the Recycle Bin for local drives). The manual follows the program, not that page.",
+  "The wiki's Getting started page points to the Releases page of the public AxialForge/Lunelis repository, which is also where the updater looks."
+ ]
+}

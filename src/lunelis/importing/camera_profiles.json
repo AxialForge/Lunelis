@@ -1,0 +1,63 @@
+{
+  "_about": "Card layouts by camera brand. Lunelis picks the first profile whose markers exist on the card, else 'generic'. media_dirs are read recursively; skip_dirs never; sidecars are copied, verified and filed with the file they belong to. Add your own in <data folder>/camera_profiles.json (same shape; same id replaces a built-in).",
+  "profiles": [
+    {
+      "id": "sony",
+      "name": "Sony",
+      "makes": ["SONY"],
+      "markers": ["PRIVATE/M4ROOT", "PRIVATE/SONY", "DCIM/*MSDCF"],
+      "media_dirs": ["DCIM", "PRIVATE/M4ROOT/CLIP", "PRIVATE/AVCHD"],
+      "skip_dirs": ["PRIVATE/M4ROOT/SUB", "PRIVATE/M4ROOT/THMBNL", "PRIVATE/M4ROOT/GENERAL", "PRIVATE/M4ROOT/TAKE"],
+      "sidecars": [
+        {"for": ["mp4", "mxf"], "names": ["{stem}M01.XML", "{stem}M01.xml", "{stem}.XML", "{stem}.xml", "{stem}.XMP", "{stem}.xmp"]}
+      ],
+      "note": "XAVC clips under PRIVATE/M4ROOT/CLIP with their XML metadata sidecars; SUB proxies and THMBNL thumbnails are skipped."
+    },
+    {
+      "id": "canon",
+      "name": "Canon",
+      "makes": ["Canon"],
+      "markers": ["DCIM/CANONMSC", "DCIM/*CANON", "DCIM/*EOS*"],
+      "media_dirs": ["DCIM"],
+      "skip_dirs": ["DCIM/CANONMSC", "MISC"],
+      "sidecars": [{"for": ["mp4", "mov", "cr3", "cr2", "jpg"], "names": ["{stem}.XMP", "{stem}.xmp"]}]
+    },
+    {
+      "id": "nikon",
+      "name": "Nikon",
+      "makes": ["NIKON CORPORATION", "NIKON"],
+      "markers": ["DCIM/*NIKON*", "NIKON001.DSC"],
+      "media_dirs": ["DCIM"],
+      "skip_dirs": [],
+      "sidecars": [{"for": ["nef", "jpg", "mov", "mp4"], "names": ["{stem}.XMP", "{stem}.xmp"]}]
+    },
+    {
+      "id": "fujifilm",
+      "name": "Fujifilm",
+      "makes": ["FUJIFILM"],
+      "markers": ["DCIM/*_FUJI"],
+      "media_dirs": ["DCIM"],
+      "skip_dirs": [],
+      "sidecars": [{"for": ["raf", "jpg", "mov", "mp4"], "names": ["{stem}.XMP", "{stem}.xmp"]}]
+    },
+    {
+      "id": "gopro",
+      "name": "GoPro",
+      "makes": ["GoPro"],
+      "markers": ["DCIM/*GOPRO"],
+      "media_dirs": ["DCIM"],
+      "skip_dirs": [],
+      "sidecars": [],
+      "note": "LRV low-resolution proxies and THM thumbnails aren't photos and are left on the card."
+    },
+    {
+      "id": "generic",
+      "name": "Camera or folder",
+      "makes": [],
+      "markers": [],
+      "media_dirs": ["DCIM"],
+      "skip_dirs": [],
+      "sidecars": [{"for": ["*"], "names": ["{stem}.XMP", "{stem}.xmp", "{name}.xmp"]}]
+    }
+  ]
+}

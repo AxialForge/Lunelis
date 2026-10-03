@@ -1,0 +1,77 @@
+# Lunelis runtime state — thumbnail/proxy cache is regenerated from source photos,
+# the catalog is per-machine.
+cache/thumbnails/*
+!cache/thumbnails/.gitkeep
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Build output
+packaging/version_info.txt
+dist/
+build/
+out/
+release/
+*.exe
+*.msi
+
+# Node
+node_modules/
+npm-debug.log*
+.npm/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Secrets and local config — never commit these
+.env
+.env.*
+!.env.example
+secrets.json
+credentials.json
+*.pem
+*.pfx
+
+# Local runtime state
+*.sqlite
+*.sqlite3
+*.db
+settings.json
+config.local.*
+logs/
+*.log
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Release documentation: the reconstruction archive is hundreds of MB - keep it out of git
+docs/release-package/**/*.zip
+assets/logo/
+assets/icons/icon_set_reference.png
+
+# Release documentation packages (screenshots, docx, pdf) are built
+# locally and never committed.
+docs/release-package/
+~$*

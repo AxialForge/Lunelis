@@ -1,0 +1,92 @@
+name: Test & Release (Python)
+
+# Tests on every push; on a version tag (vX.Y.Z) also a PyInstaller build
+# (Lunelis.spec, one-folder), self-tested, zipped and attached to the release.
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e . pytest==9.1.1 lupa==2.8
+
+      - name: Run tests
+        run: pytest -q
+
+  build-win:
+    # Only on a tag, and only if the tests passed.
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install . pyinstaller==6.22.3
+
+      - name: Build Lunelis.exe (one-folder)
+        run: |
+          python packaging/make_version_info.py
+          pyinstaller --noconfirm Lunelis.spec
+
+      - name: Self-test the build
+        # The packaged exe checks its own libraries (RAW, HEIF, video), assets,
+        # catalog migrations and window against a throwaway data folder.
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\Lunelis\Lunelis.exe -ArgumentList '--self-test','selftest.txt' -Wait -PassThru
+          Get-Content selftest.txt
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - name: Zip + checksum
+        shell: pwsh
+        run: |
+          $zip = "Lunelis-${{ github.ref_name }}-windows.zip"
+          Compress-Archive -Path dist\Lunelis -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Set-Content -NoNewline -Encoding ascii "$zip.sha256"
+
+      - name: Release notes from CHANGELOG.md
+        shell: pwsh
+        run: python packaging/release_notes.py "${{ github.ref_name }}" release-notes.md
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Lunelis-windows
+          path: Lunelis-*-windows.zip*
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: Lunelis-*-windows.zip*
+          body_path: release-notes.md

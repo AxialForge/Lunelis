@@ -1,0 +1,975 @@
+{
+ "chapters": [
+  {
+   "id": "library-window",
+   "title": "The library window",
+   "screens": [
+    "main_window",
+    "search",
+    "menu_library",
+    "menu_photo",
+    "menu_photo_rating",
+    "menu_photo_label",
+    "menu_photo_flag",
+    "menu_photo_event",
+    "menu_photo_album",
+    "menu_photo_tags",
+    "menu_photo_stack",
+    "menu_photo_edit",
+    "menu_photo_merge"
+   ],
+   "purpose": "The library window is where you spend most of your time: every photo and video from all your sources in one grid. From here you search and filter, rate, label and flag photos, gather them into events and albums, and open every other page from the sidebar. Use it whenever you want to find, sort out or act on photos.",
+   "intro": [
+    "Lunelis catalogs your photos where they already are. Your original files are never changed, moved or renamed: ratings, labels, tags and edits live in the catalog and in small XMP sidecar files, and Lunelis never deletes a photo itself - the only deletion happens when you empty the quarantine.",
+    "Most commands in the Photo menu act on the selected photos. If nothing is selected they act on the highlighted photo, and in the photo view on the photo on screen. Right-clicking the grid opens the same Photo menu."
+   ],
+   "workflows": [
+    {
+     "title": "Add your first photo folder",
+     "steps": [
+      "Choose Library > Add folder... (Ctrl+O).",
+      "Pick the folder that holds your photos - a local folder, a drive or a network folder.",
+      "Watch the status bar at the bottom: it shows scanning, reading metadata and making thumbnails. Photos appear in the grid as they are found.",
+      "When the status bar says Up to date, everything is cataloged. Grey Preview pending tiles fill in by themselves."
+     ]
+    },
+    {
+     "title": "Find all 5-star photos from 2024",
+     "steps": [
+      "Click in the search box (or press Ctrl+F) and type 2024.",
+      "Open the Rating filter and choose five stars.",
+      "The grid and the count on the right of the filter bar now show only 5-star photos taken in 2024.",
+      "Click Clear all to see the whole library again."
+     ]
+    },
+    {
+     "title": "Rate and label a batch with the keyboard",
+     "steps": [
+      "Click the first photo, then Shift+click the last to select a range (or Ctrl+click to pick single photos).",
+      "Press a number from 1 to 5 to give them all that many stars (0 clears the rating).",
+      "Press 6, 7, 8 or 9 for a Red, Yellow, Green or Blue label; press the same key again to take it off.",
+      "Press P to pick, X to reject or U to clear the flag.",
+      "The status bar confirms each change and then says the ratings were saved to sidecars."
+     ]
+    },
+    {
+     "title": "Combine search words to narrow things down",
+     "steps": [
+      "Type camera:a7rv in the search box to see only one camera.",
+      "Add a space and june 2024 to keep only that month.",
+      "Add -vegas to leave out photos whose names, folders or tags mention vegas.",
+      "Put two words in quotes, such as \"road trip\", to match them only together."
+     ]
+    },
+    {
+     "title": "Make an event and an album from a selection",
+     "steps": [
+      "Select the photos of a trip in the grid.",
+      "Choose Photo > Event > New event from selection... (Ctrl+E), type a name and press OK.",
+      "With some of those photos still selected, choose Photo > Album > Add to album... (Ctrl+Shift+A) and pick an album, or New album... to make one.",
+      "Open the Albums page to see the event and the album as tiles."
+     ]
+    },
+    {
+     "title": "Copy one photo's look onto others",
+     "steps": [
+      "Select an edited photo and choose Photo > Edit > Copy edit settings (Ctrl+Shift+C).",
+      "Select the photos that should get the same look.",
+      "Choose Photo > Edit > Paste edit settings (Ctrl+Shift+V). Each photo keeps its own crop and rotation.",
+      "Thumbnails update in the background; the status bar shows Rendering edits... while it works."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "The grid says No photos match followed by your search words, or No photos match these filters.",
+     "what_happens": "Nothing in the library matches every word and filter at once. Remove a word or click a chip's cross, or press Clear all. Remember that every word must match, and a word starting with - leaves photos out."
+    },
+    {
+     "situation": "The grid is empty and says No folders yet.",
+     "what_happens": "No sources have been added. Choose Library > Add folder... (Ctrl+O)."
+    },
+    {
+     "situation": "A network folder (NAS) is asleep or disconnected when you scan.",
+     "what_happens": "Lunelis shows a Folder unavailable message and leaves that source alone - it never marks photos missing because a share was offline. Open the folder once in Explorer to wake it, then press F5."
+    },
+    {
+     "situation": "You pressed Stop (Ctrl+.) during a scan.",
+     "what_happens": "The status bar says Stopping... and the scan ends after its current step. What was already cataloged stays. Press F5 later to finish the rest."
+    },
+    {
+     "situation": "Ratings could not be written to sidecars (the status bar says Couldn't write ... sidecar(s)).",
+     "what_happens": "The ratings are safe in the catalog. The folder is probably offline or read-only; Lunelis tries again a minute later, and again when you quit."
+    },
+    {
+     "situation": "A tile says Preview unavailable.",
+     "what_happens": "The file could not be read as an image. Look on the Damaged files page; it may be empty, zero-filled or corrupt."
+    },
+    {
+     "situation": "You moved or renamed photos in Explorer.",
+     "what_happens": "The next rescan (F5) recognises them at their new place and keeps their ratings, labels and thumbnails. Files that really disappeared are flagged missing, never removed from the catalog."
+    },
+    {
+     "situation": "You try to quit while an export, merge, import or job is running.",
+     "what_happens": "Lunelis asks first (unless that is turned off in Settings). If you quit anyway it stops safely, writes any unsaved ratings to sidecars, and background jobs pick up where they left off next time. If the tray icon is on, closing the window only hides Lunelis; right-click the tray icon to quit."
+    }
+   ]
+  },
+  {
+   "id": "background-jobs",
+   "title": "Background jobs",
+   "screens": [
+    "dialog_find_duplicates",
+    "dialog_jobs"
+   ],
+   "purpose": "Work that can take hours on a big library - finding duplicates, verifying them, fingerprinting every file and checking integrity - runs as a background job, so you can keep using Lunelis. You choose where each job looks and when it may run, and the Jobs panel lets you watch, pause, resume or cancel it.",
+   "intro": [
+    "A job works one folder at a time and records each folder as it finishes, so it survives closing Lunelis, a crash or a power cut: when Lunelis starts again, the job carries on from the next unfinished folder. Jobs only read your files; none of them moves or deletes anything.",
+    "Jobs run one at a time, in the order they were started. The Jobs button at the bottom right of the window always shows how many are running, waiting or paused."
+   ],
+   "workflows": [
+    {
+     "title": "Run a duplicate scan only overnight",
+     "steps": [
+      "Choose Library > Find duplicates....",
+      "Under Where to look, tick the sources to check.",
+      "Choose Only between 22:00 and 06:00.",
+      "Optionally set a speed limit, then press OK.",
+      "The Jobs panel opens and shows the job as Waiting with Scheduled for 22:00-06:00. It starts by itself at night; check the Duplicates page in the morning."
+     ]
+    },
+    {
+     "title": "Try a duplicate scan on one folder first",
+     "steps": [
+      "Choose Library > Find duplicates....",
+      "Leave the sources unticked and press Choose folder....",
+      "Pick a folder inside one of your sources; the window then says Just this folder.",
+      "Choose Now and press OK.",
+      "When the job shows Done, open Duplicates in the sidebar to see what it found."
+     ]
+    },
+    {
+     "title": "Keep the network free while a job runs",
+     "steps": [
+      "Start the job from the Library menu.",
+      "In Speed limit (MB/s, 0 = none), type a number such as 20.",
+      "Choose Only while the PC is idle (5 min) if you would rather it ran only when you step away.",
+      "Press OK."
+     ]
+    },
+    {
+     "title": "Pause a job and pick it up later",
+     "steps": [
+      "Open the Jobs panel (Ctrl+J, or the Jobs button at the bottom right).",
+      "Click the job's row and press Pause. Its State changes to Paused.",
+      "Later, select it again and press Resume. It carries on from where it stopped, even after a restart."
+     ]
+    },
+    {
+     "title": "Build an integrity baseline and check it later",
+     "steps": [
+      "While your files are known to be good, choose Library > Hash everything (integrity baseline)..., tick your sources and choose overnight.",
+      "Some weeks later, choose Library > Check integrity against the baseline....",
+      "When it is done, open Damaged files: any file listed as Changed on disk changed although it was never edited. Restore it from a backup."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "You press OK without ticking a source or choosing a folder.",
+     "what_happens": "Lunelis says Nothing chosen - tick a source or choose a folder - and keeps the window open."
+    },
+    {
+     "situation": "Choose folder... is given a folder that isn't inside any of your sources.",
+     "what_happens": "Lunelis says Not in the library. Add the folder as a source first (Library > Add folder...), or pick a folder inside an existing source."
+    },
+    {
+     "situation": "A job shows Waiting for ... to come back online.",
+     "what_happens": "Its network folder dropped out (for example the NAS went to sleep). The job pauses itself instead of failing thousands of files, tries again every minute and carries on by itself. Nothing is lost."
+    },
+    {
+     "situation": "A job shows Waiting until the PC has been idle 5 min, or Scheduled for 22:00-06:00.",
+     "what_happens": "It is following the When to run choice. It starts by itself when the PC has been idle long enough or the hours arrive. To run it now, cancel it and start a new one with Now."
+    },
+    {
+     "situation": "Lunelis was closed, crashed or the PC lost power during a job.",
+     "what_happens": "On the next start the job is queued again with Resuming after an interruption, and carries on from the first unfinished folder. At most the folder in progress is re-read."
+    },
+    {
+     "situation": "You cancelled a job by mistake.",
+     "what_happens": "A cancelled job can't be resumed, but the work it already did is kept (Cancelled - hashes already computed are kept). Start the same job again from the Library menu."
+    },
+    {
+     "situation": "A job is paused and you close Lunelis.",
+     "what_happens": "It stays Paused after the restart until you press Resume. Jobs that were running or waiting restart by themselves."
+    }
+   ]
+  },
+  {
+   "id": "help-and-reports",
+   "title": "Help and problem reports",
+   "screens": [
+    "menu_help",
+    "dialog_report_problem",
+    "dialog_about"
+   ],
+   "purpose": "The Help menu tells you which version of Lunelis you have, opens the folders where it keeps its data and logs, and puts together a problem report you can send. Use it when something goes wrong or when you need to find Lunelis's own files.",
+   "intro": [
+    "Everything Lunelis keeps - the catalog, its backups, thumbnails, central sidecars and logs - is in its data folder (normally %LOCALAPPDATA%\\Lunelis). Your photos are never changed."
+   ],
+   "workflows": [
+    {
+     "title": "Send a problem report",
+     "steps": [
+      "Choose Help > Report a problem....",
+      "Read through the text; it contains versions, your folder paths and the recent log, but no photos.",
+      "Press Copy. The button changes to Copied.",
+      "Paste it into a GitHub issue or a message, and add what you were doing when the problem happened.",
+      "Press Close."
+     ]
+    },
+    {
+     "title": "Find out which version you have",
+     "steps": [
+      "Choose Help > About Lunelis.",
+      "Read the version number and the data folder location.",
+      "Press OK."
+     ]
+    },
+    {
+     "title": "Look at the full log",
+     "steps": [
+      "Choose Help > Open the log folder (or press Open the log folder in the Report a problem window).",
+      "Explorer opens the logs folder; open the newest log file with any text editor."
+     ]
+    },
+    {
+     "title": "Open the data folder to check backups",
+     "steps": [
+      "Choose Help > Open the data folder.",
+      "Explorer opens the data folder; the backups folder inside holds the automatic catalog backups.",
+      "Look, but don't change or delete files there while Lunelis is running."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "Lunelis shows Something went wrong with an error name.",
+     "what_happens": "An unexpected error happened and was written to the log. You can keep working. Press Report a problem... in that message to open the report straight away. Later errors in the same session are only mentioned in the status bar."
+    },
+    {
+     "situation": "The report includes your folder paths.",
+     "what_happens": "Folder paths help find the problem, but check the text before sending it and remove anything you would rather not share. Photos are never included."
+    },
+    {
+     "situation": "The last 200 lines of the log don't cover what happened.",
+     "what_happens": "Use Open the log folder and attach or copy from the full log file instead."
+    },
+    {
+     "situation": "You moved the data folder in Settings.",
+     "what_happens": "Help > Open the data folder and the About box show the new location, and the logs folder moves with it (it is always the logs folder inside the data folder)."
+    }
+   ]
+  }
+ ],
+ "screen_text": {
+  "main_window": "The library window, shown when Lunelis starts. The sidebar on the left opens each page; the toolbar and filter bar across the top search, filter, sort and size the grid of photos below. The demo library shown here holds 42 made-up landscape and city pictures.",
+  "search": "The library with the demo word summer typed in the search box. The grid shows only the matches, and Clear all appears in the filter bar while a search or filter is active.",
+  "menu_library": "The Library menu in the menu bar: adding and rescanning folders, importing, starting background jobs, and opening Jobs and Settings.",
+  "menu_photo": "The Photo menu, which acts on the selected photos. The same menu opens when you right-click the grid.",
+  "menu_help": "The Help menu: version information, the data and log folders, and a ready-made problem report.",
+  "menu_photo_rating": "Photo > Rating. Each command has a number key, so you can rate without opening the menu.",
+  "menu_photo_label": "Photo > Label. Red, Yellow, Green and Blue have the keys 6 to 9; Purple and No label are menu only.",
+  "menu_photo_event": "Photo > Event: make an event from the selection, add photos to an event, or take them out.",
+  "menu_photo_album": "Photo > Album: add the selection to an album, make a new album, or take photos out of the album you are viewing.",
+  "menu_photo_tags": "Photo > Tags: tag the selected photos, or go to the Tags page.",
+  "menu_photo_merge": "Photo > Merge: combine the selected photos into an HDR photo or a panorama.",
+  "menu_photo_edit": "Photo > Edit: copy one photo's edit settings onto others, or reset edits.",
+  "menu_photo_stack": "Photo > Stack: open, close, re-cover or break up a burst stack.",
+  "menu_photo_flag": "Photo > Flag: mark photos as Pick or Reject, or clear the flag.",
+  "dialog_jobs": "The Jobs panel, opened with Library > Jobs... (Ctrl+J) or the Jobs button at the bottom right. It lists every background job with its progress.",
+  "dialog_find_duplicates": "The window that opens from Library > Find duplicates... (and, with another title, from Hash everything and Check integrity). Choose where the job looks and when it may run.",
+  "dialog_report_problem": "Help > Report a problem... collects versions, your folders and the recent log in one place, ready to copy into a bug report.",
+  "dialog_about": "Help > About Lunelis shows the version and the data folder."
+ },
+ "controls": {
+  "main_window": {
+   "Search: names, tags, places, cameras, 2024…": {
+    "does": "Finds photos as you type. Every word you type has to match the start of a word in the file or folder name, the camera, the lens, a tag, an event or an album. The grid shows only the matches, together with any filters you have set.",
+    "inputs": "Any text. Special words: a year or month (2024, june 2024, 2024-06); a kind of file (raw, jpeg, heic, video, photo); a state (edited, unedited, picks, rejects, unrated, stacked, untagged); a minimum rating (4 stars or stars:4); one field only (tag:beach, camera:a7rv, lens:24-105, folder:vegas, file:dsc, event:expo, album:trip); -word to leave photos out; \"two words\" in quotes to match them together. Shortcut: Ctrl+F jumps to the box; Esc in the box clears it.",
+    "default": "Empty (the whole library is shown).",
+    "notes": "Results update about a quarter of a second after you stop typing. Typing in the box from another page takes you back to the Library. Suggestions (tags, cameras and so on) drop down after you press Ctrl+F. Searching never changes any file."
+   },
+   "Photos": {
+    "does": "The heading of the Photos group in the sidebar. Click it to fold the group away or open it again.",
+    "inputs": "Click.",
+    "default": "Open (all sidebar groups start unfolded).",
+    "notes": "A folded group still shows the page you are on. The folded state is remembered."
+   },
+   "Rating": {
+    "does": "Opens the rating filter. Pick a minimum number of stars to show only photos rated at least that high, or Unrated to show photos with no stars.",
+    "inputs": "Any rating; 1 star and up to 5 stars (1+ to 4+, and exactly 5); Unrated.",
+    "default": "Any rating.",
+    "notes": "The choice appears as a chip next to the filter buttons; click the chip's cross to remove just that filter."
+   },
+   "Label": {
+    "does": "Opens the colour label filter. Pick a label to show only photos with that label.",
+    "inputs": "Any label; Red; Yellow; Green; Blue; Purple.",
+    "default": "Any label.",
+    "notes": "Shows as a chip; click its cross to remove it."
+   },
+   "Flag": {
+    "does": "Opens the flag filter. Show only your Picks or only your Rejects.",
+    "inputs": "Any flag; Picks; Rejects.",
+    "default": "Any flag.",
+    "notes": "Shows as a chip; click its cross to remove it."
+   },
+   "Tag": {
+    "does": "Opens a list of every tag with a search box. Click a tag to show only photos with that tag, including photos tagged with any tag inside it (for example Places shows everything under Places).",
+    "inputs": "Type in the Find a tag box to narrow the list, then click a tag.",
+    "default": "No tag filter.",
+    "notes": "Shows as a chip such as Tag: Places > Ohio; click its cross to remove it."
+   },
+   "Library": {
+    "does": "Opens the Library page: the grid of every photo and video from all your sources.",
+    "inputs": "Click.",
+    "default": "Lunelis opens on the Library (Settings: start_page).",
+    "notes": "-"
+   },
+   "Albums": {
+    "does": "Opens the Albums page: your own albums, your events and the automatic albums (Favorites, Picks, Videos and so on). Click a tile to see its photos in the library.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Tags": {
+    "does": "Opens the Tags page: all your tags as a tree with photo counts. Double-click a tag to see its photos; right-click to rename, merge or delete a tag.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Deleting a tag only takes it off photos; the photos are untouched."
+   },
+   "Bring in & organize": {
+    "does": "The heading of the Bring in and organize group. Click it to fold or unfold the group.",
+    "inputs": "Click.",
+    "default": "Open.",
+    "notes": "-"
+   },
+   "Import": {
+    "does": "Opens the Import page, which copies photos from a memory card or folder into your library.",
+    "inputs": "Click. Also Library > Import from a card or folder... (Ctrl+I).",
+    "default": "-",
+    "notes": "-"
+   },
+   "Migrate": {
+    "does": "Opens the Migrate page, which reorganizes existing photos into your folder layout as a background job.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Duplicates": {
+    "does": "Opens the Duplicates page with its Exact copies and Near-duplicates tabs.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Exact copies only appear after a Find duplicates job has run (Library > Find duplicates...)."
+   },
+   "Damaged files": {
+    "does": "Opens the Damaged files page: files that are empty, zero-filled, cut short, unreadable or changed on disk.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Keep safe": {
+    "does": "The heading of the Keep safe group. Click it to fold or unfold the group.",
+    "inputs": "Click.",
+    "default": "Open.",
+    "notes": "-"
+   },
+   "Backups": {
+    "does": "Opens the Backups page, where you set up and run copies of your library to other drives.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Quarantine": {
+    "does": "Opens the Quarantine page: copies you set aside from the Duplicates page. Restore them, or empty them for good.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Emptying quarantine is the only place where Lunelis ever deletes files, and only when you ask."
+   },
+   "Settings": {
+    "does": "Opens the Settings page.",
+    "inputs": "Click. Also Library > Settings... (Ctrl+,).",
+    "default": "-",
+    "notes": "-"
+   },
+   "Grid size": {
+    "does": "Makes the thumbnails in the grid bigger or smaller.",
+    "inputs": "Drag the slider from 100 to 400 pixels per tile. Ctrl + mouse wheel over the grid changes it in steps.",
+    "default": "180 pixels (Settings: grid_default_size).",
+    "notes": "Tiles resize smoothly while you drag and sharpen when you let go. The size you end on is remembered for next time."
+   },
+   "Sort:": {
+    "does": "Chooses the order of the photos in the grid.",
+    "inputs": "Date (newest); Date (oldest); File name (A to Z); File size (largest first); Recently imported (newest additions first).",
+    "default": "Date (newest).",
+    "notes": "The choice is remembered. Photos without a capture date sort by their file date, except inside a Google Takeout export, where they go to the end as undated. The timeline on the right only appears for the two date sorts."
+   },
+   "Stack bursts": {
+    "does": "Shows each burst of shots (frames your camera fired in quick succession) as a single tile with a frame count. Untick it to see every frame on its own.",
+    "inputs": "Tick or untick. Press S on a stack to open or close it in the grid.",
+    "default": "Ticked.",
+    "notes": "A burst is at least 3 shots from one camera in one folder, each within 1 second of the last; both numbers can be changed in Settings > Library. Stacking only changes the grid: albums, events, duplicates and backups still see every frame."
+   },
+   "Photo grid": {
+    "does": "Shows a thumbnail of every photo and video that matches the current search and filters. Each tile shows the file type (JPG, ARW, MP4...), the stars or a video's length, Pick or Reject, the colour label and an EDITED badge on edited photos. Rejected photos are dimmed.",
+    "inputs": "Click to select; Ctrl+click adds or removes one; Shift+click or Shift+arrow keys select a range; Ctrl+A selects all, Esc selects none. Arrow keys, Page Up/Down, Home and End move. Double-click or Enter opens a photo large. Right-click opens the Photo menu. Keys 0-5 set stars, 6-9 set labels, P/X/U set flags.",
+    "default": "-",
+    "notes": "Rest the mouse on a tile for half a second to see its date, camera, lens, exposure and rating (can be turned off in Settings > Appearance). Grey tiles say Preview pending (still being made), Video, or Preview unavailable (the file could not be read; see Damaged files). The count of matching and selected photos is shown at the right end of the filter bar."
+   },
+   "Timeline scrubber": {
+    "does": "A timeline down the right edge of the grid, with years and a tick for each month. Hover to see which month is there; click or drag to jump to it.",
+    "inputs": "Click or drag. It snaps to the start of each month.",
+    "default": "Shown, because the default sort is by date.",
+    "notes": "It replaces the scroll bar only when sorting by date. Photos without a date are at the end, under Undated."
+   },
+   "Jobs": {
+    "does": "Opens the Jobs panel. The button also tells you what background jobs are doing, for example Jobs - 1 running, 2 waiting, 1 paused.",
+    "inputs": "Click. Also Library > Jobs... (Ctrl+J).",
+    "default": "Says just Jobs when nothing is running.",
+    "notes": "The text refreshes every 2 seconds."
+   }
+  },
+  "search": {
+   "Search: names, tags, places, cameras, 2024…": {
+    "does": "Shown here with the demo word summer typed in: only photos whose names, folders, tags, events, albums, camera or lens contain a word starting with summer are in the grid.",
+    "inputs": "Any text. Special words: a year or month (2024, june 2024, 2024-06); a kind of file (raw, jpeg, heic, video, photo); a state (edited, unedited, picks, rejects, unrated, stacked, untagged); a minimum rating (4 stars or stars:4); one field only (tag:beach, camera:a7rv, lens:24-105, folder:vegas, file:dsc, event:expo, album:trip); -word to leave photos out; \"two words\" in quotes to match them together. Shortcut: Ctrl+F jumps to the box; Esc in the box clears it.",
+    "default": "Empty (the whole library is shown).",
+    "notes": "Search works together with the Rating, Label, Flag and Tag filters and with an open album or event. If nothing matches, the grid says No photos match followed by your words."
+   },
+   "Rating": {
+    "does": "Opens the rating filter. Pick a minimum number of stars to show only photos rated at least that high, or Unrated to show photos with no stars.",
+    "inputs": "Any rating; 1 star and up to 5 stars (1+ to 4+, and exactly 5); Unrated.",
+    "default": "Any rating.",
+    "notes": "The choice appears as a chip next to the filter buttons; click the chip's cross to remove just that filter."
+   },
+   "Label": {
+    "does": "Opens the colour label filter. Pick a label to show only photos with that label.",
+    "inputs": "Any label; Red; Yellow; Green; Blue; Purple.",
+    "default": "Any label.",
+    "notes": "Shows as a chip; click its cross to remove it."
+   },
+   "Flag": {
+    "does": "Opens the flag filter. Show only your Picks or only your Rejects.",
+    "inputs": "Any flag; Picks; Rejects.",
+    "default": "Any flag.",
+    "notes": "Shows as a chip; click its cross to remove it."
+   },
+   "Tag": {
+    "does": "Opens a list of every tag with a search box. Click a tag to show only photos with that tag, including photos tagged with any tag inside it (for example Places shows everything under Places).",
+    "inputs": "Type in the Find a tag box to narrow the list, then click a tag.",
+    "default": "No tag filter.",
+    "notes": "Shows as a chip such as Tag: Places > Ohio; click its cross to remove it."
+   },
+   "Clear all": {
+    "does": "Removes every filter at once: the search words, rating, label, flag, tag, and any album or event you had open, so the grid shows the whole library again.",
+    "inputs": "Click.",
+    "default": "Hidden; it only appears while a search or filter is active.",
+    "notes": "To remove just one filter, click the cross on its chip instead. Esc in the search box clears only the search words."
+   },
+   "Grid size": {
+    "does": "Makes the thumbnails in the grid bigger or smaller.",
+    "inputs": "Drag the slider from 100 to 400 pixels per tile. Ctrl + mouse wheel over the grid changes it in steps.",
+    "default": "180 pixels (Settings: grid_default_size).",
+    "notes": "Tiles resize smoothly while you drag and sharpen when you let go. The size you end on is remembered for next time."
+   },
+   "Sort:": {
+    "does": "Chooses the order of the photos in the grid.",
+    "inputs": "Date (newest); Date (oldest); File name (A to Z); File size (largest first); Recently imported (newest additions first).",
+    "default": "Date (newest).",
+    "notes": "The choice is remembered. Photos without a capture date sort by their file date, except inside a Google Takeout export, where they go to the end as undated. The timeline on the right only appears for the two date sorts."
+   },
+   "Stack bursts": {
+    "does": "Shows each burst of shots (frames your camera fired in quick succession) as a single tile with a frame count. Untick it to see every frame on its own.",
+    "inputs": "Tick or untick. Press S on a stack to open or close it in the grid.",
+    "default": "Ticked.",
+    "notes": "A burst is at least 3 shots from one camera in one folder, each within 1 second of the last; both numbers can be changed in Settings > Library. Stacking only changes the grid: albums, events, duplicates and backups still see every frame."
+   },
+   "Photo grid": {
+    "does": "Shows a thumbnail of every photo and video that matches the current search and filters. Each tile shows the file type (JPG, ARW, MP4...), the stars or a video's length, Pick or Reject, the colour label and an EDITED badge on edited photos. Rejected photos are dimmed.",
+    "inputs": "Click to select; Ctrl+click adds or removes one; Shift+click or Shift+arrow keys select a range; Ctrl+A selects all, Esc selects none. Arrow keys, Page Up/Down, Home and End move. Double-click or Enter opens a photo large. Right-click opens the Photo menu. Keys 0-5 set stars, 6-9 set labels, P/X/U set flags.",
+    "default": "-",
+    "notes": "Rest the mouse on a tile for half a second to see its date, camera, lens, exposure and rating (can be turned off in Settings > Appearance). Grey tiles say Preview pending (still being made), Video, or Preview unavailable (the file could not be read; see Damaged files). The count of matching and selected photos is shown at the right end of the filter bar."
+   },
+   "Timeline scrubber": {
+    "does": "A timeline down the right edge of the grid, with years and a tick for each month. Hover to see which month is there; click or drag to jump to it.",
+    "inputs": "Click or drag. It snaps to the start of each month.",
+    "default": "Shown, because the default sort is by date.",
+    "notes": "It replaces the scroll bar only when sorting by date. Photos without a date are at the end, under Undated."
+   }
+  },
+  "menu_library": {
+   "Add folder…": {
+    "does": "Adds a folder (a source) to the library. Lunelis catalogs every photo and video inside it, then reads metadata and makes thumbnails in the background.",
+    "inputs": "Shortcut: Ctrl+O. Pick a local folder, a drive or a network folder.",
+    "default": "-",
+    "notes": "Lunelis never moves, renames or changes the photos in a source. A folder inside (or containing) a source you already have, or one that can't be reached, is refused with a message. Greyed out while a scan runs."
+   },
+   "Rescan all folders": {
+    "does": "Checks every source that is turned on for new, changed and removed files, and reads only what changed.",
+    "inputs": "Shortcut: F5.",
+    "default": "-",
+    "notes": "Files that disappeared are flagged missing, never removed from the catalog, so their ratings wait for them. Files you moved or renamed in Explorer are recognised and keep their ratings. Greyed out while a scan runs."
+   },
+   "Stop": {
+    "does": "Stops the scan that is running (scanning, reading metadata, making thumbnails and the checks after them).",
+    "inputs": "Shortcut: Ctrl+. (Ctrl and full stop).",
+    "default": "Greyed out until a scan is running.",
+    "notes": "The status bar says Stopping... until the current step ends. Run Rescan all folders (F5) later to finish. This does not stop background jobs; use the Jobs panel for those."
+   },
+   "Import from a card or folder…": {
+    "does": "Opens the Import page to copy photos from a memory card or any folder into your library.",
+    "inputs": "Shortcut: Ctrl+I.",
+    "default": "-",
+    "notes": "Files are copied, never renamed; the source card is not changed."
+   },
+   "Find duplicates…": {
+    "does": "Starts a Find duplicates job. A window asks where to look and when to run; the job then works through your folders in the background.",
+    "inputs": "Opens the Find duplicates window (no shortcut).",
+    "default": "-",
+    "notes": "Results appear on the Duplicates page folder by folder, long before the job finishes. Nothing is moved or deleted by the job."
+   },
+   "Hash everything (integrity baseline)…": {
+    "does": "Starts a Hash everything job: a full fingerprint of every file in the folders you choose, so a later integrity check can tell whether a file changed silently.",
+    "inputs": "Opens the same where-and-when window as Find duplicates (no shortcut).",
+    "default": "-",
+    "notes": "This reads every byte of every file, so it is slow on a big or network library; consider running it overnight or with a speed limit. Run it while your files are known to be good."
+   },
+   "Check integrity against the baseline…": {
+    "does": "Starts a Check integrity job: re-reads files and compares them with the baseline from Hash everything. Files whose contents changed although they were never edited are listed on the Damaged files page as Changed on disk.",
+    "inputs": "Opens the same where-and-when window (no shortcut).",
+    "default": "-",
+    "notes": "Needs a baseline first (Hash everything). Reads every byte, like the baseline."
+   },
+   "Jobs…": {
+    "does": "Opens the Jobs panel to watch, pause, resume or cancel background jobs.",
+    "inputs": "Shortcut: Ctrl+J.",
+    "default": "-",
+    "notes": "The Jobs button at the bottom right of the window does the same."
+   },
+   "Settings…": {
+    "does": "Opens the Settings page.",
+    "inputs": "Shortcut: Ctrl+, (Ctrl and comma).",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "menu_photo": {
+   "Rating": {
+    "does": "Sets the star rating of the selected photos (see the Rating submenu).",
+    "inputs": "Keys 0 to 5 work without opening the menu.",
+    "default": "-",
+    "notes": "The Photo menu acts on the selected photos, or on the highlighted photo if none is selected, or on the photo on screen in the photo view. Right-clicking the grid opens this same menu."
+   },
+   "Label": {
+    "does": "Sets or removes a colour label on the selected photos (see the Label submenu).",
+    "inputs": "Keys 6, 7, 8, 9 for Red, Yellow, Green, Blue.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Event": {
+    "does": "Puts the selected photos into an event (a trip, shoot or day out), or takes them out.",
+    "inputs": "New event from selection: Ctrl+E.",
+    "default": "-",
+    "notes": "A photo is in at most one event."
+   },
+   "Album": {
+    "does": "Adds the selected photos to one of your albums, makes a new album from them, or takes them out of the album you are viewing.",
+    "inputs": "Add to album: Ctrl+Shift+A.",
+    "default": "-",
+    "notes": "A photo can be in any number of albums."
+   },
+   "Stack": {
+    "does": "Opens or closes a burst stack, chooses its cover photo, or breaks it up for good.",
+    "inputs": "Open / close stack: S.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Export…": {
+    "does": "Saves the selected photos (or the one on screen) as new files, with their edits, into a folder you choose. You pick the format (JPEG with a quality setting, TIFF or PNG), the size, how much metadata to keep, and a file-name pattern.",
+    "inputs": "Shortcut: Ctrl+Shift+E. Sizes: full size, or 4096, 2048, 1600 or 1080 pixels on the long edge.",
+    "default": "The window starts with the settings you used last time.",
+    "notes": "Videos are skipped. An existing file is never overwritten; the new one gets (2) added. Originals are only read. A progress window lets you cancel. Only one export runs at a time."
+   },
+   "Tags": {
+    "does": "Adds or removes tags on the selected photos, or opens the Tags page.",
+    "inputs": "Tag photos: Ctrl+T.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Merge": {
+    "does": "Merges the selected photos into a new HDR photo or panorama.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "The source photos are only read; the result is a new file."
+   },
+   "Edit": {
+    "does": "Copies a photo's edit settings and pastes them onto others, or resets edits.",
+    "inputs": "Copy: Ctrl+Shift+C. Paste: Ctrl+Shift+V.",
+    "default": "-",
+    "notes": "Edits never change the original file."
+   },
+   "Flag": {
+    "does": "Marks the selected photos as Pick or Reject, or clears the flag.",
+    "inputs": "Keys P, X and U.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "menu_help": {
+   "About Lunelis": {
+    "does": "Shows the Lunelis version number and where its data folder is.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "The box also reminds you that your photos are never changed: everything Lunelis keeps is in the data folder."
+   },
+   "Open the data folder": {
+    "does": "Opens Lunelis's data folder in Explorer. It holds the catalog, catalog backups, thumbnails, the central sidecar folder and the logs.",
+    "inputs": "-",
+    "default": "The data folder is %LOCALAPPDATA%\\Lunelis unless you moved it in Settings.",
+    "notes": "Don't change or delete files there by hand while Lunelis is running."
+   },
+   "Open the log folder": {
+    "does": "Opens the folder with Lunelis's log files in Explorer.",
+    "inputs": "-",
+    "default": "The logs folder inside the data folder (%LOCALAPPDATA%\\Lunelis\\logs).",
+    "notes": "Every status-bar message and every error is written to the log."
+   },
+   "Report a problem…": {
+    "does": "Opens the Report a problem window with everything needed to look into a problem, ready to copy.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Also offered automatically when Lunelis hits an unexpected error."
+   }
+  },
+  "menu_photo_rating": {
+   "No stars": {
+    "does": "Clears the star rating of the selected photos.",
+    "inputs": "Key: 0.",
+    "default": "New photos have no stars, unless a sidecar from another program already gave them some.",
+    "notes": "Ratings are saved in the catalog at once and written to the photo's XMP sidecar about a second after you stop rating. The photo file itself is never changed."
+   },
+   "1 star": {
+    "does": "Gives the selected photos 1 star.",
+    "inputs": "Key: 1.",
+    "default": "-",
+    "notes": "Shown in the menu as one star symbol."
+   },
+   "2 stars": {
+    "does": "Gives the selected photos 2 stars.",
+    "inputs": "Key: 2.",
+    "default": "-",
+    "notes": "-"
+   },
+   "3 stars": {
+    "does": "Gives the selected photos 3 stars.",
+    "inputs": "Key: 3.",
+    "default": "-",
+    "notes": "-"
+   },
+   "4 stars": {
+    "does": "Gives the selected photos 4 stars.",
+    "inputs": "Key: 4.",
+    "default": "-",
+    "notes": "Photos with 4 or 5 stars appear in the automatic Favorites album."
+   },
+   "5 stars": {
+    "does": "Gives the selected photos 5 stars.",
+    "inputs": "Key: 5.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "menu_photo_label": {
+   "Red": {
+    "does": "Gives the selected photos the Red label.",
+    "inputs": "Key: 6.",
+    "default": "No label.",
+    "notes": "If every selected photo already has this label, choosing it again takes the label off (as in Lightroom)."
+   },
+   "Yellow": {
+    "does": "Gives the selected photos the Yellow label.",
+    "inputs": "Key: 7.",
+    "default": "No label.",
+    "notes": "If every selected photo already has this label, choosing it again takes the label off (as in Lightroom)."
+   },
+   "Green": {
+    "does": "Gives the selected photos the Green label.",
+    "inputs": "Key: 8.",
+    "default": "No label.",
+    "notes": "If every selected photo already has this label, choosing it again takes the label off (as in Lightroom)."
+   },
+   "Blue": {
+    "does": "Gives the selected photos the Blue label.",
+    "inputs": "Key: 9.",
+    "default": "No label.",
+    "notes": "If every selected photo already has this label, choosing it again takes the label off (as in Lightroom)."
+   },
+   "Purple": {
+    "does": "Gives the selected photos the Purple label.",
+    "inputs": "No key (as in Lightroom and darktable); use the menu.",
+    "default": "No label.",
+    "notes": "If every selected photo already has this label, choosing it again takes the label off (as in Lightroom)."
+   },
+   "No label": {
+    "does": "Takes any colour label off the selected photos.",
+    "inputs": "No key.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "menu_photo_event": {
+   "New event from selection…": {
+    "does": "Makes a new event from the selected photos. You type a name; the event's dates come from the photos' capture dates.",
+    "inputs": "Shortcut: Ctrl+E. A name is required.",
+    "default": "-",
+    "notes": "If some photos are already in another event, Lunelis asks before moving them, because a photo is in one event at a time. Nothing on disk changes."
+   },
+   "Add to an event…": {
+    "does": "Adds the selected photos to an existing event, chosen from a list of your events and their dates.",
+    "inputs": "Pick an event from the list.",
+    "default": "-",
+    "notes": "If you have no events yet, this starts New event from selection instead. Photos in another event are moved after asking."
+   },
+   "Remove from its event": {
+    "does": "Takes the selected photos out of whatever event they are in.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "The photos stay in the library. If none were in an event, the status bar says so."
+   }
+  },
+  "menu_photo_album": {
+   "Add to album…": {
+    "does": "Adds the selected photos to one of your albums. The list also offers New album... to make one on the spot.",
+    "inputs": "Shortcut: Ctrl+Shift+A.",
+    "default": "-",
+    "notes": "Photos already in the album are skipped and counted in the status bar message."
+   },
+   "New album from selection…": {
+    "does": "Makes a new album containing the selected photos.",
+    "inputs": "Type a name.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Remove from this album": {
+    "does": "Takes the selected photos out of the album you are viewing.",
+    "inputs": "-",
+    "default": "Greyed out unless you opened an album (from the Albums page).",
+    "notes": "Only the album changes; the photos stay in the library and on disk."
+   }
+  },
+  "menu_photo_tags": {
+   "Tag photos…": {
+    "does": "Opens the tag window for the selected photos (or the photo on screen). It lists the tags they have, with (3 of 5) when only some of them have one. Type a tag to add it to all of them; click a tag's cross to remove it from all of them.",
+    "inputs": "Shortcut: Ctrl+T. Commas add several tags at once; Places > Ohio > Cleveland files a tag inside another.",
+    "default": "-",
+    "notes": "Tags are written to the XMP sidecar where other programs can read them. Recently used tags are one click away."
+   },
+   "Manage tags": {
+    "does": "Opens the Tags page, where you rename, merge, nest or delete tags.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "menu_photo_merge": {
+   "HDR…": {
+    "does": "Blends 2 to 9 bracketed exposures of one scene into one photo with detail in both the highlights and the shadows. Hand-held brackets are lined up first.",
+    "inputs": "Select 2 to 9 photos first. Save as a 16-bit TIFF or a JPEG.",
+    "default": "-",
+    "notes": "Lunelis asks where to save, starting in the folder you used last, and never overwrites a file. Saved inside one of your sources, the result joins the library at once with the first photo's date and camera."
+   },
+   "Panorama…": {
+    "does": "Stitches 2 to 30 overlapping photos into one wide picture.",
+    "inputs": "Select 2 to 30 photos first; overlap them by about a third, at the same exposure.",
+    "default": "Works at half size and crops away the empty edges.",
+    "notes": "Same saving rules as HDR. A progress window lets you cancel. Only one merge runs at a time."
+   }
+  },
+  "menu_photo_edit": {
+   "Copy edit settings": {
+    "does": "Remembers the edit settings (filter and adjustments) of the selected or on-screen photo so you can paste them onto others.",
+    "inputs": "Shortcut: Ctrl+Shift+C.",
+    "default": "-",
+    "notes": "Crop and rotation are not copied, because they belong to each photo. If the photo has no edits, the status bar says so."
+   },
+   "Paste edit settings": {
+    "does": "Applies the copied edit settings to every selected photo.",
+    "inputs": "Shortcut: Ctrl+Shift+V.",
+    "default": "-",
+    "notes": "Each photo keeps its own crop and rotation. Thumbnails update in the background (Rendering edits... in the status bar). If nothing was copied yet, the status bar asks you to copy first."
+   },
+   "Reset edits…": {
+    "does": "Takes every edit, including crop and rotation, off the selected photos.",
+    "inputs": "Asks for confirmation first.",
+    "default": "-",
+    "notes": "The files themselves were never changed, so this simply returns to the original picture."
+   }
+  },
+  "menu_photo_stack": {
+   "Open / close stack": {
+    "does": "Opens the burst stack under the highlighted photo so every frame shows in the grid, or closes it back into one tile.",
+    "inputs": "Shortcut: S.",
+    "default": "Stacks start closed.",
+    "notes": "Open frames have a coloured bar along the top. If the photo is not in a stack, the status bar says so."
+   },
+   "Make this the stack cover": {
+    "does": "Makes the highlighted frame the one that stands for its stack in the grid.",
+    "inputs": "-",
+    "default": "The best-rated frame is the cover until you choose one.",
+    "notes": "-"
+   },
+   "Unstack (show every frame, for good)": {
+    "does": "Breaks up the stack under the highlighted photo for good, so its frames always show one by one.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "The frames stay separate even after later scans. To hide stacks only for now, untick Stack bursts instead."
+   }
+  },
+  "menu_photo_flag": {
+   "Pick": {
+    "does": "Marks the selected photos as Picks.",
+    "inputs": "Key: P.",
+    "default": "Unflagged.",
+    "notes": "Picks appear in the automatic Picks album. Picks have no standard XMP field, so they are kept in the catalog only."
+   },
+   "Reject": {
+    "does": "Marks the selected photos as Rejects. They are dimmed in the grid.",
+    "inputs": "Key: X.",
+    "default": "Unflagged.",
+    "notes": "Rejecting never deletes or moves a file. A reject is written to the sidecar as rating -1, which darktable and Adobe programs understand."
+   },
+   "Unflag": {
+    "does": "Clears Pick or Reject from the selected photos.",
+    "inputs": "Key: U.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "dialog_jobs": {
+   "Pause": {
+    "does": "Pauses the job selected in the table.",
+    "inputs": "Select a job first. Available for Running, Queued and Waiting jobs.",
+    "default": "-",
+    "notes": "A running job stops at a safe point; everything finished so far is kept. A paused job stays paused, even after a restart, until you press Resume."
+   },
+   "Resume": {
+    "does": "Puts the selected paused or waiting job back in the queue so it carries on from where it stopped.",
+    "inputs": "Select a Paused or Waiting job.",
+    "default": "-",
+    "notes": "Jobs run one at a time, oldest first. A job set to run only when idle or only at night goes back to Waiting if it is not that time yet."
+   },
+   "Cancel": {
+    "does": "Cancels the selected job for good.",
+    "inputs": "Select a Running, Queued, Waiting or Paused job.",
+    "default": "-",
+    "notes": "There is no confirmation. Work already done (fingerprints computed, duplicate groups found) is kept, but a cancelled job cannot be resumed; start a new one instead."
+   },
+   "Table: Job, State, Progress, Read, Now": {
+    "does": "Lists every job, active ones first. Columns: Job (the kind and the folders it covers), State (Queued, Running, Waiting, Paused, Done, Cancelled or Failed), Progress (files done out of the total), Read (how much data it has read) and Now (the folder it is working on, or why it is waiting).",
+    "inputs": "Click a row to select it for Pause, Resume or Cancel.",
+    "default": "-",
+    "notes": "Refreshes every second. Jobs keep their progress if you close Lunelis or turn the PC off."
+   },
+   "Clear finished": {
+    "does": "Removes Done, Cancelled and Failed jobs from the list.",
+    "inputs": "Click. No confirmation.",
+    "default": "-",
+    "notes": "Only the list entries go; what the jobs found (duplicate groups, fingerprints) stays in the catalog."
+   }
+  },
+  "dialog_find_duplicates": {
+   "Where to look:": {
+    "does": "Your sources, each with its number of files. Tick the ones the job should cover.",
+    "inputs": "Tick any number of sources.",
+    "default": "Nothing ticked.",
+    "notes": "Turned-off sources are not listed. You must tick at least one source or choose a folder, or Lunelis asks you to."
+   },
+   "Choose folder…": {
+    "does": "Runs the job on just one folder inside one of your sources, instead of (or as well as) whole sources.",
+    "inputs": "Pick a folder; it must be inside one of your sources.",
+    "default": "No folder chosen.",
+    "notes": "Handy for a first try or for taking a very large library a piece at a time. A folder outside your sources is refused with a message."
+   },
+   "Now": {
+    "does": "Starts the job as soon as you press OK.",
+    "inputs": "Choose one of the three When to run options.",
+    "default": "Selected (Settings: job_default_when = now).",
+    "notes": "-"
+   },
+   "Only while the PC is idle (5 min)": {
+    "does": "Lets the job run only while nobody has used the keyboard or mouse for the set number of minutes. While you are using the PC it shows Waiting.",
+    "inputs": "The minutes come from Settings > Duplicates and background jobs (1 to 1440).",
+    "default": "Not selected; 5 minutes.",
+    "notes": "The job checks again every minute and carries on when the PC is idle."
+   },
+   "Only between 22:00 and 06:00": {
+    "does": "Lets the job run only between the set hours, for example overnight. Outside those hours it shows Waiting.",
+    "inputs": "The hours come from Settings > Duplicates and background jobs (0 to 23 each).",
+    "default": "Not selected; 22:00 to 06:00.",
+    "notes": "-"
+   },
+   "Speed limit (MB/s, 0 = none):": {
+    "does": "Limits how fast the job reads files, so it does not slow down your network or disk while you use them.",
+    "inputs": "0 to 100000 megabytes per second; 0 means no limit.",
+    "default": "0 (no limit) (Settings: job_mb_per_s).",
+    "notes": "-"
+   },
+   "OK": {
+    "does": "Creates the job and opens the Jobs panel so you can watch it.",
+    "inputs": "Click, or press Enter.",
+    "default": "-",
+    "notes": "The job keeps these choices even if you change the defaults in Settings later."
+   },
+   "Cancel": {
+    "does": "Closes the window without starting a job.",
+    "inputs": "Click, or press Esc.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "dialog_report_problem": {
+   "Text area": {
+    "does": "Read-only text with what is needed to look into a problem: the Lunelis, Windows and Python versions, the data folder, the number of files and sources in the catalog, and the last 200 lines of the log.",
+    "inputs": "Read-only; you can select and copy parts of it.",
+    "default": "-",
+    "notes": "It contains your folder paths but no photos. Check it before sending it to anyone."
+   },
+   "Copy": {
+    "does": "Copies the whole report to the clipboard so you can paste it into a GitHub issue or a message.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "The button changes to Copied."
+   },
+   "Open the log folder": {
+    "does": "Opens the folder with Lunelis's full log files in Explorer.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Useful if more than the last 200 lines are needed."
+   },
+   "Close": {
+    "does": "Closes the window.",
+    "inputs": "Click, or press Esc.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "dialog_about": {
+   "OK": {
+    "does": "Closes the About box.",
+    "inputs": "Click, or press Enter or Esc.",
+    "default": "-",
+    "notes": "-"
+   }
+  }
+ }
+}

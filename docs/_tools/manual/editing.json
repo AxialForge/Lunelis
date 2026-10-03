@@ -1,0 +1,1105 @@
+{
+ "chapters": [
+  {
+   "id": "viewing",
+   "title": "Viewing a photo",
+   "screens": [
+    "photo_view",
+    "photo_zoom"
+   ],
+   "purpose": "The photo view shows one photo large, with the Info panel beside it and a filmstrip of the library underneath. Use it to look closely at a photo, check focus at 100 %, and rate, label, flag and tag it as you step through a shoot.",
+   "intro": [
+    "Double-click a photo in the library (or select it and press Enter) to open it. RAW files show their full-size embedded preview first, so even a 60 MP photo appears in well under a second; it starts from the thumbnail and sharpens a moment later. The next and previous photos are loaded ahead, so stepping through is instant.",
+    "Stepping follows the library exactly: the same sort order and the same filters you had in the grid. Everything you change here (stars, labels, flags, tags) is saved straight away; there is no Save button."
+   ],
+   "workflows": [
+    {
+     "title": "Zoom in to check focus",
+     "steps": [
+      "Open the photo by double-clicking it in the library.",
+      "Press Z, or double-click the photo, to jump to 100 % (one screen pixel per photo pixel).",
+      "Drag the photo with the left mouse button (or the middle button anywhere) to look at the eyes or the main subject.",
+      "Use the mouse wheel to zoom further, up to 400 %. Past the preview's own resolution, Lunelis loads the full-resolution photo in the background; the zoom level shows at the bottom left.",
+      "Press Z or double-click again to go back to fitting the window."
+     ]
+    },
+    {
+     "title": "Cull a shoot with the keyboard",
+     "steps": [
+      "Open the first photo of the shoot.",
+      "Press 1 to 5 to give stars (0 clears them), P to pick, X to reject, U to unflag, and 6 to 9 for the Red, Yellow, Green and Blue labels.",
+      "Press the Right arrow (or Space) to go to the next photo, Left for the previous one, Home and End for the first and last.",
+      "Press Esc when you are done to go back to the library, where the grid shows your stars, flags and labels."
+     ]
+    },
+    {
+     "title": "Tag the photo on screen",
+     "steps": [
+      "Click in the box under Tags in the Info panel.",
+      "Type a tag, for example Hiking, and press Enter. Type several separated by commas to add them all at once.",
+      "To file a tag inside another, type it with >, for example Places > Mountains.",
+      "To take a tag off, click the ✕ on its chip."
+     ]
+    },
+    {
+     "title": "Jump around with the filmstrip",
+     "steps": [
+      "Scroll the filmstrip along the bottom, or click any thumbnail to jump to it.",
+      "Drag the divider above the filmstrip up or down to make it, and its thumbnails, bigger or smaller. The size is remembered."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "The photo stays soft or shows \"Couldn't open this file at full size\".",
+     "what_happens": "Lunelis could not read a full-size preview from the file, so it shows the thumbnail instead. The file may be damaged or in an unusual format; check the Damaged files page. Your original is not touched."
+    },
+    {
+     "situation": "You open a video.",
+     "what_happens": "The view shows a still with the video's length and the message to use Open with default app. Videos can't be edited in Lunelis, so the Edit button does nothing for them."
+    },
+    {
+     "situation": "The mouse wheel changes photo instead of zooming.",
+     "what_happens": "Settings > General has the mouse wheel set to step through photos. In that mode hold Ctrl while turning the wheel to zoom, or change the setting back to zoom."
+    },
+    {
+     "situation": "Zooming past 100 % shows \"Loading full resolution…\".",
+     "what_happens": "The embedded preview is smaller than the photo, so Lunelis is decoding the full file in the background. A 60 MP RAW takes about 2.5 seconds; the picture sharpens when it is ready."
+    },
+    {
+     "situation": "Pick and Reject don't show up in darktable or Lightroom.",
+     "what_happens": "Picks have no standard XMP field, so they are kept in Lunelis's catalog only. Rejects are written to the sidecar as rating -1, which both programs understand."
+    },
+    {
+     "situation": "The next photo is not the one you expected.",
+     "what_happens": "Stepping follows the library's current sort and filters. If a filter (for example 3 stars and up) is active, photos outside it are skipped. Clear the filter in the library to step through everything."
+    }
+   ]
+  },
+  {
+   "id": "editing",
+   "title": "Editing a photo",
+   "screens": [
+    "edit_panel",
+    "edit_panel_full",
+    "edit_mask",
+    "edit_crop"
+   ],
+   "purpose": "The Edit panel lets you improve a photo's light and colour, crop and straighten it, add filters, fix lens faults, reduce noise and make local changes with masks. Your original file is never changed: an edit is a short list of instructions kept in the catalog and the photo's XMP sidecar, and it is only applied to pixels when you export. Reset always takes you back to the original.",
+   "intro": [
+    "Open a photo and press E, or click Edit in the top bar. The Info panel is replaced by the Edit panel and the big picture shows your changes live. Edit mode stays on while you step to the next photo with the arrow keys or the filmstrip, so you can work through a whole shoot. Done, E or Esc goes back to the Info panel.",
+    "There is no Save button: each change is saved a moment after you make it. Ctrl+Z undoes and Ctrl+Shift+Z (or Ctrl+Y) redoes, step by step, for the photo on screen.",
+    "Every slider has a number box: click it, type a value and press Enter. Double-click a slider or its name to put it back to 0. While you drag, the preview renders at half size so it keeps up, and sharpens when you let go (Settings > Edit can keep it sharp all the time).",
+    "Click a section's header to fold it away; folded sections stay folded next time. On a fresh install Masks, Lens corrections and Effects start folded. Settings > Edit > Unfold every section opens them all again.",
+    "RAW files are decoded properly for editing (camera white balance, 16-bit), not from their small embedded JPEG; the first open of a 60 MP RAW takes about a second."
+   ],
+   "workflows": [
+    {
+     "title": "Apply a filter, then fine-tune it",
+     "steps": [
+      "Open the photo and press E.",
+      "In Filters, click a tile. Each tile shows that filter on this photo. The filter starts at full strength (Amount 100).",
+      "Drag Amount down to make the look gentler, for example to 60.",
+      "Click Adjust sliders to move the filter's values into the Light and Color sliders, then change any one of them, for example lower Saturation a little.",
+      "Optional: click Save as filter… and give the look a name to use it on other photos."
+     ]
+    },
+    {
+     "title": "Straighten and crop to 4:5 for social media",
+     "steps": [
+      "Open the Crop & rotate section.",
+      "Drag Straighten until the horizon is level (or type a value such as 1.5 in its box). Lunelis trims the picture so no empty corners show.",
+      "Choose 4 : 5 in the Aspect list.",
+      "Click Crop (or press R). Drag the corners or edges to frame the photo, or drag inside the frame to move it.",
+      "Press Enter to finish cropping."
+     ]
+    },
+    {
+     "title": "Brighten a dull sky with a mask",
+     "steps": [
+      "Open the Masks section and click Sky. The first time, Lunelis asks to download the free sky model (176 MB, once); click Yes.",
+      "Wait about half a second while Lunelis finds the sky. It is tinted red so you can see where the mask applies (press O to hide or show the tint).",
+      "With the mask selected in the Mask list, lower its Highlights to bring back detail, and raise Saturation or lower Temperature a little for a deeper blue.",
+      "Press Esc to put the mask down. Use Before (or the \\ key) to compare with the original.",
+      "Tip: no AI? Click Gradient instead; it starts as a sky gradient from the top. Drag the solid line (full effect) and the dashed line (no effect)."
+     ]
+    },
+    {
+     "title": "Reduce noise on a high-ISO photo",
+     "steps": [
+      "Open the photo and zoom to 100 % (Z) on a dark, plain area such as a shadow or the sky.",
+      "Open the Detail section and raise Noise reduction until the grain is calm, typically 30 to 60. Lunelis measures how noisy this photo is first, so the same number suits ISO 100 and ISO 6400.",
+      "If faces or fabric look too smooth, raise Noise detail to put some fine texture back; lower it to smooth further.",
+      "Raise Color noise to remove coloured speckles in the shadows.",
+      "Add a little Sharpening last if the detail looks soft."
+     ]
+    },
+    {
+     "title": "Copy one photo's edit to a batch",
+     "steps": [
+      "Finish editing one photo the way you like it.",
+      "Choose Photo > Edit > Copy edit settings (Ctrl+Shift+C).",
+      "Go back to the library and select the other photos (Ctrl+click or Shift+click).",
+      "Choose Photo > Edit > Paste edit settings (Ctrl+Shift+V). The filter, sliders, curves, masks and lens settings are applied; each photo keeps its own crop and rotation.",
+      "The thumbnails update in the background while \"Rendering edits…\" shows in the status bar."
+     ]
+    },
+    {
+     "title": "Fix a wide-angle lens on a RAW",
+     "steps": [
+      "Open the Lens corrections section.",
+      "Tick Use the lens profile. The panel says which profile it found for the camera and lens.",
+      "If a straight line still bows, nudge Distortion; if dark corners remain, nudge Vignetting."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "The panel says \"This photo can't be edited: …\".",
+     "what_happens": "Lunelis couldn't decode the file for editing (for example a damaged or unsupported RAW). The reason follows the message. Check the Damaged files page; the original is not changed."
+    },
+    {
+     "situation": "You click Subject or Sky and a \"Download a model\" question appears.",
+     "what_happens": "These masks need a free AI model, downloaded once: Subject 44 MB (from the rembg project on GitHub), Sky 176 MB (from Hugging Face). Click Yes to download; the mask is added when it finishes. Each download is checked against a known checksum before use, and after that the model runs offline on this PC, so your photos never leave it. Click No to skip; nothing is downloaded."
+    },
+    {
+     "situation": "\"The download didn't work: …\" after asking for a model.",
+     "what_happens": "There was no internet connection, the download was interrupted, or it didn't match its checksum (in which case nothing is installed). Try again later, or use a Gradient, Radial or Brush mask, which need no model."
+    },
+    {
+     "situation": "\"Couldn't find the subject\" (or sky).",
+     "what_happens": "The AI model found nothing it recognised, for example a photo with no sky. Use a Gradient, Radial or Brush mask instead."
+    },
+    {
+     "situation": "You click Save as filter… and see \"Adjust a slider or pick a filter first.\"",
+     "what_happens": "There is no look to save yet. Choose a filter or move a slider, then try again. Crops are never part of a saved filter."
+    },
+    {
+     "situation": "You delete one of your own filters (right-click its tile) that other photos use.",
+     "what_happens": "Lunelis asks first. Photos that used it keep their look, because the filter's values move into their own sliders before it is deleted."
+    },
+    {
+     "situation": "Use the lens profile is greyed out, or no profile is named.",
+     "what_happens": "There is no lensfun profile for this camera and lens, or the photo has no lens information. Use the manual Distortion, Vignetting and Fringing sliders instead; they work on any photo."
+    },
+    {
+     "situation": "Exporting a large photo with noise reduction is slow.",
+     "what_happens": "Noise reduction is the heaviest step: it adds about 17 seconds to a 60 MP export. It is worked out once per photo while you edit, so moving other sliders stays quick."
+    }
+   ]
+  },
+  {
+   "id": "export-merge",
+   "title": "Exporting and merging",
+   "screens": [
+    "dialog_export",
+    "dialog_merge_hdr",
+    "dialog_merge_pano"
+   ],
+   "purpose": "Export turns your edited photos into ordinary new files (JPEG, TIFF or PNG) to share, print or use in other programs. Merge combines several photos into one new photo: an HDR from bracketed exposures, or a panorama from overlapping frames. In both cases the originals are only read, never changed, and an existing file is never overwritten.",
+   "intro": [
+    "Export: select photos in the library (or have one on screen) and choose Photo > Export… (Ctrl+Shift+E). The dialog remembers your last settings. Exports run in the background with a progress window you can cancel; videos are skipped. A 60 MP RAW takes about 7 seconds at full size.",
+    "Merge: select the photos in the library, then choose Photo > Merge > HDR… (2 to 9 photos) or Photo > Merge > Panorama… (2 to 30 photos). Lunelis asks where to save each result, starting in the last folder you used. If you save into one of your library's folders, the result is added to the library at once, with the first photo's date and camera."
+   ],
+   "workflows": [
+    {
+     "title": "Export photos for the web",
+     "steps": [
+      "Select the photos in the library.",
+      "Choose Photo > Export… (Ctrl+Shift+E).",
+      "Set Format to JPEG, Size to 2048 px long edge (or 1080 px for social media), and JPEG quality to about 85 %.",
+      "Set Metadata to Keep all but the location (GPS) so you don't share where the photos were taken.",
+      "Optional: set File names to {date} {name} to start each name with the capture date.",
+      "Click Export, then Show folder in the message that appears when it is done."
+     ]
+    },
+    {
+     "title": "Export full-quality files for printing or other editors",
+     "steps": [
+      "Select the photos and choose Photo > Export….",
+      "Choose TIFF (lossless) or PNG (lossless) and Full size.",
+      "Keep Metadata on Keep camera, date and location if you want everything kept.",
+      "Click Export."
+     ]
+    },
+    {
+     "title": "Merge an HDR bracket",
+     "steps": [
+      "In the library, select the bracketed exposures of one scene (2 to 9 photos, for example -2, 0 and +2).",
+      "Choose Photo > Merge > HDR….",
+      "Leave Save as on TIFF, 16-bit (best for editing), and leave Line the photos up first ticked if you shot hand-held.",
+      "Click Choose where to save…, pick a folder (one of your library's folders if you want it catalogued) and a name, and click Save.",
+      "When it's done, open the result and edit it like any photo."
+     ]
+    },
+    {
+     "title": "Stitch a panorama",
+     "steps": [
+      "Shoot the frames overlapping by about a third, at the same exposure.",
+      "Select them in the library (2 to 30 photos) and choose Photo > Merge > Panorama….",
+      "Leave Work at half size and Crop away the empty edges ticked for a quick, tidy result.",
+      "Click Choose where to save…, choose the folder and name, and click Save."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "The Export dialog shows a red message such as \"Choose a folder to export into.\" or \"the name pattern can't be empty\".",
+     "what_happens": "A setting is missing. Fill in the folder or the File names box and click Export again."
+    },
+    {
+     "situation": "The finished-export message lists photos that \"couldn't be exported\".",
+     "what_happens": "Up to eight of the problems are listed with their file names and reasons. A common cause is a folder you can't write to (for example a protected system folder or a read-only drive), a full disk, or a damaged original. Choose another folder with Change… and export those photos again."
+    },
+    {
+     "situation": "A file with the same name is already in the export folder.",
+     "what_happens": "It is never overwritten: the new file gets \" (2)\", \" (3)\" and so on added to its name."
+    },
+    {
+     "situation": "Merge says \"Select 2 to 9 photos.\" (or 2 to 30 for a panorama) and the save button is greyed out.",
+     "what_happens": "Too few or too many photos are selected; videos don't count. Cancel, change the selection in the library, and try again."
+    },
+    {
+     "situation": "HDR says \"The photos aren't all the same size\".",
+     "what_happens": "HDR needs frames from one camera setting. Make sure every selected photo is the same size (for example all RAWs, not a mix of RAW and a cropped JPEG)."
+    },
+    {
+     "situation": "Panorama says \"Couldn't stitch these photos: …\".",
+     "what_happens": "The reason is given: the photos don't overlap enough (aim for about a third), the overlaps didn't line up (are they one scene?), or the camera positions couldn't be worked out. Reshoot with more overlap, or try fewer frames. \"Not enough memory\" means try fewer photos or tick Work at half size."
+    },
+    {
+     "situation": "Merge says \"… already exists - choose another name.\"",
+     "what_happens": "Merging never overwrites a file. Run it again and pick a different name."
+    },
+    {
+     "situation": "The merged result looks unedited.",
+     "what_happens": "Merging reads the original files, not your edits on them. Edit the merged photo afterwards; a 16-bit TIFF gives the most room."
+    }
+   ]
+  },
+  {
+   "id": "tagging",
+   "title": "Tagging several photos",
+   "screens": [
+    "dialog_tags"
+   ],
+   "purpose": "Tags are words you attach to photos (such as Hiking or Places > Mountains) so you can find them again. The Tags dialog adds or removes tags on a whole selection at once. Tags are saved in the catalog and written to each photo's XMP sidecar, where darktable and Lightroom can read them; the photo files themselves are never changed.",
+   "intro": [
+    "Select photos in the library and press Ctrl+T (Photo > Tags > Tag photos…). The dialog lists every tag any of the selected photos has; \"(2 of 3)\" means only some of them have it."
+   ],
+   "workflows": [
+    {
+     "title": "Tag several photos at once",
+     "steps": [
+      "In the library, select the photos (Ctrl+click or Shift+click).",
+      "Press Ctrl+T.",
+      "Type a tag in the box and press Enter. It is added to every selected photo. Separate several tags with commas.",
+      "Click Close."
+     ]
+    },
+    {
+     "title": "Give every photo a tag only some of them have",
+     "steps": [
+      "Open the dialog with Ctrl+T. A chip such as Places › Lakeside (2 of 3) shows a tag only some photos have.",
+      "Type the same tag (for example Places > Lakeside) in the box and press Enter. The \"(2 of 3)\" disappears because all of them now have it."
+     ]
+    },
+    {
+     "title": "File tags inside other tags",
+     "steps": [
+      "Type a path with >, for example Places > Ohio > Cleveland (or Places|Ohio|Cleveland), and press Enter.",
+      "The parent tags are made for you. Filtering the library by Places will then include these photos."
+     ]
+    },
+    {
+     "title": "Reuse a recent tag",
+     "steps": [
+      "Under Recent, click a tag you used lately (for example Hiking) to add it to every selected photo in one click."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "You type \"beach\" and the library already has \"Beach\".",
+     "what_happens": "Case doesn't matter: they are the same tag, and the photo gets the existing one. Typing also suggests matching tags you already have."
+    },
+    {
+     "situation": "You click ✕ on a chip that says (2 of 3).",
+     "what_happens": "The tag is removed from all the selected photos that have it, not just some. The tag itself still exists for other photos."
+    },
+    {
+     "situation": "No Recent row appears.",
+     "what_happens": "You haven't used any tags yet. After you add some, the most recent ones appear here."
+    },
+    {
+     "situation": "Tags you added in darktable don't show up.",
+     "what_happens": "They are read the next time the folder is scanned. Tags from a sidecar are only ever added in Lunelis, never removed, so a program that rewrites a sidecar can't wipe your tags. darktable's automatic tags (such as darktable|format|arw) are kept in the sidecar but never shown."
+    },
+    {
+     "situation": "darktable or Lightroom don't see the tags you add in Lunelis.",
+     "what_happens": "With the default sidecar setting (Central Lunelis folder) the sidecars live in Lunelis's own folder, which other programs don't look in. Choose Next to photos in the sidecar settings if you want them there; see Ratings, labels and sidecars."
+    }
+   ]
+  }
+ ],
+ "screen_text": {
+  "photo_view": "Double-click a photo in the library to open it. The photo fills the space, the Info panel on the right holds its rating, labels, flags, tags and details, and the filmstrip runs along the bottom.",
+  "photo_zoom": "The same view zoomed to 100 % (press Z or double-click the photo). Drag to look around; the zoom level shows at the bottom left.",
+  "edit_panel": "Press E (or click Edit) in the photo view. The Info panel becomes the Edit panel, with Auto, Reset and Before at the top, then the Filters and Crop & rotate sections; the picture shows your changes live.",
+  "edit_panel_full": "The whole Edit panel with every section unfolded: Filters, Crop & rotate, Masks, Lens corrections, Light, Tone curve, Color, Effects and Detail. Scroll the panel to reach the lower sections.",
+  "edit_mask": "Editing a Radial mask. The red tint shows where the mask applies (O hides it); drag the middle to move it and the edge handles to resize it. The mask's own sliders appear in the Masks section.",
+  "edit_crop": "Cropping (click Crop or press R). Drag the corners or edges, or drag inside the frame to move it; pick an Aspect to lock the shape, then press Enter.",
+  "dialog_export": "Photo > Export… (Ctrl+Shift+E) saves the selected photos, with their edits, as new files. The originals aren't touched.",
+  "dialog_merge_hdr": "Photo > Merge > HDR… with 2 to 9 bracketed exposures selected. It blends them into one photo with detail in both the highlights and the shadows.",
+  "dialog_merge_pano": "Photo > Merge > Panorama… with 2 to 30 overlapping photos selected. It stitches them into one wide picture.",
+  "dialog_tags": "Select photos in the library and press Ctrl+T. The dialog shows every tag on the selection, a box to add more, and your recent tags (here on three demo photos)."
+ },
+ "controls": {
+  "photo_view": {
+   "‹ Back to Library": {
+    "does": "Closes the photo view and goes back to the library grid, at the photo you were looking at.",
+    "inputs": "Click, or press Esc (Backspace also works).",
+    "default": "-",
+    "notes": "While editing, Esc first finishes cropping or puts a mask down, then leaves edit mode; press it again to go back to the library."
+   },
+   "Photo (live edit)": {
+    "does": "The photo itself. In the photo view it is the preview; in edit mode it shows your edit live.",
+    "inputs": "Mouse wheel zooms around the pointer (fit to 400 %). Double-click or Z jumps between fit and 100 %. Drag with the left button (or the middle button anywhere) to pan. Tilt the mouse wheel left / right for the previous / next photo.",
+    "default": "Fit to the window.",
+    "notes": "Settings > General can make the wheel change photo instead; then Ctrl + wheel zooms. Past the preview's resolution the full-resolution photo loads in the background."
+   },
+   "Filmstrip": {
+    "does": "The library's photos around the current one, in the library's order and filters. Click a thumbnail to jump to it.",
+    "inputs": "Click a thumbnail; scroll to move along. Drag the divider above it to resize it.",
+    "default": "-",
+    "notes": "The size you drag it to is remembered. In edit mode you can keep editing as you jump between photos."
+   },
+   "Edit": {
+    "does": "Turns edit mode on or off: the Info panel is replaced by the Edit panel. Your original file is never changed: an edit is a short list of instructions kept in the catalog and the photo's XMP sidecar, and it is only applied to pixels when you export.",
+    "inputs": "Click, or press E.",
+    "default": "Off.",
+    "notes": "Not available for videos."
+   },
+   "Previous": {
+    "does": "Goes to the previous photo in the library's order. The counter between the arrows shows where you are (for example 10 of 37).",
+    "inputs": "Click, or press Left (or Up). Home goes to the first photo.",
+    "default": "-",
+    "notes": "Works in edit mode too; your edit is saved as you leave the photo."
+   },
+   "Next": {
+    "does": "Goes to the next photo in the library's order.",
+    "inputs": "Click, or press Right, Down or Space. End goes to the last photo.",
+    "default": "-",
+    "notes": "Works in edit mode too; your edit is saved as you leave the photo."
+   },
+   "1 star": {
+    "does": "Gives the photo 1 star. Clicking the same star again clears the rating.",
+    "inputs": "Click, or press 1 on the keyboard. 0 clears the rating.",
+    "default": "No stars (unrated).",
+    "notes": "Saved in the catalog at once, and written to the photo's XMP sidecar about a second later, where darktable and Lightroom can read it."
+   },
+   "2 stars": {
+    "does": "Gives the photo 2 stars. Clicking the same star again clears the rating.",
+    "inputs": "Click, or press 2 on the keyboard. 0 clears the rating.",
+    "default": "No stars (unrated).",
+    "notes": "Saved in the catalog at once, and written to the photo's XMP sidecar about a second later, where darktable and Lightroom can read it."
+   },
+   "3 stars": {
+    "does": "Gives the photo 3 stars. Clicking the same star again clears the rating.",
+    "inputs": "Click, or press 3 on the keyboard. 0 clears the rating.",
+    "default": "No stars (unrated).",
+    "notes": "Saved in the catalog at once, and written to the photo's XMP sidecar about a second later, where darktable and Lightroom can read it."
+   },
+   "4 stars": {
+    "does": "Gives the photo 4 stars. Clicking the same star again clears the rating.",
+    "inputs": "Click, or press 4 on the keyboard. 0 clears the rating.",
+    "default": "No stars (unrated).",
+    "notes": "Saved in the catalog at once, and written to the photo's XMP sidecar about a second later, where darktable and Lightroom can read it."
+   },
+   "5 stars": {
+    "does": "Gives the photo 5 stars. Clicking the same star again clears the rating.",
+    "inputs": "Click, or press 5 on the keyboard. 0 clears the rating.",
+    "default": "No stars (unrated).",
+    "notes": "Saved in the catalog at once, and written to the photo's XMP sidecar about a second later, where darktable and Lightroom can read it."
+   },
+   "Red label": {
+    "does": "Gives the photo a Red colour label. Clicking it again removes the label. A photo has at most one label.",
+    "inputs": "Click, or press 6.",
+    "default": "No label.",
+    "notes": "Written to the XMP sidecar like the rating. The library can filter by label."
+   },
+   "Yellow label": {
+    "does": "Gives the photo a Yellow colour label. Clicking it again removes the label. A photo has at most one label.",
+    "inputs": "Click, or press 7.",
+    "default": "No label.",
+    "notes": "Written to the XMP sidecar like the rating. The library can filter by label."
+   },
+   "Green label": {
+    "does": "Gives the photo a Green colour label. Clicking it again removes the label. A photo has at most one label.",
+    "inputs": "Click, or press 8.",
+    "default": "No label.",
+    "notes": "Written to the XMP sidecar like the rating. The library can filter by label."
+   },
+   "Blue label": {
+    "does": "Gives the photo a Blue colour label. Clicking it again removes the label. A photo has at most one label.",
+    "inputs": "Click, or press 9.",
+    "default": "No label.",
+    "notes": "Written to the XMP sidecar like the rating. The library can filter by label."
+   },
+   "Purple label": {
+    "does": "Gives the photo a Purple colour label. Clicking it again removes the label. A photo has at most one label.",
+    "inputs": "Click. Purple has no keyboard key (as in Lightroom and darktable); it is also in the Photo menu.",
+    "default": "No label.",
+    "notes": "Written to the XMP sidecar like the rating. The library can filter by label."
+   },
+   "Pick": {
+    "does": "Flags the photo as a pick (a keeper). Click again to unflag.",
+    "inputs": "Click, or press P. U unflags.",
+    "default": "Not flagged.",
+    "notes": "Picks have no standard XMP field, so they are kept in the catalog only. Picking removes a reject."
+   },
+   "Reject": {
+    "does": "Flags the photo as rejected. Rejected photos are dimmed in the library. Click again to unflag.",
+    "inputs": "Click, or press X. U unflags.",
+    "default": "Not flagged.",
+    "notes": "A reject is written to the sidecar as rating -1, which darktable and Adobe agree on. Rejecting never deletes the file."
+   },
+   "Hiking ✕": {
+    "does": "Shows that this photo has the tag \"Hiking\". Click the ✕ to take the tag off this photo.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Removing a tag from one photo doesn't delete the tag; it stays on other photos and on the Tags page. The › shows a tag filed inside another."
+   },
+   "Places › Mountains ✕": {
+    "does": "Shows that this photo has the tag \"Places › Mountains\". Click the ✕ to take the tag off this photo.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Removing a tag from one photo doesn't delete the tag; it stays on other photos and on the Tags page. The › shows a tag filed inside another."
+   },
+   "Seasons › Summer ✕": {
+    "does": "Shows that this photo has the tag \"Seasons › Summer\". Click the ✕ to take the tag off this photo.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Removing a tag from one photo doesn't delete the tag; it stays on other photos and on the Tags page. The › shows a tag filed inside another."
+   },
+   "Add a tag… (commas for several, > to nest)": {
+    "does": "Adds tags to this photo. Type a tag and press Enter.",
+    "inputs": "Any text. Commas add several at once; > (or |) files a tag inside another, for example Places > Mountains. Suggestions come from your existing tags as you type.",
+    "default": "Empty.",
+    "notes": "Case doesn't matter: \"hiking\" and \"Hiking\" are the same tag. Parent tags are made for you. Tags are written to the photo's XMP sidecar, never into the photo."
+   }
+  },
+  "photo_zoom": {
+   "Photo (live edit)": {
+    "does": "The photo at 100 %: one screen pixel per photo pixel, the right zoom for checking focus and noise.",
+    "inputs": "Drag to pan. Mouse wheel zooms further (up to 400 %) or back out. Z or double-click returns to fit.",
+    "default": "Fit to the window.",
+    "notes": "When you zoom past the embedded preview's size, \"Loading full resolution…\" appears and the full photo loads in the background (about 2.5 seconds for a 60 MP RAW)."
+   }
+  },
+  "edit_panel": {
+   "Edit": {
+    "does": "In edit mode this button is pressed in. Click it to leave edit mode and go back to the Info panel.",
+    "inputs": "Click, or press E.",
+    "default": "-",
+    "notes": "Your changes are already saved; leaving never loses them."
+   },
+   "Done": {
+    "does": "Leaves edit mode and shows the photo's Info panel again.",
+    "inputs": "Click, or press E or Esc.",
+    "default": "-",
+    "notes": "There is no Save button: every change is saved a moment after you make it."
+   },
+   "Auto": {
+    "does": "Sets the Light and Color sliders to a starting point worked out from the photo's histogram: exposure to bring the middle tones near mid-grey, Whites and Blacks to use the full range, a little Contrast and Vibrance, and Highlights or Shadows if the photo clips.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "It replaces the values in the sliders (not the filter, crop, curves or masks). Ctrl+Z undoes it."
+   },
+   "Reset": {
+    "does": "Takes every edit off this photo: filter, sliders, curves, masks, lens corrections, crop and rotation. The photo looks like the original again.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Ctrl+Z undoes a Reset. The original file was never changed in the first place."
+   },
+   "Before": {
+    "does": "Shows the original photo while it is pressed in, so you can compare it with your edit.",
+    "inputs": "Click to toggle, or press the \\ key.",
+    "default": "Off (showing the edit).",
+    "notes": "Nothing is changed or lost while it is on."
+   },
+   "Filters": {
+    "does": "Section header for the filter strip. Click it to fold or unfold the section.",
+    "inputs": "Click.",
+    "default": "Unfolded.",
+    "notes": "Folded sections stay folded next time."
+   },
+   "None": {
+    "does": "Removes the filter from this photo. Your own slider changes stay.",
+    "inputs": "Click.",
+    "default": "Selected on a photo with no filter.",
+    "notes": "Its tile shows the photo without any filter, for comparison."
+   },
+   "Vivid": {
+    "does": "A filter for richer colour: more vibrance and saturation, a little more contrast and lifted shadows.",
+    "inputs": "Click the tile.",
+    "default": "-",
+    "notes": "Applies at Amount 100; filters and sliders add up."
+   },
+   "B&W Classic": {
+    "does": "A black-and-white filter with extra contrast and slightly deeper blacks.",
+    "inputs": "Click the tile.",
+    "default": "-",
+    "notes": "At a lower Amount it gives a half-desaturated photo rather than full black and white."
+   },
+   "Filmic": {
+    "does": "A soft film look: a little contrast, a faded black point, gentler highlights, slightly less saturation and a touch of warmth.",
+    "inputs": "Click the tile.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Warm": {
+    "does": "Warms the photo (more yellow/orange) with a slight tint and a little vibrance.",
+    "inputs": "Click the tile.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Cool": {
+    "does": "Cools the photo (more blue) with a slight green tint and a little vibrance.",
+    "inputs": "Click the tile.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Matte": {
+    "does": "A matte, faded look: lifted blacks, lower contrast, slightly muted colour and lifted shadows.",
+    "inputs": "Click the tile.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Punch": {
+    "does": "A bold look: strong contrast, brighter whites, deeper blacks, more vibrance and some sharpening.",
+    "inputs": "Click the tile.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Soft": {
+    "does": "A gentle look: lower contrast, softer highlights, lifted shadows and a slight fade.",
+    "inputs": "Click the tile.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Amount": {
+    "does": "How strongly the chosen filter is applied. 0 is no effect, 100 is the full filter.",
+    "inputs": "0 to 100 (%), in steps of 1. Drag, or type in the number box and press Enter.",
+    "default": "100 when you pick a filter (the screenshot shows 70 on a demo photo).",
+    "notes": "Only shown when a filter is chosen. It scales only the filter, not your own slider changes."
+   },
+   "Save as filter…": {
+    "does": "Keeps the current look (the filter plus your slider changes) as a new filter of your own, with a name you choose. It then appears as a tile for every photo.",
+    "inputs": "Click, then type a name.",
+    "default": "-",
+    "notes": "Crops and rotation are never part of a filter. Right-click one of your own filters to delete it; photos that use it keep their look."
+   },
+   "Adjust sliders": {
+    "does": "Moves the chosen filter's values into the sliders below, so you can fine-tune each one. The filter itself is then set to None, but the photo looks the same.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Only available when a filter is chosen."
+   },
+   "Crop & rotate": {
+    "does": "Section header for rotating, flipping, cropping and straightening. Click to fold or unfold.",
+    "inputs": "Click.",
+    "default": "Unfolded.",
+    "notes": "-"
+   },
+   "Rotate left": {
+    "does": "Turns the photo a quarter turn anticlockwise.",
+    "inputs": "Click (the ⟲ button).",
+    "default": "Not rotated.",
+    "notes": "Your crop stays on the same part of the picture."
+   },
+   "Rotate right": {
+    "does": "Turns the photo a quarter turn clockwise.",
+    "inputs": "Click (the ⟳ button).",
+    "default": "Not rotated.",
+    "notes": "Your crop stays on the same part of the picture."
+   },
+   "Flip horizontally": {
+    "does": "Mirrors the photo left to right.",
+    "inputs": "Click (the ⇋ button). Click again to flip back.",
+    "default": "Not flipped.",
+    "notes": "-"
+   },
+   "Flip vertically": {
+    "does": "Turns the photo upside down as a mirror image (top to bottom).",
+    "inputs": "Click (the ⇵ button). Click again to flip back.",
+    "default": "Not flipped.",
+    "notes": "-"
+   },
+   "Crop": {
+    "does": "Turns on the crop frame over the photo. Drag the corners or edges to crop, or drag inside the frame to move it.",
+    "inputs": "Click, or press R. Enter (or Esc, or R again) finishes.",
+    "default": "Off; the photo is uncropped.",
+    "notes": "The middle mouse button still pans while you crop. Crops are never copied to other photos with Paste edit settings."
+   },
+   "Aspect": {
+    "does": "Locks the crop to a shape, or leaves it free.",
+    "inputs": "Free; Original (the photo's own shape); 1 : 1; 4 : 5; 3 : 2; 2 : 3; 4 : 3; 16 : 9.",
+    "default": "Free.",
+    "notes": "4 : 5 suits portrait social-media posts, 16 : 9 suits screens."
+   },
+   "Straighten": {
+    "does": "Turns the photo by a small angle to level a tilted horizon. Positive values turn it clockwise, negative anticlockwise. The picture is trimmed to the biggest rectangle that fits, so no empty corners show.",
+    "inputs": "-45 to 45 degrees, in steps of 0.1. Double-click to reset.",
+    "default": "0",
+    "notes": "Combine with Crop for the final framing."
+   },
+   "Masks": {
+    "does": "Section header for local adjustments (Gradient, Radial, Brush, Subject, Sky). Click to fold or unfold.",
+    "inputs": "Click.",
+    "default": "Folded on a fresh install.",
+    "notes": "See the Edit panel - every section screen for each mask button."
+   },
+   "Lens corrections": {
+    "does": "Section header for the lens profile and the manual lens sliders. Click to fold or unfold.",
+    "inputs": "Click.",
+    "default": "Folded on a fresh install.",
+    "notes": "-"
+   }
+  },
+  "edit_panel_full": {
+   "Gradient": {
+    "does": "Adds a gradient mask: its sliders apply fully at the solid line and fade to nothing at the dashed line. Ideal for skies and foregrounds.",
+    "inputs": "Click. Drag either line's end, or the middle handle to move the whole gradient.",
+    "default": "Starts as a sky gradient from the top of the photo.",
+    "notes": "Each mask has its own sliders: exposure, contrast, highlights, shadows, whites, blacks, temperature, tint, vibrance, saturation, sharpening and noise reduction."
+   },
+   "Radial": {
+    "does": "Adds a radial mask: an ellipse whose sliders apply inside it, fading out over Feather towards its edge. Tick Invert to apply outside it instead.",
+    "inputs": "Click. Drag the middle to move it and the edge handles to resize it. Feather 0 to 100.",
+    "default": "Centred on the photo, Feather 50.",
+    "notes": "Good for brightening a face or darkening the surroundings."
+   },
+   "Brush": {
+    "does": "Adds a brush mask: paint where the mask should apply.",
+    "inputs": "Click, then paint on the photo. Brush size 1 to 200, Brush feather 0 to 100, Flow 5 to 100. Hold Alt (or tick Erase) to take paint away.",
+    "default": "Brush size 30, Brush feather 50, Flow 100.",
+    "notes": "-"
+   },
+   "Subject": {
+    "does": "Adds a mask over the main subject (people, animals, objects), found by a small AI model running on this PC.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "The first time asks to download the free \"silueta\" model (44 MB, from the rembg project on GitHub), once. It takes about half a second per photo; your photos never leave the PC. Invert it to adjust the background instead."
+   },
+   "Sky": {
+    "does": "Adds a mask over the sky, found by a small AI model running on this PC.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "The first time asks to download the free \"skyseg\" model (176 MB, from Hugging Face), once. Each download is checked against a known checksum before it is used."
+   },
+   "Mask list": {
+    "does": "Lists the masks on this photo, in the order they are applied. Click one to select it and show its sliders, Invert, Show mask (O) and Delete.",
+    "inputs": "Click a mask. Esc puts it down (deselects it).",
+    "default": "Empty.",
+    "notes": "Masks stay put on the photo when you change the crop. Show mask tints where it applies in red."
+   },
+   "Use the lens profile": {
+    "does": "Corrects the lens's barrel or pincushion distortion, colour fringing and vignetting using the free lensfun database. The camera, lens, focal length and aperture come from the photo; the panel names the profile it found.",
+    "inputs": "Tick or untick.",
+    "default": "Not ticked.",
+    "notes": "Off by default because camera JPEGs are usually corrected in the camera already, so it is mainly for RAW files. Greyed out when no profile matches."
+   },
+   "Distortion": {
+    "does": "Straightens lines that bow because of the lens. Move right to fix barrel distortion (lines bulging outwards, common on wide angles); move left to fix pincushion distortion (lines bending inwards, common on telephotos).",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "The picture is scaled so the corrected edges never show empty corners. Works with or without a profile."
+   },
+   "Vignetting": {
+    "does": "Evens out corners the lens made darker or lighter. Move right to brighten the corners (about 1.3 stops at 100); move left to darken them.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "This corrects the lens. For a creative dark border use Vignette in Effects."
+   },
+   "Fringing red / cyan": {
+    "does": "Removes red or cyan colour edges along high-contrast lines near the photo's edges, by nudging the red channel's size. Move either way until the coloured edges disappear.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "Zoom to 100 % on a branch against a bright sky to judge it."
+   },
+   "Fringing blue / yellow": {
+    "does": "Removes blue or yellow colour edges along high-contrast lines near the photo's edges, by nudging the blue channel's size. Move either way until the coloured edges disappear.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "Zoom to 100 % to judge it."
+   },
+   "Light": {
+    "does": "Section header for Exposure, Contrast, Highlights, Shadows, Whites and Blacks. Click to fold or unfold.",
+    "inputs": "Click.",
+    "default": "Unfolded.",
+    "notes": "-"
+   },
+   "Exposure": {
+    "does": "Makes the whole photo brighter (right) or darker (left), like changing the exposure in the camera. Each 1.0 is one stop: double or half the light.",
+    "inputs": "-5 to 5 stops, in steps of 0.05.",
+    "default": "0",
+    "notes": "Very bright areas roll off softly instead of clipping hard. The screenshot's 0.3 is a demo value."
+   },
+   "Contrast": {
+    "does": "Right makes darks darker and lights lighter for more punch; left flattens the photo for a softer look.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "-"
+   },
+   "Highlights": {
+    "does": "Adjusts only the bright areas. Left darkens them to bring back detail in a bright sky or white dress; right brightens them.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "Works locally, so the rest of the photo isn't flattened."
+   },
+   "Shadows": {
+    "does": "Adjusts only the dark areas. Right lifts them to show detail in the shadows; left deepens them.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "Works locally, so shadows lift without making the whole photo grey. The screenshot's 20 is a demo value."
+   },
+   "Whites": {
+    "does": "Sets how bright the brightest tones are. Right brightens them so more of the photo reaches pure white; left dims them.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "-"
+   },
+   "Blacks": {
+    "does": "Sets how dark the darkest tones are. Left deepens the blacks so more of the photo reaches pure black; right lifts them towards grey.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "-"
+   },
+   "Tone curve": {
+    "does": "Section header for the tone curve. Click to fold or unfold.",
+    "inputs": "Click.",
+    "default": "Unfolded.",
+    "notes": "-"
+   },
+   "RGB": {
+    "does": "Edits the curve for all colours together (overall brightness and contrast).",
+    "inputs": "Click.",
+    "default": "Selected.",
+    "notes": "The Reset button next to the channel buttons straightens the curve of the channel you're on."
+   },
+   "R": {
+    "does": "Edits the red channel's curve only: raising it adds red, lowering it adds cyan.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "The other channels' curves show faintly behind it."
+   },
+   "G": {
+    "does": "Edits the green channel's curve only: raising it adds green, lowering it adds magenta.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "B": {
+    "does": "Edits the blue channel's curve only: raising it adds blue, lowering it adds yellow.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Tone curve graph": {
+    "does": "The tone curve over the photo's histogram. Input tones run left (dark) to right (bright); raising part of the curve brightens those tones, lowering it darkens them. An S shape adds contrast.",
+    "inputs": "Click on the curve to add a point, drag points to bend it, double-click a point to remove it. The two end points only move up and down: lift the left one to fade the blacks, lower the right one to dim the whites.",
+    "default": "A straight diagonal line (no change).",
+    "notes": "Curves never cross over themselves, so a darker tone can't come out lighter than a brighter one."
+   },
+   "Color": {
+    "does": "Section header for Temperature, Tint, Vibrance, Saturation and Hue. Click to fold or unfold.",
+    "inputs": "Click.",
+    "default": "Unfolded.",
+    "notes": "-"
+   },
+   "Temperature": {
+    "does": "Right makes the photo warmer (more yellow/orange); left makes it cooler (more blue). Use it to fix a colour cast from indoor or shade light.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "It is a relative change from the photo's own white balance, and it keeps the overall brightness the same."
+   },
+   "Tint": {
+    "does": "Right adds magenta; left adds green. Use it to fix a green cast from fluorescent light.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "-"
+   },
+   "Vibrance": {
+    "does": "Right strengthens muted colours more than already-strong ones, so skin tones stay natural; left mutes colours gently.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "-"
+   },
+   "Saturation": {
+    "does": "Right makes every colour equally stronger; left weakens them. At -100 the photo is black and white.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "-"
+   },
+   "Hue": {
+    "does": "Shifts every colour around the colour wheel by this many degrees (for example blue towards purple or green). Mostly a creative effect.",
+    "inputs": "-180 to 180 degrees, in steps of 1.",
+    "default": "0",
+    "notes": "Keeps brightness close to the original."
+   },
+   "Effects": {
+    "does": "Section header for Fade and Vignette. Click to fold or unfold.",
+    "inputs": "Click.",
+    "default": "Folded on a fresh install.",
+    "notes": "-"
+   },
+   "Fade": {
+    "does": "Lifts the blacks and softens contrast for a faded, matte film look. Right is more faded.",
+    "inputs": "0 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "-"
+   },
+   "Vignette": {
+    "does": "Darkens (left) or lightens (right) the edges and corners of the photo to draw the eye to the centre.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "Applied to the cropped photo. For correcting a lens's dark corners use Vignetting in Lens corrections."
+   },
+   "Detail": {
+    "does": "Section header for Sharpening and the noise controls. Click to fold or unfold.",
+    "inputs": "Click.",
+    "default": "Unfolded.",
+    "notes": "-"
+   },
+   "Sharpening": {
+    "does": "Makes edges and fine detail crisper. Right is stronger.",
+    "inputs": "0 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "Sharpens brightness only, so it doesn't add coloured halos. Judge it at 100 % zoom; too much looks gritty."
+   },
+   "Noise reduction": {
+    "does": "Removes grain from the photo's brightness. Right is stronger. Lunelis first measures how noisy this photo is, so the same setting suits an ISO 100 and an ISO 6400 photo. It averages each spot with similar-looking spots, which keeps textures such as fabric and hair.",
+    "inputs": "0 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "Worked out once per photo and reused while you move other sliders. Adds about 17 seconds to a 60 MP export."
+   },
+   "Noise detail": {
+    "does": "Fine-tunes Noise reduction: right puts some of the removed fine texture back, left smooths further.",
+    "inputs": "-100 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "Only has an effect when Noise reduction is above 0."
+   },
+   "Color noise": {
+    "does": "Removes the coloured speckles in dark areas. Right is stronger.",
+    "inputs": "0 to 100, in steps of 1.",
+    "default": "0",
+    "notes": "Thin coloured details (a gold chain) keep their colour instead of turning grey."
+   }
+  },
+  "edit_mask": {
+   "Photo (live edit)": {
+    "does": "The photo with the selected mask drawn on it. The red tint shows where the mask applies; for a Radial mask the solid ellipse is its edge and the dashed one is where the full effect starts.",
+    "inputs": "Drag the middle handle to move the mask, the edge handles to resize it. Press O to hide or show the tint, Esc to put the mask down.",
+    "default": "Show mask is on when a mask is added.",
+    "notes": "The middle mouse button still pans while you work on a mask."
+   },
+   "Masks": {
+    "does": "Section header for local adjustments. Unfold it to add masks (Gradient, Radial, Brush, Subject, Sky), pick one in the Mask list, and use its Invert, Show mask (O), Delete, Feather and its own sliders.",
+    "inputs": "Click to fold or unfold.",
+    "default": "Folded on a fresh install.",
+    "notes": "Mask sliders: exposure, contrast, highlights, shadows, whites, blacks, temperature, tint, vibrance, saturation, sharpening and noise reduction, each starting at 0."
+   },
+   "Invert": {
+    "does": "Swaps the mask's inside and outside: the adjustment then applies everywhere except the masked area (for example, darken everything around a subject).",
+    "inputs": "Tick or untick.",
+    "default": "Not ticked",
+    "notes": "Works for every kind of mask, including Subject and Sky."
+   },
+   "Show mask (O)": {
+    "does": "Shows the selected mask as a red overlay on the photo, so you can see exactly where its adjustment applies.",
+    "inputs": "Tick or untick; the O key does the same.",
+    "default": "Ticked",
+    "notes": "Only changes the view; it is never part of an export."
+   },
+   "Delete": {
+    "does": "Removes the selected mask and its adjustments from this photo's edit.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Ctrl+Z brings it back. The original photo is never affected."
+   },
+   "Feather": {
+    "does": "How softly a radial mask fades out: 0 is a hard edge, 100 fades gradually all the way from the centre to the edge.",
+    "inputs": "0 to 100, step 1. Double-click to reset.",
+    "default": "50 for a new radial mask",
+    "notes": "Shown only for radial masks; gradients fade over their own width, and brush strokes have Brush feather instead."
+   }
+  },
+  "edit_crop": {
+   "Photo (live edit)": {
+    "does": "The photo with the crop frame on it. Everything outside the frame will be cut off.",
+    "inputs": "Drag the corners or edges to resize, drag inside to move. Press Enter (or Esc, or R) when done.",
+    "default": "The frame starts at the whole photo.",
+    "notes": "With an Aspect chosen the frame keeps that shape. The mouse wheel still zooms and the middle button pans."
+   },
+   "Crop": {
+    "does": "Pressed in while you are cropping. Click it again (or press R or Enter) to finish.",
+    "inputs": "Click, or press R.",
+    "default": "Off.",
+    "notes": "The crop is saved like any edit and can be changed again later; nothing is cut from the original file."
+   }
+  },
+  "dialog_export": {
+   "Folder": {
+    "does": "The folder the new files are saved into.",
+    "inputs": "Any folder path. Type it, or use Change….",
+    "default": "Pictures\\Lunelis exports in your user folder, then the last folder you used.",
+    "notes": "Lunelis creates the folder if it doesn't exist. The screenshot shows a demo path."
+   },
+   "Change…": {
+    "does": "Opens a folder picker to choose where to export.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Format": {
+    "does": "The file type of the exported photos.",
+    "inputs": "JPEG; TIFF (lossless); PNG (lossless).",
+    "default": "JPEG.",
+    "notes": "JPEG is small and works everywhere. TIFF and PNG keep every detail but are much bigger. JPEG quality only applies to JPEG."
+   },
+   "Size": {
+    "does": "How big the exported photos are.",
+    "inputs": "Full size; 4096 px long edge; 2048 px long edge; 1600 px long edge; 1080 px long edge.",
+    "default": "Full size.",
+    "notes": "The long edge is the photo's longer side. Photos smaller than the chosen size are never enlarged."
+   },
+   "JPEG quality": {
+    "does": "How much detail JPEG keeps. Higher is better quality and a bigger file.",
+    "inputs": "50 to 100 %.",
+    "default": "92 %.",
+    "notes": "Greyed out for TIFF and PNG. 85 to 92 % is a good choice for the web."
+   },
+   "Metadata": {
+    "does": "Which information from the original goes into the exported file: camera, lens, exposure, date and location.",
+    "inputs": "Keep camera, date and location; Keep all but the location (GPS); Remove all metadata.",
+    "default": "Keep camera, date and location.",
+    "notes": "Camera, lens, exposure and date come from the catalog, so exports of RAW files carry them too. Choose Keep all but the location before sharing photos publicly."
+   },
+   "File names": {
+    "does": "The pattern for the new file names.",
+    "inputs": "{name} = the original's name, {date} = capture date (year-month-day, or \"undated\"), {n} = 001, 002…, plus any text of your own. Can't be empty.",
+    "default": "{name}.",
+    "notes": "An existing file is never overwritten; the new one gets \" (2)\". Characters Windows doesn't allow in names are replaced with _."
+   },
+   "Export": {
+    "does": "Starts the export with these settings. A progress window shows how far it has got and has a Cancel button. When it finishes a message says how many photos were exported and offers Show folder.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "The settings are remembered for next time. Videos are skipped. The originals aren't touched."
+   },
+   "Cancel": {
+    "does": "Closes the dialog without exporting anything.",
+    "inputs": "Click, or press Esc.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "dialog_merge_hdr": {
+   "Save as": {
+    "does": "The file type of the merged photo.",
+    "inputs": "TIFF, 16-bit (best for editing); JPEG.",
+    "default": "TIFF, 16-bit (best for editing).",
+    "notes": "16-bit TIFF keeps the most room for editing afterwards. JPEG is smaller and carries the first photo's camera and date."
+   },
+   "Line the photos up first (hand-held brackets)": {
+    "does": "Lines the frames up with each other before blending, to make up for small camera movement between shots.",
+    "inputs": "Tick or untick.",
+    "default": "Ticked.",
+    "notes": "Untick only for brackets shot on a tripod."
+   },
+   "Choose where to save…": {
+    "does": "Asks where to save the result, then starts the merge with a progress window. The file name is suggested from the first photo, with -HDR added.",
+    "inputs": "Click, then choose a folder and name.",
+    "default": "Starts in the last folder you saved a merge to (or Pictures).",
+    "notes": "Greyed out unless 2 to 9 photos are selected. Saving into a library folder adds the result to the library at once."
+   },
+   "Cancel": {
+    "does": "Closes the dialog without merging.",
+    "inputs": "Click, or press Esc.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "dialog_merge_pano": {
+   "Save as": {
+    "does": "The file type of the panorama.",
+    "inputs": "TIFF, 16-bit (best for editing); JPEG.",
+    "default": "TIFF, 16-bit (best for editing).",
+    "notes": "16-bit TIFF keeps the most room for editing afterwards."
+   },
+   "Work at half size (much faster; still ~3000 px per frame)": {
+    "does": "Stitches smaller copies of the photos (about 3000 px per frame) instead of full size. Much faster and uses far less memory.",
+    "inputs": "Tick or untick.",
+    "default": "Ticked.",
+    "notes": "Untick for the largest possible result, if your PC has plenty of memory. If a merge runs out of memory, tick it."
+   },
+   "Crop away the empty edges": {
+    "does": "Trims the stitched panorama to the biggest rectangle with no empty (black) edges.",
+    "inputs": "Tick or untick.",
+    "default": "Ticked.",
+    "notes": "Untick to keep the whole stitched shape and crop it yourself later in the Edit panel."
+   },
+   "Choose where to save…": {
+    "does": "Asks where to save the result, then starts stitching with a progress window. The file name is suggested from the first photo, with -Pano added.",
+    "inputs": "Click, then choose a folder and name.",
+    "default": "Starts in the last folder you saved a merge to (or Pictures).",
+    "notes": "Greyed out unless 2 to 30 photos are selected. Saving into a library folder adds the result to the library at once."
+   },
+   "Cancel": {
+    "does": "Closes the dialog without merging.",
+    "inputs": "Click, or press Esc.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "dialog_tags": {
+   "Places › Lakeside (2 of 3) ✕": {
+    "does": "A tag that only some of the selected photos have (here 2 of the 3). Click the ✕ to remove it from all of them.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "To give it to all of them instead, type the same tag in the box and press Enter."
+   },
+   "Hiking": {
+    "does": "A recently used tag. Click it to add Hiking to every selected photo.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Up to six recent tags are shown. Its tooltip shows the full path for nested tags."
+   },
+   "Mountains": {
+    "does": "A recently used tag, filed inside Places (its tooltip shows Places › Mountains). Click it to add it to every selected photo.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Seasons › Summer (2 of 3) ✕": {
+    "does": "A tag that only some of the selected photos have. Click the ✕ to remove it from all of them.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Removing a tag from these photos doesn't delete the tag from your library."
+   },
+   "Add a tag… (commas for several, > to nest)": {
+    "does": "Adds a tag to every selected photo. Type it and press Enter.",
+    "inputs": "Any text. Commas add several; > (or |) nests, for example Places > Lakeside. Suggests your existing tags as you type.",
+    "default": "Empty.",
+    "notes": "Case doesn't matter. New tags join your Recent list."
+   },
+   "Close": {
+    "does": "Closes the dialog. Every change was already saved as you made it.",
+    "inputs": "Click, or press Esc.",
+    "default": "-",
+    "notes": "-"
+   }
+  }
+ }
+}
