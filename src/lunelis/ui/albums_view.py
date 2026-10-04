@@ -46,6 +46,7 @@ class AlbumTile(QWidget):
 
     clicked = Signal(object)         # Album
     menu = Signal(object, object)    # Album, global pos
+    dropped = Signal(object, list)   # Album, file ids dragged onto it
 
     def __init__(self, album: albums.Album, thumbs: ThumbCache, parent=None) -> None:
         super().__init__(parent)
@@ -53,6 +54,7 @@ class AlbumTile(QWidget):
         self.setFixedSize(TILE, TILE + 46)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)       # Tab reaches every tile; Enter opens
+        self.setAcceptDrops(album.kind == "album")            # photos dragged from the library
         self.setToolTip(album.blurb or album.name)
         self._title = QFont(self.font())
         self._title.setPixelSize(13)
@@ -111,6 +113,29 @@ class AlbumTile(QWidget):
 
     def contextMenuEvent(self, e) -> None:
         self.menu.emit(self.album, e.globalPos())
+
+    def dragEnterEvent(self, e) -> None:
+        from lunelis.ui.grid import PhotoGrid
+        if e.mimeData().hasFormat(PhotoGrid.DRAG_MIME):
+            e.acceptProposedAction()
+            self._hover = True
+            self.update()
+
+    def dragLeaveEvent(self, e) -> None:
+        self._hover = False
+        self.update()
+
+    def dropEvent(self, e) -> None:
+        import json
+        from lunelis.ui.grid import PhotoGrid
+        self._hover = False
+        self.update()
+        try:
+            ids = [int(x) for x in json.loads(bytes(e.mimeData().data(PhotoGrid.DRAG_MIME)).decode("ascii"))]
+        except (ValueError, TypeError):
+            return
+        e.acceptProposedAction()
+        self.dropped.emit(self.album, ids)
 
     def keyPressEvent(self, e) -> None:
         if e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
@@ -215,6 +240,7 @@ class TileFlow(QWidget):
 
 class AlbumsView(QWidget):
     open_album = Signal(object)      # Album -> the library, filtered
+    add_to_album = Signal(object, list)   # Album, file ids dropped on it
     open_suggestions = Signal()      # the event suggestions page
     changed = Signal()
 
@@ -334,6 +360,7 @@ class AlbumsView(QWidget):
         t = AlbumTile(a, self.thumbs)
         t.clicked.connect(self.open_album.emit)
         t.menu.connect(self._menu)
+        t.dropped.connect(self.add_to_album.emit)
         return t
 
     def _repaint_tiles(self) -> None:

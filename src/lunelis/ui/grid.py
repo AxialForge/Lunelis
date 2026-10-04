@@ -12,8 +12,8 @@ Selection is by file id, so it survives a re-sort.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QFont, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QMimeData, QPoint, QRect, QRectF, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDrag, QFont, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QAbstractScrollArea, QFrame, QLabel, QVBoxLayout
 
 from lunelis.raw.thumbnails import cache_rel_path
@@ -421,6 +421,8 @@ class PhotoGrid(QAbstractScrollArea):
     # --- hover card ------------------------------------------------------------
 
     def mouseMoveEvent(self, e: QMouseEvent) -> None:
+        if self._maybe_drag(e):
+            return
         i = self.position_at(e.position().toPoint())
         if i != self._hover_i:
             self._hide_card()
@@ -474,12 +476,80 @@ class PhotoGrid(QAbstractScrollArea):
                 self._set_current(i, Qt.KeyboardModifier.NoModifier)
         if e.button() == Qt.MouseButton.LeftButton:
             i = self.position_at(e.position().toPoint())
+            self._press = (e.position().toPoint(), i)
+            self._pending_select = None
             if i < 0:
                 if not e.modifiers():
                     self.clear_selection()
+            elif not e.modifiers() and self.index.file_id(i) in self.selected and len(self.selected) > 1:
+                # Pressing on a selection may start a drag of all of it: only a
+                # click that doesn't become a drag narrows it to this photo.
+                self._pending_select = i
+                self.current = i
+                self.viewport().update()
             else:
                 self._set_current(i, e.modifiers())
         super().mousePressEvent(e)
+
+    def mouseReleaseEvent(self, e: QMouseEvent) -> None:
+        if e.button() == Qt.MouseButton.LeftButton and getattr(self, "_pending_select", None) is not None:
+            self._set_current(self._pending_select, Qt.KeyboardModifier.NoModifier)
+        self._pending_select = None
+        self._press = None
+        super().mouseReleaseEvent(e)
+
+    # --- drag out ------------------------------------------------------------
+
+    DRAG_MIME = "application/x-lunelis-files"
+
+    def _maybe_drag(self, e: QMouseEvent) -> bool:
+        press = getattr(self, "_press", None)
+        if not press or press[1] < 0 or not (e.buttons() & Qt.MouseButton.LeftButton):
+            return False
+        from PySide6.QtWidgets import QApplication
+        if (e.position().toPoint() - press[0]).manhattanLength() < QApplication.startDragDistance():
+            return False
+        self._press = None
+        self._pending_select = None
+        self.start_drag(press[1])
+        return True
+
+    def drag_ids(self, i: int) -> list[int]:
+        """What dragging tile i takes: the selection if it's in it, else just it."""
+        fid = self.index.file_id(i)
+        if fid in self.selected:
+            return [self.index.file_id(j) for j in range(len(self.index)) if self.index.file_id(j) in self.selected]
+        return [fid]
+
+    def drag_mime(self, ids: list[int]) -> QMimeData:
+        """Photos as files (Explorer copies them) and as Lunelis ids (albums)."""
+        import json
+        mime = QMimeData()
+        paths = self.paths_provider(ids) if getattr(self, "paths_provider", None) else []
+        mime.setUrls([QUrl.fromLocalFile(p) for p in paths])
+        mime.setData(self.DRAG_MIME, json.dumps(ids).encode("ascii"))
+        return mime
+
+    def start_drag(self, i: int) -> None:
+        ids = self.drag_ids(i)
+        drag = QDrag(self)
+        drag.setMimeData(self.drag_mime(ids))
+        rect = self._tile_rect(i)
+        pix = QPixmap(rect.size())
+        pix.fill(Qt.GlobalColor.transparent)
+        self.viewport().render(pix, QPoint(), rect)
+        pix = pix.scaled(96, 96, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        if len(ids) > 1:
+            p = QPainter(pix)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setBrush(Qt.GlobalColor.darkBlue)
+            p.setPen(Qt.GlobalColor.white)
+            p.drawRoundedRect(QRect(pix.width() - 40, 4, 36, 20), 9, 9)
+            p.drawText(QRect(pix.width() - 40, 4, 36, 20), Qt.AlignmentFlag.AlignCenter, f"{len(ids)}")
+            p.end()
+        drag.setPixmap(pix)
+        drag.setHotSpot(QPoint(pix.width() // 2, pix.height() // 2))
+        drag.exec(Qt.DropAction.CopyAction)
 
     def mouseDoubleClickEvent(self, e: QMouseEvent) -> None:
         i = self.position_at(e.position().toPoint())

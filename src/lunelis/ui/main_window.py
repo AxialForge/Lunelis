@@ -267,6 +267,34 @@ class StatusLabel(QLabel):
         self.setText(" · ".join(f'<a href="page:{page}" style="color:{c}">{text}</a>' for text, page in parts))
 
 
+class SpringLoad(QObject):
+    """Photos dragged from the library and held over a sidebar entry open its
+    page (Albums), so they can be dropped on an album there."""
+
+    DELAY_MS = 600
+
+    def __init__(self, button, opener) -> None:
+        super().__init__(button)
+        self.button, self.opener = button, opener
+        button.setAcceptDrops(True)
+        button.installEventFilter(self)
+        self.timer = QTimer(self, singleShot=True, interval=self.DELAY_MS, timeout=opener)
+
+    def eventFilter(self, obj, e) -> bool:
+        from PySide6.QtCore import QEvent
+        from lunelis.ui.grid import PhotoGrid
+        t = e.type()
+        if t in (QEvent.Type.DragEnter, QEvent.Type.DragMove) and e.mimeData().hasFormat(PhotoGrid.DRAG_MIME):
+            e.acceptProposedAction()
+            if t == QEvent.Type.DragEnter:
+                self.timer.start()
+            return True
+        if t in (QEvent.Type.DragLeave, QEvent.Type.Drop):
+            self.timer.stop()
+            return t == QEvent.Type.Drop
+        return False
+
+
 class PageStack(QStackedWidget):
     """The pages, sized for small and scaled screens: a page that can't
     shrink sits in a scroll area, and only the page on show counts toward
@@ -356,6 +384,7 @@ class MainWindow(QMainWindow):
         self.grid = PhotoGrid(self.thumbs)
         self.grid.selection_changed.connect(self._update_count)
         self.grid.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.grid.paths_provider = self._paths_of
         self.grid.customContextMenuRequested.connect(
             lambda pos: self.photo_menu.exec(self.grid.mapToGlobal(pos)))
         self.pages = PageStack()
@@ -374,6 +403,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.events_page)
         self.albums_page = AlbumsView(self.conn)
         self.albums_page.open_album.connect(self.show_album)
+        self.albums_page.add_to_album.connect(self._dropped_on_album)
         self.albums_page.open_suggestions.connect(lambda: self.show_page("Events"))
         self.pages.addWidget(self.albums_page, scroll=False)        # scrolls itself
         from lunelis.ui.quarantine_view import QuarantineView
@@ -699,6 +729,8 @@ class MainWindow(QMainWindow):
                 b.setIconSize(QSize(20, 20))
                 b.setChecked(label == "Library")
                 b.clicked.connect(lambda _=False, name=label: self.show_page(name))
+                if label == "Albums":
+                    self._spring = SpringLoad(b, lambda: self.open_page("Albums"))
                 group.addButton(b)
                 nv.addWidget(b)
                 items.append(b)
@@ -1876,6 +1908,25 @@ class MainWindow(QMainWindow):
         added = albums.add_files(self.conn, aid, both)
         self.status.setText(f"Added {added:,} photo{'s' if added != 1 else ''} to \"{name}\""
                             + (f" ({len(ids) - added:,} already there)" if added < len(ids) else ""))
+
+    def _dropped_on_album(self, album, ids: list[int]) -> None:
+        from lunelis.albums import model as albums
+        both = self._with_pairs(ids)
+        self._history().before(self.conn, f"add to \"{album.name}\"", "album", both, int(album.key))
+        added = albums.add_files(self.conn, int(album.key), both)
+        self.status.setText(f"Added {added:,} photo{'s' if added != 1 else ''} to \"{album.name}\""
+                            + (f" ({len(both) - added:,} already there)" if added < len(both) else ""))
+        self.albums_page.refresh()
+
+    def _paths_of(self, ids: list[int]) -> list[str]:
+        out = {}
+        for start in range(0, len(ids), 900):
+            chunk = ids[start:start + 900]
+            for fid, root, rel in self.conn.execute(
+                    f"SELECT f.id, r.path, f.rel_path FROM files f JOIN roots r ON r.id = f.root_id"
+                    f" WHERE f.id IN ({','.join('?' * len(chunk))})", chunk):
+                out[fid] = os.path.join(root, *rel.split("/"))
+        return [out[i] for i in ids if i in out]
 
     def new_album(self) -> None:
         from PySide6.QtWidgets import QInputDialog
