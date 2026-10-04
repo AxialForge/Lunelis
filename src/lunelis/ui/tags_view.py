@@ -13,6 +13,21 @@ from PySide6.QtWidgets import (
 )
 
 from lunelis.tags import model as tags
+from lunelis.ui.background import Background
+
+
+def _counts(conn):
+    """Every tag, its photo count (a parent counts the distinct photos under it
+    too), and how many photos have any tag. On a worker: see refresh."""
+    rows = [tuple(r) for r in tags.all_tags(conn)]
+    totals = {}
+    for name, _n in rows:
+        cond, params = tags.filter_sql(name)
+        totals[name] = conn.execute(
+            f"SELECT COUNT(*) FROM files f WHERE {cond} AND {tags.LIVE}", params).fetchone()[0]
+    n_photos = conn.execute(f"SELECT COUNT(DISTINCT ft.file_id) FROM file_tags ft JOIN files f"
+                            f" ON f.id = ft.file_id WHERE {tags.LIVE}").fetchone()[0]
+    return rows, totals, n_photos
 
 
 class TagsView(QWidget):
@@ -21,6 +36,7 @@ class TagsView(QWidget):
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
         self.conn = conn
+        self.bg = Background(self, conn)
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 16, 24, 16)
         top = QHBoxLayout()
@@ -48,14 +64,13 @@ class TagsView(QWidget):
         v.addWidget(self.tree, 1)
 
     def refresh(self) -> None:
-        rows = tags.all_tags(self.conn)
+        # A count per tag over the whole library: on a worker.
+        self.bg.run("tags", _counts, self._show,
+                    error=lambda e: self.summary.setText(f"Couldn't count the tags: {e}"))
+
+    def _show(self, counted) -> None:
+        rows, totals, n_photos = counted
         direct = dict(rows)
-        # A parent counts the photos under it too (distinct photos).
-        totals = {}
-        for name, _n in rows:
-            cond, params = tags.filter_sql(name)
-            totals[name] = self.conn.execute(
-                f"SELECT COUNT(*) FROM files f WHERE {cond} AND {tags.LIVE}", params).fetchone()[0]
         self.tree.clear()
         items: dict[str, QTreeWidgetItem] = {}
         for name, _n in rows:
@@ -66,8 +81,6 @@ class TagsView(QWidget):
             (items[parent].addChild(item) if parent in items else self.tree.addTopLevelItem(item))
             items[name] = item
         self.tree.expandToDepth(0)
-        n_photos = self.conn.execute(f"SELECT COUNT(DISTINCT ft.file_id) FROM file_tags ft JOIN files f"
-                                     f" ON f.id = ft.file_id WHERE {tags.LIVE}").fetchone()[0]
         self.summary.setText(f"{len(direct):,} tag{'s' if len(direct) != 1 else ''} on {n_photos:,} "
                              f"photo{'s' if n_photos != 1 else ''}" if direct else "No tags yet")
         self._filter(self.search.text())

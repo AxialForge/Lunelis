@@ -27,6 +27,7 @@ from lunelis.dupes import detect
 from lunelis.dupes.quarantine import QUARANTINE_DIR, QuarantineRefused, quarantine
 from lunelis.raw.thumbnails import cache_rel_path
 from lunelis.settings import Settings
+from lunelis.ui.background import Background
 from lunelis.ui.near_view import NearView
 
 
@@ -218,10 +219,18 @@ class DuplicatesView(QWidget):
             if preferred and preferred[0] == rid:
                 self.prefer.setCurrentIndex(self.prefer.count() - 1)
         self.prefer.blockSignals(False)
-        groups = load_groups(self.conn, preferred)
-        self.model.set_groups(groups)
         if self.tabs.currentIndex() == 1:
             self.near.refresh()
+        # Thousands of groups with their copies: loaded on a worker.
+        if not hasattr(self, "bg"):
+            self.bg = Background(self, self.conn)
+        if not self.model.groups:
+            self.summary.setText("Loading duplicate groups…")
+        self.bg.run("groups", lambda c: load_groups(c, preferred), self._show_groups,
+                    error=lambda e: self.summary.setText(f"Couldn't load the duplicates: {e}"))
+
+    def _show_groups(self, groups) -> None:
+        self.model.set_groups(groups)
         verified = [g for g in groups if g.verified]
         likely = len(groups) - len(verified)
         self.summary.setText(

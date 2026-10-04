@@ -131,6 +131,7 @@ def test_tags_page_and_filter(app, lib, monkeypatch):
     w = mw.MainWindow()
     try:
         w.open_page("Tags")
+        w.tags_page.bg.wait()                          # counted on a worker
         top = w.tags_page.tree.topLevelItem(0)
         assert top.text(0) == "Trips" and top.text(1) == "3" and top.childCount() == 2
         w.tags_page.open_tag.emit("Trips|Vegas")
