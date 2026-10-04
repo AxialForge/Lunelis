@@ -325,6 +325,12 @@ def _stylesheet(t: Theme | None = None) -> str:
     QPushButton:focus {{ border-color: {t.accent}; }}
     QPushButton:disabled {{ color: {t.text_faint}; border-color: {t.border}; }}
     QPushButton:flat {{ border: none; background: transparent; }}
+    QPushButton#CreateCard {{
+        text-align: left; padding: 16px 18px; border-radius: 10px; font-size: 14px;
+        background: {t.surface}; border: 1px solid {t.border}; color: {t.text};
+    }}
+    QPushButton#CreateCard:hover {{ border-color: {t.accent}; }}
+    QLabel#CreatePreview {{ background: {t.surface_alt}; border: 1px solid {t.border}; border-radius: 8px; }}
     QPushButton#Primary {{
         background: {t.chip_bg}; color: {t.chip_text}; border: 1px solid {t.chip_bg};
         font-weight: 600; padding: 9px 18px;

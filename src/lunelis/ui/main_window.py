@@ -68,6 +68,7 @@ RATE_UNDO_STEPS = 20                       # rating changes Ctrl+Z can take back
 # no greyed-out placeholders.
 NAV = [
     ("Photos", ["Library", "Albums", "Tags", "Edit"]),
+    ("Create", ["Create"]),
     ("Bring in & organize", ["Import", "Migrate", "Duplicates", "Damaged files"]),
     ("Keep safe", ["Library status", "Backups", "Quarantine"]),
 ]
@@ -414,6 +415,9 @@ class MainWindow(QMainWindow):
         self.edit_page.reset_all.connect(self._reset_edits_of)
         self.edit_page.export_all.connect(self.export_photos)
         self.pages.addWidget(self.edit_page, scroll=False)          # fills the window
+        from lunelis.ui.create_page import CreatePage
+        self.create_page = CreatePage(self.conn)
+        self.pages.addWidget(self.create_page)
         from lunelis.ui.status_view import StatusView
         self.status_page = StatusView(self.conn, SCAN_STEPS)
         self.status_page.open_page.connect(self.open_page)
@@ -1750,6 +1754,10 @@ class MainWindow(QMainWindow):
                 self.edit_page.choose_default()
             self.pages.setCurrentWidget(self.edit_page)
             self.edit_page.load()
+        elif name == "Create":
+            self.create_page.set_library_context(list(self.grid.selected), self.filter, self.sort.currentData())
+            self.pages.setCurrentWidget(self.create_page)
+            self.create_page.refresh()
         elif name == "Library status":
             self.pages.setCurrentWidget(self.status_page)
             self.status_page.refresh()
