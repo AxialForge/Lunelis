@@ -230,6 +230,35 @@ def to_row(tags: dict) -> dict:
     }
 
 
+MOTION_SCAN = 256 * 1024
+
+
+def motion_video_bytes(path: str) -> int | None:
+    """An Android motion photo's embedded video length (it sits at the end of
+    the JPEG), or None. Read from the XMP: GCamera:MicroVideoOffset (older
+    Pixels) or the Container directory's MotionPhoto item (newer phones)."""
+    try:
+        with open(path, "rb") as fh:
+            return _motion_bytes(fh)
+    except OSError:
+        return None
+
+
+def _motion_bytes(fh) -> int | None:
+    import re as _re
+    fh.seek(0)
+    head = fh.read(MOTION_SCAN)
+    fh.seek(0)
+    if b"MotionPhoto" not in head and b"MicroVideo" not in head:
+        return None
+    m = _re.search(rb'MicroVideoOffset="(\d+)"', head) or _re.search(rb"<GCamera:MicroVideoOffset>(\d+)<", head)
+    if m:
+        return int(m.group(1)) or None
+    m = _re.search(rb'Item:Semantic="MotionPhoto"[^>]*?Item:Length="(\d+)"', head, _re.S) \
+        or _re.search(rb'Item:Length="(\d+)"[^>]*?Item:Semantic="MotionPhoto"', head, _re.S)
+    return int(m.group(1)) if m and int(m.group(1)) else None
+
+
 def read_open(fh, filename: str) -> tuple[str | None, dict]:
     """(sniffed format, exif columns) for an open file. The format is set on
     the exception as `.fmt` too, so a failed read still reports what it saw."""
@@ -246,6 +275,8 @@ def read_open(fh, filename: str) -> tuple[str | None, dict]:
             raise ValueError("no EXIF found")
         row = to_row(tags)
         row["date_source"] = "exif" if row["captured_at"] else None
+        if fmt == "jpeg":
+            row["motion_video"] = _motion_bytes(fh)
         return fmt, row
     except Exception as e:
         e.fmt = fmt
@@ -330,6 +361,7 @@ def extract_pending(conn: sqlite3.Connection, *,
             futures = [pool.submit(_read_one, root, rel) for _, root, rel, _ in chunk]
             batch: list[tuple] = []
             formats: list[tuple] = []
+            motion: list[tuple] = []
             for (file_id, _, rel_path, mtime), fut in zip(chunk, futures):
                 if should_cancel and should_cancel():
                     result.cancelled = True
@@ -339,6 +371,8 @@ def extract_pending(conn: sqlite3.Connection, *,
                 fmt, row, err = fut.result()
                 if row is not None:
                     batch.append((file_id, *_db_values(row), mtime, None))
+                    if row.get("motion_video"):
+                        motion.append((row["motion_video"], file_id))
                     result.read += 1
                 else:
                     batch.append((file_id, *([None] * len(COLUMNS)), mtime, err))
@@ -351,6 +385,7 @@ def extract_pending(conn: sqlite3.Connection, *,
                     on_progress(done, len(todo), rel_path)
             conn.executemany(_UPSERT, batch)
             conn.executemany("UPDATE files SET format = ?, is_raw = ? WHERE id = ?", formats)
+            conn.executemany("UPDATE files SET motion_video = ? WHERE id = ?", motion)
             conn.commit()
             if result.cancelled:
                 break

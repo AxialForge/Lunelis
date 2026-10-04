@@ -46,12 +46,15 @@ def test_only_user_tags_reach_sidecars(tmp_path):
 
 def test_camera_profile_format_is_locked():
     raw = json.loads(profiles.BUILT_IN.read_text(encoding="utf-8"))
-    allowed = {"id", "name", "makes", "markers", "media_dirs", "skip_dirs", "sidecars", "note"}
+    allowed = {"id", "name", "makes", "markers", "media_dirs", "skip_dirs", "sidecars", "companions", "note"}
     for p in raw["profiles"]:
         assert set(p) <= allowed and "id" in p
-        for s in p.get("sidecars", []):
+        for s in p.get("sidecars", []) + p.get("companions", []):
             assert set(s) == {"for", "names"}
     loaded = profiles.load()
     assert loaded[-1].id == "generic"
     sony = next(p for p in loaded if p.id == "sony")
     assert sony.sidecar_names("C0001.MP4")[:2] == ["C0001M01.XML", "C0001M01.xml"]
+    apple = next(p for p in loaded if p.id == "apple")
+    assert apple.companion_names("IMG_0001.HEIC") == ["IMG_0001.MOV", "IMG_0001.mov"]
+    assert "IMG_0001.AAE" in apple.sidecar_names("IMG_0001.HEIC")

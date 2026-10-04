@@ -68,6 +68,7 @@ Tags are full-path names (`Places|Ohio`, shown as Places > Ohio) in `tags`;
   "media_dirs": ["DCIM", "PRIVATE/M4ROOT/CLIP", "PRIVATE/AVCHD"],
   "skip_dirs": ["PRIVATE/M4ROOT/SUB", "PRIVATE/M4ROOT/THMBNL"],
   "sidecars": [{"for": ["mp4", "mxf"], "names": ["{stem}M01.XML", "{stem}.XMP"]}],
+  "companions": [],
   "note": "..."
 }]}
 ```
@@ -79,7 +80,14 @@ Tags are full-path names (`Places|Ohio`, shown as Places > Ohio) in `tags`;
 - `sidecars`: for files with these extensions (`*` = any), these neighbours
   (`{stem}` = name without extension, `{name}` = full name) are copied,
   verified and filed **with** their file, never on their own, never renamed.
-- `makes` match EXIF Make, for choosing a profile from a photo later.
+- `companions` (0.18, optional, same shape as `sidecars`): neighbours that are
+  photos or videos themselves - an iPhone Live Photo's `{stem}.MOV` beside its
+  `.HEIC` / `.JPG`. They're cataloged like any photo, but filed in the same
+  folder as their photo, always: if either name is taken there, both go to
+  the sibling folder. A different file already beside the photo keeps the
+  companion on the card (never "safe to format").
+- `makes` match EXIF Make: a folder with no card layout (copied off a phone)
+  gets the profile of its photos' Make.
 
 ## 4. Keeper
 

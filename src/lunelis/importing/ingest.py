@@ -96,9 +96,15 @@ def volume_info(root: str) -> tuple[str | None, str | None]:
 
 def removable_drives_with_media() -> list[str]:
     """Removable drives (SD / CF / USB readers) that have a DCIM or PRIVATE folder."""
+    return [root for root, card in removable_drives().items() if card]
+
+
+def removable_drives() -> dict[str, bool]:
+    """Every removable drive with a disk in it: {root: has camera media}.
+    True = a memory card (DCIM / PRIVATE); False = a USB stick or drive."""
     if sys.platform != "win32":
-        return []
-    out = []
+        return {}
+    out = {}
     mask = ctypes.windll.kernel32.GetLogicalDrives()
     for i in range(26):
         if not mask & (1 << i):
@@ -106,8 +112,9 @@ def removable_drives_with_media() -> list[str]:
         root = f"{chr(65 + i)}:\\"
         if ctypes.windll.kernel32.GetDriveTypeW(root) != 2:      # DRIVE_REMOVABLE
             continue
-        if any(os.path.isdir(os.path.join(root, d.split("/")[0])) for d in CARD_MEDIA_DIRS):
-            out.append(root)
+        if not os.path.isdir(root):                              # an empty card reader slot
+            continue
+        out[root] = any(os.path.isdir(os.path.join(root, d.split("/")[0])) for d in CARD_MEDIA_DIRS)
     return out
 
 
@@ -142,8 +149,35 @@ def all_drives() -> list[tuple[str, str, str | None, int | None, int | None]]:
 
 
 def _profile(source: str):
+    return profile_for(source)
+
+
+def profile_for(source: str, sample: int = 8):
+    """The card's profile from its layout; for a folder with no layout to go
+    on (copied off a phone), from the EXIF Make of its first few photos."""
     from lunelis import paths
-    return camera_profiles.detect(source, camera_profiles.load(paths.DATA_DIR))
+    profs = camera_profiles.load(paths.DATA_DIR)
+    found = camera_profiles.detect(source, profs)
+    if found.id != "generic":
+        return found
+    from lunelis.importers.metadata import read_file
+    seen = 0
+    for dirpath, dirs, files in os.walk(source):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for name in sorted(files):
+            if not is_cataloged(name):
+                continue
+            try:
+                make = read_file(os.path.join(dirpath, name)).get("camera_make")
+            except Exception:
+                make = None
+            by_make = camera_profiles.for_make(make, profs)
+            if by_make is not None and by_make.id != "generic":
+                return by_make
+            seen += 1
+            if seen >= sample:
+                return found
+    return found
 
 
 def discover(source: str, profile=None) -> list[tuple[str, int, float]]:
@@ -193,6 +227,22 @@ def sidecars_of(source: str, media: list[tuple[str, int, float]], profile=None) 
     return out
 
 
+def companions_of(source: str, media: list[tuple[str, int, float]], profile=None) -> dict[str, list[tuple[str, int, float]]]:
+    """{photo rel: [(companion rel, size, mtime)]} - e.g. IMG_0001.HEIC -> IMG_0001.MOV,
+    by the profile's rules. Companions are media themselves, found in `media`."""
+    profile = profile or _profile(source)
+    by_lower = {rel.lower(): (rel, size, mtime) for rel, size, mtime in media}
+    out: dict[str, list[tuple[str, int, float]]] = {}
+    for rel, _, _ in media:
+        folder, name = (rel.rsplit("/", 1) if "/" in rel else ("", rel))
+        for cand in profile.companion_names(name):
+            crel = f"{folder}/{cand}" if folder else cand
+            hit = by_lower.get(crel.lower())
+            if hit and hit[0] != rel and all(hit[0] != c[0] for c in out.get(rel, [])):
+                out.setdefault(rel, []).append(hit)
+    return out
+
+
 # --- creating ------------------------------------------------------------------
 
 def create_import(conn: sqlite3.Connection, source: str, cfg: Settings_, name: str | None = None) -> int:
@@ -200,14 +250,18 @@ def create_import(conn: sqlite3.Connection, source: str, cfg: Settings_, name: s
         raise ValueError("Choose which library folder imports go into first (Settings > Import).")
     profile = _profile(source)
     items = discover(source, profile)
-    sidecars = sidecars_of(source, items, profile)
+    companions = companions_of(source, items, profile)
+    owned = {c[0] for cs in companions.values() for c in cs}
+    items = [i for i in items if i[0] not in owned]           # a companion is filed with its photo
+    sidecars = sidecars_of(source, items + [c for cs in companions.values() for c in cs], profile)
     serial, label = volume_info(source)
     # Files this card already gave us (same card, same path, size and time) are
-    # recorded as such without being copied again.
-    before: set[tuple[str, int, float]] = set()
+    # recorded as such without being copied again - with where they went, so
+    # their sidecars and companions can still be filed beside them.
+    before: dict[tuple[str, int, float], str | None] = {}
     if serial:
-        before = {(r, s, round(m, 1)) for r, s, m in conn.execute(
-            "SELECT i.source_rel, i.size, i.mtime FROM import_items i JOIN imports im ON im.id = i.import_id"
+        before = {(r, s, round(m, 1)): d for r, s, m, d in conn.execute(
+            "SELECT i.source_rel, i.size, i.mtime, i.dest_path FROM import_items i JOIN imports im ON im.id = i.import_id"
             " WHERE im.volume_serial = ? AND i.state IN ('placed', 'already_in_library')", (serial,))}
     imp = conn.execute(
         "INSERT INTO imports (source, volume_serial, volume_label, name, template, destination, status, profile)"
@@ -215,18 +269,25 @@ def create_import(conn: sqlite3.Connection, source: str, cfg: Settings_, name: s
         (source, serial, label, (name or "").strip() or None, cfg.template, cfg.destination,
          f"{len(items):,} files to copy", profile.id)).lastrowid
 
-    def add(rel, size, mtime, parent=None) -> int:
-        seen = (rel, size, round(mtime, 1)) in before
+    def add(rel, size, mtime, parent=None, kind=None) -> int:
+        key = (rel, size, round(mtime, 1))
+        seen = key in before
         return conn.execute(
-            "INSERT INTO import_items (import_id, source_rel, size, mtime, parent_id, state, note)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (imp, rel, size, mtime, parent, "already_in_library" if seen else "pending",
-             "Imported before from this card" if seen else None)).lastrowid
+            "INSERT INTO import_items (import_id, source_rel, size, mtime, parent_id, kind, state, note, dest_path)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (imp, rel, size, mtime, parent, kind, "already_in_library" if seen else "pending",
+             "Imported before from this card" if seen else None, before.get(key) if seen else None)).lastrowid
 
     for rel, size, mtime in items:
         parent = add(rel, size, mtime)
-        for srel, ssize, smtime in sidecars.get(rel, ()):
-            add(srel, ssize, smtime, parent)
+        taken: set[str] = set()                    # IMG_0001.AAE belongs to the photo AND its video: once
+        for crel, csize, cmtime in companions.get(rel, ()):
+            add(crel, csize, cmtime, parent, "companion")
+        for owner in [rel] + [c[0] for c in companions.get(rel, ())]:
+            for srel, ssize, smtime in sidecars.get(owner, ()):
+                if srel not in taken:
+                    taken.add(srel)
+                    add(srel, ssize, smtime, parent, "sidecar")      # all beside the photo
     conn.commit()
     return imp
 
@@ -327,8 +388,8 @@ def _late_sidecars(conn: sqlite3.Connection, import_id: int, source: str) -> int
     for rel, found in sidecars_of(source, [(r, s, m) for _, r, s, m in media], profile).items():
         for srel, size, mtime in found:
             if srel not in known:
-                conn.execute("INSERT INTO import_items (import_id, source_rel, size, mtime, parent_id)"
-                             " VALUES (?, ?, ?, ?, ?)", (import_id, srel, size, mtime, by_rel[rel]))
+                conn.execute("INSERT INTO import_items (import_id, source_rel, size, mtime, parent_id, kind)"
+                             " VALUES (?, ?, ?, ?, ?, 'sidecar')", (import_id, srel, size, mtime, by_rel[rel]))
                 added += 1
     conn.commit()
     return added
@@ -336,13 +397,23 @@ def _late_sidecars(conn: sqlite3.Connection, import_id: int, source: str) -> int
 
 def _stage_pending(conn, import_id, source, cfg, should_stop, on_progress) -> bool:
     """Stage every pending item. Returns True if it was stopped part-way."""
-    todo = conn.execute("SELECT id, source_rel, size FROM import_items WHERE import_id = ? AND state = 'pending'"
-                        " ORDER BY id", (import_id,)).fetchall()
-    for n, (item, rel, size) in enumerate(todo, 1):
+    todo = conn.execute("SELECT id, source_rel, size, parent_id FROM import_items WHERE import_id = ?"
+                        " AND state = 'pending' ORDER BY id", (import_id,)).fetchall()
+    for n, (item, rel, size, parent) in enumerate(todo, 1):
         if should_stop and should_stop():
             return True
         src = os.path.join(source, *rel.split("/"))
         try:
+            if parent is None:
+                found = _in_library_already(conn, src, size)
+                if found:
+                    found_path, digest = found
+                    conn.execute("UPDATE import_items SET state = 'already_in_library', sha256 = ?, dest_path = ?,"
+                                 " note = 'Already in your library' WHERE id = ?", (digest, found_path, item))
+                    conn.commit()
+                    if on_progress:
+                        on_progress(n, len(todo), rel)
+                    continue
             dst = os.path.join(_staging_dir(cfg, size), f"import-{import_id}", *rel.split("/"))
             digest = _copy_hashed(src, dst, should_stop)
             if _sha256(dst) != digest:                    # the staged copy must read back identically
@@ -370,6 +441,28 @@ def _stage_pending(conn, import_id, source, cfg, should_stop, on_progress) -> bo
 
 
 # --- 2. place ---------------------------------------------------------------------
+
+def _in_library_already(conn: sqlite3.Connection, path: str, size: int) -> tuple[str, str] | None:
+    """Before copying: is this exact file (any name) already in the library?
+    (library path, sha256) when it is - checked byte for byte, since it then
+    counts as safely off the card. Cheap when it isn't: a size lookup."""
+    if not conn.execute("SELECT 1 FROM files WHERE size_bytes = ? AND missing_since IS NULL AND excluded = 0"
+                        " AND quarantined_at IS NULL LIMIT 1", (size,)).fetchone():
+        return None
+    from lunelis.importers.metadata import read_file
+    try:
+        taken = read_file(path).get("captured_at")
+    except Exception:
+        taken = None
+    found = _already_in_library(conn, path, size, taken)
+    if not found:
+        return None
+    try:
+        mine = _sha256(path)
+        return (found, mine) if _sha256(found) == mine else None
+    except OSError:
+        return None
+
 
 def _already_in_library(conn: sqlite3.Connection, path: str, size: int, taken: str | None) -> str | None:
     """The library file with the same size, capture time and sampled
@@ -469,6 +562,9 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
                              " staged_path = NULL WHERE id = ?", (found, item))
                 conn.commit()
                 continue
+            comps = conn.execute(
+                "SELECT source_rel, size, sha256 FROM import_items WHERE parent_id = ? AND kind = 'companion'",
+                (item,)).fetchall()
             folder = render(template, Context(
                 taken=taken, camera=meta.get("camera_model"), import_name=name, import_date=import_date,
                 original_folder=os.path.dirname(rel).rsplit("/", 1)[-1] or None,
@@ -477,6 +573,12 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
             k, target_folder, dest, duplicate = 1, folder, None, False
             while True:
                 dest = os.path.join(destination, *target_folder.split("\\"), filename)
+                # A Live Photo is never split: its video needs the same folder free too.
+                if any(_taken_by_other(os.path.join(os.path.dirname(dest), os.path.basename(crel)), csize, cdig)
+                       for crel, csize, cdig in comps):
+                    k += 1
+                    target_folder = sibling(folder, k)
+                    continue
                 if not os.path.exists(dest):
                     break
                 if os.path.getsize(dest) == size and _sha256(dest) == digest:
@@ -515,6 +617,13 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
     return s
 
 
+def _taken_by_other(path: str, size: int, digest: str | None) -> bool:
+    """A different file already has this name here."""
+    if not os.path.exists(path):
+        return False
+    return not (os.path.getsize(path) == size and digest and _sha256(path) == digest)
+
+
 def _place_sidecar(conn, item, parent, rel, size, digest, staged, should_stop) -> None:
     """A sidecar goes beside its photo or clip, wherever that was filed (or
     found already in the library). Never renamed; a different file already
@@ -525,6 +634,13 @@ def _place_sidecar(conn, item, parent, rel, size, digest, staged, should_stop) -
     dest = os.path.join(os.path.dirname(p_dest), os.path.basename(rel))
     if os.path.exists(dest):
         same = os.path.getsize(dest) == size and _sha256(dest) == digest
+        kind, = conn.execute("SELECT kind FROM import_items WHERE id = ?", (item,)).fetchone()
+        if not same and kind == "companion":
+            # A photo or video of its own: never "kept" in favour of another file -
+            # it stays on the card (and the card isn't safe to format).
+            conn.execute("UPDATE import_items SET state = 'failed', error = ? WHERE id = ?",
+                         ("A different file with this name is already beside its photo - left on the card", item))
+            return
         os.unlink(staged)
         conn.execute("UPDATE import_items SET state = 'already_in_library', dest_path = ?, staged_path = NULL,"
                      " note = ? WHERE id = ?",

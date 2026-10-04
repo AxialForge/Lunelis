@@ -1,63 +1,278 @@
 {
-  "_about": "Card layouts by camera brand. Lunelis picks the first profile whose markers exist on the card, else 'generic'. media_dirs are read recursively; skip_dirs never; sidecars are copied, verified and filed with the file they belong to. Add your own in <data folder>/camera_profiles.json (same shape; same id replaces a built-in).",
+  "_about": "Card layouts by camera brand. Lunelis picks the first profile whose markers exist on the card, else 'generic'. media_dirs are read recursively; skip_dirs never; sidecars (non-photo files such as .XML, .XMP, .AAE) and companions (photos or videos that belong to another, such as a Live Photo's .MOV) are copied, verified and filed with the file they belong to - a companion is never split from it. Add your own in <data folder>/camera_profiles.json (same shape; same id replaces a built-in).",
   "profiles": [
     {
       "id": "sony",
       "name": "Sony",
-      "makes": ["SONY"],
-      "markers": ["PRIVATE/M4ROOT", "PRIVATE/SONY", "DCIM/*MSDCF"],
-      "media_dirs": ["DCIM", "PRIVATE/M4ROOT/CLIP", "PRIVATE/AVCHD"],
-      "skip_dirs": ["PRIVATE/M4ROOT/SUB", "PRIVATE/M4ROOT/THMBNL", "PRIVATE/M4ROOT/GENERAL", "PRIVATE/M4ROOT/TAKE"],
-      "sidecars": [
-        {"for": ["mp4", "mxf"], "names": ["{stem}M01.XML", "{stem}M01.xml", "{stem}.XML", "{stem}.xml", "{stem}.XMP", "{stem}.xmp"]}
+      "makes": [
+        "SONY"
       ],
-      "note": "XAVC clips under PRIVATE/M4ROOT/CLIP with their XML metadata sidecars; SUB proxies and THMBNL thumbnails are skipped."
+      "markers": [
+        "PRIVATE/M4ROOT",
+        "PRIVATE/SONY",
+        "DCIM/*MSDCF"
+      ],
+      "media_dirs": [
+        "DCIM",
+        "PRIVATE/M4ROOT/CLIP",
+        "PRIVATE/AVCHD"
+      ],
+      "skip_dirs": [
+        "PRIVATE/M4ROOT/SUB",
+        "PRIVATE/M4ROOT/THMBNL",
+        "PRIVATE/M4ROOT/GENERAL",
+        "PRIVATE/M4ROOT/TAKE"
+      ],
+      "sidecars": [
+        {
+          "for": [
+            "mp4",
+            "mxf"
+          ],
+          "names": [
+            "{stem}M01.XML",
+            "{stem}M01.xml",
+            "{stem}.XML",
+            "{stem}.xml",
+            "{stem}.XMP",
+            "{stem}.xmp"
+          ]
+        }
+      ],
+      "note": "XAVC clips under PRIVATE/M4ROOT/CLIP with their XML metadata sidecars; SUB proxies and THMBNL thumbnails are skipped.",
+      "companions": []
     },
     {
       "id": "canon",
       "name": "Canon",
-      "makes": ["Canon"],
-      "markers": ["DCIM/CANONMSC", "DCIM/*CANON", "DCIM/*EOS*"],
-      "media_dirs": ["DCIM"],
-      "skip_dirs": ["DCIM/CANONMSC", "MISC"],
-      "sidecars": [{"for": ["mp4", "mov", "cr3", "cr2", "jpg"], "names": ["{stem}.XMP", "{stem}.xmp"]}]
+      "makes": [
+        "Canon"
+      ],
+      "markers": [
+        "DCIM/CANONMSC",
+        "DCIM/*CANON",
+        "DCIM/*EOS*"
+      ],
+      "media_dirs": [
+        "DCIM"
+      ],
+      "skip_dirs": [
+        "DCIM/CANONMSC",
+        "MISC"
+      ],
+      "sidecars": [
+        {
+          "for": [
+            "mp4",
+            "mov",
+            "cr3",
+            "cr2",
+            "jpg"
+          ],
+          "names": [
+            "{stem}.XMP",
+            "{stem}.xmp"
+          ]
+        }
+      ],
+      "companions": []
     },
     {
       "id": "nikon",
       "name": "Nikon",
-      "makes": ["NIKON CORPORATION", "NIKON"],
-      "markers": ["DCIM/*NIKON*", "NIKON001.DSC"],
-      "media_dirs": ["DCIM"],
+      "makes": [
+        "NIKON CORPORATION",
+        "NIKON"
+      ],
+      "markers": [
+        "DCIM/*NIKON*",
+        "NIKON001.DSC"
+      ],
+      "media_dirs": [
+        "DCIM"
+      ],
       "skip_dirs": [],
-      "sidecars": [{"for": ["nef", "jpg", "mov", "mp4"], "names": ["{stem}.XMP", "{stem}.xmp"]}]
+      "sidecars": [
+        {
+          "for": [
+            "nef",
+            "jpg",
+            "mov",
+            "mp4"
+          ],
+          "names": [
+            "{stem}.XMP",
+            "{stem}.xmp"
+          ]
+        }
+      ],
+      "companions": []
     },
     {
       "id": "fujifilm",
       "name": "Fujifilm",
-      "makes": ["FUJIFILM"],
-      "markers": ["DCIM/*_FUJI"],
-      "media_dirs": ["DCIM"],
+      "makes": [
+        "FUJIFILM"
+      ],
+      "markers": [
+        "DCIM/*_FUJI"
+      ],
+      "media_dirs": [
+        "DCIM"
+      ],
       "skip_dirs": [],
-      "sidecars": [{"for": ["raf", "jpg", "mov", "mp4"], "names": ["{stem}.XMP", "{stem}.xmp"]}]
+      "sidecars": [
+        {
+          "for": [
+            "raf",
+            "jpg",
+            "mov",
+            "mp4"
+          ],
+          "names": [
+            "{stem}.XMP",
+            "{stem}.xmp"
+          ]
+        }
+      ],
+      "companions": []
     },
     {
       "id": "gopro",
       "name": "GoPro",
-      "makes": ["GoPro"],
-      "markers": ["DCIM/*GOPRO"],
-      "media_dirs": ["DCIM"],
+      "makes": [
+        "GoPro"
+      ],
+      "markers": [
+        "DCIM/*GOPRO"
+      ],
+      "media_dirs": [
+        "DCIM"
+      ],
       "skip_dirs": [],
       "sidecars": [],
-      "note": "LRV low-resolution proxies and THM thumbnails aren't photos and are left on the card."
+      "note": "LRV low-resolution proxies and THM thumbnails aren't photos and are left on the card.",
+      "companions": []
+    },
+    {
+      "id": "apple",
+      "name": "iPhone / iPad",
+      "makes": [
+        "Apple"
+      ],
+      "markers": [
+        "DCIM/*APPLE"
+      ],
+      "media_dirs": [
+        "DCIM"
+      ],
+      "skip_dirs": [],
+      "sidecars": [
+        {
+          "for": [
+            "heic",
+            "heif",
+            "jpg",
+            "jpeg",
+            "mov",
+            "png"
+          ],
+          "names": [
+            "{stem}.AAE",
+            "{stem}.aae"
+          ]
+        },
+        {
+          "for": [
+            "*"
+          ],
+          "names": [
+            "{stem}.XMP",
+            "{stem}.xmp"
+          ]
+        }
+      ],
+      "companions": [
+        {
+          "for": [
+            "heic",
+            "heif",
+            "jpg",
+            "jpeg"
+          ],
+          "names": [
+            "{stem}.MOV",
+            "{stem}.mov"
+          ]
+        }
+      ],
+      "note": "Live Photos: the .MOV beside a photo of the same name is its video and is always filed with it. .AAE files are the Photos app's edits."
+    },
+    {
+      "id": "android",
+      "name": "Android phone",
+      "makes": [
+        "Google",
+        "samsung",
+        "OnePlus",
+        "Xiaomi",
+        "motorola",
+        "OPPO",
+        "vivo",
+        "HUAWEI",
+        "HONOR",
+        "Sony Mobile",
+        "Nothing",
+        "realme",
+        "LGE"
+      ],
+      "markers": [
+        "DCIM/Camera"
+      ],
+      "media_dirs": [
+        "DCIM",
+        "Pictures"
+      ],
+      "skip_dirs": [
+        "DCIM/.thumbnails",
+        "Pictures/.thumbnails"
+      ],
+      "sidecars": [
+        {
+          "for": [
+            "*"
+          ],
+          "names": [
+            "{stem}.XMP",
+            "{stem}.xmp"
+          ]
+        }
+      ],
+      "companions": [],
+      "note": "Motion photos keep their video inside the JPEG; they import as one file."
     },
     {
       "id": "generic",
       "name": "Camera or folder",
       "makes": [],
       "markers": [],
-      "media_dirs": ["DCIM"],
+      "media_dirs": [
+        "DCIM"
+      ],
       "skip_dirs": [],
-      "sidecars": [{"for": ["*"], "names": ["{stem}.XMP", "{stem}.xmp", "{name}.xmp"]}]
+      "sidecars": [
+        {
+          "for": [
+            "*"
+          ],
+          "names": [
+            "{stem}.XMP",
+            "{stem}.xmp",
+            "{name}.xmp"
+          ]
+        }
+      ],
+      "companions": []
     }
   ]
 }

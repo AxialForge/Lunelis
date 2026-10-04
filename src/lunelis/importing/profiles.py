@@ -34,14 +34,23 @@ class Profile:
     media_dirs: tuple[str, ...] = ("DCIM",)
     skip_dirs: tuple[str, ...] = ()
     sidecars: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = ()   # ((exts...), (name patterns...))
+    companions: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = ()  # photos/videos that belong to another
     note: str = ""
 
     def sidecar_names(self, filename: str) -> list[str]:
         """Candidate sidecar file names for this media file, in order."""
+        return self._names(self.sidecars, filename)
+
+    def companion_names(self, filename: str) -> list[str]:
+        """Candidate companions (IMG_0001.HEIC -> IMG_0001.MOV, its Live Photo video)."""
+        return self._names(self.companions, filename)
+
+    @staticmethod
+    def _names(rules, filename: str) -> list[str]:
         stem, ext = os.path.splitext(filename)
         ext = ext.lower().lstrip(".")
         out: list[str] = []
-        for exts, names in self.sidecars:
+        for exts, names in rules:
             if "*" in exts or ext in exts:
                 for pat in names:
                     n = pat.format(stem=stem, name=filename)
@@ -57,6 +66,8 @@ def _parse(d: dict) -> Profile:
         skip_dirs=tuple(d.get("skip_dirs", ())),
         sidecars=tuple((tuple(e.lower() for e in s.get("for", ())), tuple(s.get("names", ())))
                        for s in d.get("sidecars", ())),
+        companions=tuple((tuple(e.lower() for e in s.get("for", ())), tuple(s.get("names", ())))
+                         for s in d.get("companions", ())),
         note=d.get("note", ""))
 
 

@@ -652,6 +652,16 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    28,
+    "phones: an import item's kind (sidecar / companion); motion photos",
+    """
+    ALTER TABLE import_items ADD COLUMN kind TEXT;
+    UPDATE import_items SET kind = 'sidecar' WHERE parent_id IS NOT NULL;
+    ALTER TABLE files ADD COLUMN motion_video INTEGER;
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 

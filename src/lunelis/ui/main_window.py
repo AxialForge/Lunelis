@@ -81,6 +81,7 @@ SCAN_STEPS = ("Scanning folders", "Reading sidecars", "Reading metadata", "Googl
               "Checking for damaged files")
 
 
+STICK_COUNT_SECONDS = 10         # how long a new USB drive is looked through for photos
 EDITS_INLINE = 20                # Paste / Reset on more photos than this saves on a worker
 SEARCH_NOW_LIMIT = 2000          # search-index rows brought up to date before a query; the rest on a worker
 
@@ -1074,6 +1075,7 @@ class MainWindow(QMainWindow):
         self.tray.show()
         self.cards = CardWatcher(self)
         self.cards.inserted.connect(self._card_inserted)
+        self.cards.stick_inserted.connect(self._stick_inserted)
         self.cards.removed.connect(lambda d: self.importer.update_cards())
 
     def _open_logs(self) -> None:
@@ -1271,6 +1273,34 @@ class MainWindow(QMainWindow):
                                       "Click to import.")
         self._bg().run(f"card {drive}", lambda: len(ingest.discover(drive)), say, db=False,
                        error=lambda e: logging.getLogger(__name__).info("card %s couldn't be read: %s", drive, e))
+
+    def _stick_inserted(self, drive: str) -> None:
+        """A USB stick (no camera folders): offered for import when it holds
+        photos - counted on a worker, and only up to a point (a big drive)."""
+        self.importer.update_cards()
+        if self.tray is None:
+            return
+        _serial, label = ingest.volume_info(drive)
+
+        def count() -> int:
+            import time
+            from lunelis.importers.formats import is_cataloged
+            n, start = 0, time.monotonic()
+            for _dirpath, dirs, files in os.walk(drive):
+                dirs[:] = [d for d in dirs if not d.startswith((".", "$")) and d != "System Volume Information"]
+                n += sum(1 for f in files if is_cataloged(f))
+                if time.monotonic() - start > STICK_COUNT_SECONDS:
+                    break
+            return n
+
+        def say(n: int) -> None:
+            if n and drive in ingest.removable_drives():
+                self._tray_card = drive
+                self.tray.showMessage("USB drive inserted",
+                                      f"{label or 'USB drive'} ({drive.rstrip(chr(92))}): {n:,} photos and videos. "
+                                      "Click to import.")
+        self._bg().run(f"stick {drive}", count, say, db=False,
+                       error=lambda e: logging.getLogger(__name__).info("drive %s couldn't be read: %s", drive, e))
 
     def _bg(self):
         if not hasattr(self, "bg"):
