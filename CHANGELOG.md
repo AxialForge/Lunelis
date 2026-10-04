@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-04
+
+### Added
+
+- **Culling** (Photo > Cull full screen, Ctrl+K): the selection or the whole
+  view, full screen, from the keyboard - pick, reject, stars, labels,
+  auto-advance - with a compare of 2-4 shots that zoom and pan together.
+- **Smart albums:** saved rules (stars, ISO, aperture, focal length, shutter,
+  camera, lens, flag, label, kind, date, tag, search words; all or any) that
+  keep themselves up to date.
+- **RAW+JPEG pairs** show as one photo; stars, labels, picks, albums, tags,
+  events and the archive go to both. Settings > Appearance turns it off.
+- **Undo and redo for much more:** tags, albums, events, the archive,
+  unstacking and edits pasted or reset on many photos join stars, labels and
+  flags - 30 steps, Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y). The Photo menu says
+  what Undo will undo.
+- **Drag and drop:** photos out of the grid into Explorer (copies), and onto
+  an album - holding a drag over Albums in the sidebar opens the page.
+- **Keyboard:** Space toggles a photo in the selection; the menu key or
+  Shift+F10 opens the Photo menu; album tiles are reached with Tab and open
+  with Enter.
+
+### Changed
+
+- Catalog schema 29: each file of a RAW+JPEG pair points at the other.
+
 ## [0.18.0] - 2026-10-04
 
 ### Added

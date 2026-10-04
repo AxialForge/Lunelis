@@ -20,7 +20,10 @@ one grid.
   place are remembered.
 - **Keyboard shortcuts:** press `?` for every shortcut, the current screen's
   first.
-- **Right-click** a photo for the Photo menu; it selects that photo first.
+- **Right-click** a photo for the Photo menu; it selects that photo first. The keyboard's
+  menu key (or Shift+F10) opens it too.
+- **Space** puts the photo under the cursor in or out of the selection.
+- **Drag photos out** of the grid into Explorer (or any program) to copy them.
 
 ## The grid
 
@@ -141,6 +144,31 @@ albums, events, duplicates and backups still see every frame.
 
 If a filter leaves the cover out (say, only 5-star photos), the stack shows
 its first frame that's still in.
+
+## RAW+JPEG pairs
+
+A camera set to RAW+JPEG saves two files per shot (`DSC01234.ARW` and
+`DSC01234.JPG`). Lunelis shows them as **one photo**, badged *ARW+JPG*, and
+stars, labels, picks, albums, tags, events and the archive go to both.
+Settings > Appearance turns this off. Only an exact pair (the same name in
+the same folder, one RAW and one JPEG) is paired - never a guess.
+
+## Culling
+
+**Photo > Cull full screen (Ctrl+K)** goes through your selection (or
+everything the library shows) full screen, from the keyboard: **P** pick,
+**X** reject, **U** unflag, **0-5** stars, **6-9** labels, **← →** to move.
+With auto-advance on (**A**), each pick or rating moves to the next photo.
+**C** compares 2, 3 or 4 shots side by side - zoom (wheel or **Z**) and drag
+move them all together, **Tab** chooses which one the keys act on. **Esc**
+goes back to the library.
+
+## Undo
+
+**Ctrl+Z** takes back the last change - stars, labels, flags, tags, albums
+(adding, removing, a new album), events, archiving, unstacking, and edits
+pasted or reset on many photos - up to 30 steps. **Ctrl+Shift+Z** or
+**Ctrl+Y** redoes it. The Photo menu says what Undo will undo.
 
 ## Selecting
 

@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.18.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.19.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -94,7 +94,7 @@ the data folder).
 | Library-wide dedup | The same photo arriving twice is recognised by its content. |
 | Later | Direct MTP for Android; LAN / Wi-Fi sync. |
 
-### 0.19 - culling and library tools
+### 0.19 - culling and library tools ✅ 0.19.0
 
 | Feature | What it does |
 |---|---|

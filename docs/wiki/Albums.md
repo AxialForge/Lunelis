@@ -8,6 +8,10 @@ there as usual.
 
 ## Your albums
 
+**Drag photos onto an album:** select them in the library and drag them onto
+**Albums** in the sidebar - hold them there a moment and the Albums page
+opens - then drop them on an album.
+
 Collections you make yourself. A photo can be in as many albums as you like.
 
 - **New album:** the dashed tile. Or select photos in the library and choose
@@ -45,6 +49,25 @@ for later. Select them and choose **Photo > Archive** (`Ctrl+Shift+H`).
   target: archived photos are copied there, checked, and only then set aside
   from their old place (into quarantine, as always). They stay archived and
   in the Archive album.
+
+## Smart albums
+
+A smart album is a set of rules that picks photos by itself - and keeps
+picking them as your photos change. **Albums > New smart album...**, give it
+a name, then add rules:
+
+| Rule | Example |
+|---|---|
+| Stars, ISO, Aperture, Focal length, Shutter (seconds) | ISO > 3200 |
+| Camera, Lens | Lens contains 24-70 |
+| Flag, Colour label, Kind (photo / RAW / video) | Flag is pick |
+| Date taken | on or after 2025-01-01 |
+| Tag | has Trips > Vegas |
+| Search words | matches sunset beach |
+
+Choose whether a photo must match **all** of the rules or **any** of them.
+Right-click a smart album to edit its rules, rename or remove it (removing
+it never touches a photo).
 
 ## Automatic
 

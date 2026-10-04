@@ -34,7 +34,7 @@ python -m pytest        # confirms the catalog schema is sound
 python -m lunelis       # opens the app (or just `lunelis` once installed)
 ```
 
-## Status: v0.18.0 - phones and USB sticks
+## Status: v0.19.0 - culling, smart albums, pairs, undo
 
 Catalog, scanning, EXIF, thumbnails, the library grid, ratings/labels with XMP
 sync, the foundations (data folder, settings, catalog backups, central sidecar
