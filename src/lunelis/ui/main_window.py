@@ -62,7 +62,6 @@ SIDEBAR_WIDE, SIDEBAR_NARROW = 240, 64     # px: with page names / icons only (C
 AUTO_SIDEBAR_WIDTH = 1100                  # px: below this the sidebar folds to icons by itself
 CLOSE_SIDECAR_LIMIT = 200                  # sidecars written while closing; more wait for the next start
 RATE_CONFIRM = 500                         # ask before rating / labelling / flagging more photos than this
-RATE_UNDO_STEPS = 20                       # rating changes Ctrl+Z can take back
 
 # Sidebar sections (collapsible). Pages appear here once they're built -
 # no greyed-out placeholders.
@@ -583,10 +582,15 @@ class MainWindow(QMainWindow):
         self.remove_album_action = QAction("&Remove from this album", self, triggered=self.remove_from_album)
         al.addAction(self.remove_album_action)
         al.aboutToShow.connect(lambda: self.remove_album_action.setEnabled(self.filter.album_id is not None))
-        a = QAction("&Undo", self, shortcut="Ctrl+Z", triggered=self.undo)
+        a = self.undo_action = QAction("&Undo", self, shortcut="Ctrl+Z", triggered=self.undo)
         self.photo_menu.insertAction(self.photo_menu.actions()[0], a)
-        self.photo_menu.insertSeparator(self.photo_menu.actions()[1])
         self.addAction(a)
+        b = self.redo_action = QAction("&Redo", self, triggered=self.redo)
+        b.setShortcuts(["Ctrl+Shift+Z", "Ctrl+Y"])
+        self.photo_menu.insertAction(self.photo_menu.actions()[1], b)
+        self.photo_menu.insertSeparator(self.photo_menu.actions()[2])
+        self.addAction(b)
+        self.photo_menu.aboutToShow.connect(self._update_undo_actions)
         self.archive_action = QAction("Arc&hive", self, shortcut="Ctrl+Shift+H", triggered=self.toggle_archive)
         self.photo_menu.addAction(self.archive_action)
         self.addAction(self.archive_action)
@@ -1477,6 +1481,7 @@ class MainWindow(QMainWindow):
         if self._bg().busy("edits"):
             self.status.setText("Still saving the last batch of edits - try again in a moment")
             return
+        self._history().before(self.conn, message[0].lower() + message[1:], "edits", ids)
         editing = self._editing_view()
         if editing:
             editing.edit.finish()
@@ -1615,10 +1620,13 @@ class MainWindow(QMainWindow):
         if not ids:
             QMessageBox.information(self, "Tags", "Select some photos in the library first.")
             return
+        self._history().before(self.conn, f"tags on {len(ids):,} photo{'s' if len(ids) != 1 else ''}", "tags", ids)
         dlg = TagDialog(self.conn, ids, self)
         dlg.exec()
         if dlg.changed:
             self._tags_changed()
+        else:
+            self._history().forget_last()
 
     def _tags_changed(self) -> None:
         if self.pages.currentWidget() is self.detail:
@@ -1863,7 +1871,9 @@ class MainWindow(QMainWindow):
         if picked is None:
             return
         aid, name = picked
-        added = albums.add_files(self.conn, aid, self._with_pairs(ids))
+        both = self._with_pairs(ids)
+        self._history().before(self.conn, f"add to \"{name}\"", "album", both, aid)
+        added = albums.add_files(self.conn, aid, both)
         self.status.setText(f"Added {added:,} photo{'s' if added != 1 else ''} to \"{name}\""
                             + (f" ({len(ids) - added:,} already there)" if added < len(ids) else ""))
 
@@ -1875,7 +1885,10 @@ class MainWindow(QMainWindow):
             return
         name, ok = QInputDialog.getText(self, "New album", f"Name for an album of {len(ids):,} photos:")
         if ok and name.strip():
-            albums.create(self.conn, name, self._with_pairs(ids))
+            both = self._with_pairs(ids)
+            aid = albums.create(self.conn, name, both)
+            self._history().record(f"new album \"{name.strip()}\"", "album", both,
+                                   {"exists": False, "name": None, "inside": set()}, aid)
             self.status.setText(f"Album \"{name.strip()}\" made from {len(ids):,} photos")
 
     def _update_archive_action(self) -> None:
@@ -1895,6 +1908,7 @@ class MainWindow(QMainWindow):
         if not ids:
             return
         archived, live = archive.split(self.conn, ids)
+        self._history().before(self.conn, "archive" if live else "bring back from the archive", "archive", ids)
         if live:
             n = archive.archive(self.conn, live)
             self.status.set_link(f"Archived {n:,} photo{'s' if n != 1 else ''} - out of the library, kept in ",
@@ -1910,6 +1924,8 @@ class MainWindow(QMainWindow):
         ids = self._selected_or_warn()
         if not ids or self.filter.album_id is None:
             return
+        self._history().before(self.conn, f"take out of \"{self.filter.scope_name}\"", "album", ids,
+                               self.filter.album_id)
         n = albums.remove_files(self.conn, self.filter.album_id, ids)
         self.status.setText(f"Took {n:,} photo{'s' if n != 1 else ''} out of \"{self.filter.scope_name}\" "
                             "- the photos themselves are untouched")
@@ -1960,6 +1976,7 @@ class MainWindow(QMainWindow):
         cur = self._current_stack()
         if not cur:
             return
+        self._history().before(self.conn, "unstack", "stack", stacks.members(self.conn, cur[1]), cur[1])
         n = stacks.unstack(self.conn, cur[1])
         self.index.expanded.discard(cur[1])
         self.status.setText(f"Unstacked {n} frames - they'll stay separate")
@@ -2010,7 +2027,9 @@ class MainWindow(QMainWindow):
         if not self._confirm_move([i for i in ids if events.events_of(self.conn, [i]).get(i) != e.id],
                                   f"\"{e.name}\""):
             return
-        events.add_files(self.conn, e.id, self._with_pairs(ids))
+        both = self._with_pairs(ids)
+        self._history().before(self.conn, f"add to the event \"{e.name}\"", "events", both)
+        events.add_files(self.conn, e.id, both)
         self.status.setText(f"Added {len(ids):,} photos to \"{e.name}\"")
         self.events_page.refresh()
         if self.filter.event_id is not None:
@@ -2021,6 +2040,7 @@ class MainWindow(QMainWindow):
         if not ids:
             return
         n = len(events.events_of(self.conn, ids))
+        self._history().before(self.conn, "take out of their event", "events", ids)
         events.remove_files(self.conn, ids)
         self.status.setText(f"Took {n:,} photos out of their event" if n else "None of these were in an event")
         self.events_page.refresh()
@@ -2161,7 +2181,8 @@ class MainWindow(QMainWindow):
                 f"Change {self._describe_rating(change)} on {len(ids):,} photos at once? (Ctrl+Z takes it back.)") \
                 != QMessageBox.StandardButton.Yes:
             return
-        self._rating_undo = (getattr(self, "_rating_undo", []) + [ratings.snapshot(self.conn, ids)])[-RATE_UNDO_STEPS:]
+        self._history().before(self.conn, f"{self._describe_rating(change)} on {len(ids):,} "
+                                          f"photo{'s' if len(ids) != 1 else ''}", "ratings", ids)
         ratings.set_ratings(self.conn, ids, **change)
         self.index.refresh_ratings(self.conn, ids)
         self.grid.viewport().update()
@@ -2189,17 +2210,51 @@ class MainWindow(QMainWindow):
             if self.pages.currentWidget() is page and view.edit.active:
                 view.edit.undo()
                 return
-        history = getattr(self, "_rating_undo", [])
-        if not history:
-            self.status.setText("Nothing to undo")
+        self._step(undo=True)
+
+    def redo(self) -> None:
+        """Ctrl+Shift+Z / Ctrl+Y: the photo being edited redoes its edit; otherwise
+        the last thing undone comes back."""
+        for page, view in ((self.detail, self.detail), (self.edit_page, self.edit_page.view)):
+            if self.pages.currentWidget() is page and view.edit.active:
+                view.edit.redo()
+                return
+        self._step(undo=False)
+
+    def _history(self):
+        if not hasattr(self, "history"):
+            from lunelis.history import History
+            self.history = History()
+        return self.history
+
+    def _update_undo_actions(self) -> None:
+        h = self._history()
+        self.undo_action.setText(f"&Undo {h.next_undo()}" if h.next_undo() else "&Undo")
+        self.redo_action.setText(f"&Redo {h.next_redo()}" if h.next_redo() else "&Redo")
+        self.redo_action.setEnabled(h.next_redo() is not None)
+
+    def _step(self, undo: bool) -> None:
+        if self._bg().busy("edits"):
+            self.status.setText("Still saving edits - try again in a moment")
             return
-        snap = history.pop()
-        ratings.restore(self.conn, snap)
-        self.index.refresh_ratings(self.conn, list(snap))
-        self.grid.viewport().update()
-        self._xmp_timer.start()
-        n = len(snap)
-        self.status.setText(f"Undone: the rating change on {n:,} photo{'s' if n != 1 else ''}")
+        h = self._history()
+        step = h.undo(self.conn) if undo else h.redo(self.conn)
+        if step is None:
+            self.status.setText("Nothing to undo" if undo else "Nothing to redo")
+            return
+        if step.kind == "ratings":
+            self.index.refresh_ratings(self.conn, step.ids)
+            self.grid.viewport().update()
+            self._xmp_timer.start()
+        elif step.kind == "edits":
+            self.render_edits(step.ids)
+        else:
+            self.reload()
+        if step.kind == "tags":
+            self._tags_changed()
+        if step.kind in ("events",):
+            self.events_page.refresh()
+        self.status.setText(f"{'Undone' if undo else 'Redone'}: {step.label}")
         for page, view in ((self.detail, self.detail), (self.edit_page, self.edit_page.view)):
             if self.pages.currentWidget() is page:
                 view.refresh_info()
