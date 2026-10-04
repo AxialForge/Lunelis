@@ -6,6 +6,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-04
+
+### Added
+
+- **Create** (a new sidebar section): new files made from your photos, with
+  their edits. Your photos are only read; everything is a new file in one
+  folder (Pictures\Lunelis creations by default) and nothing is ever
+  overwritten.
+- **A shared photo picker:** the library's selection, what the library
+  shows, an album or event, a folder (and the folders in it), Picks, 4-5
+  stars or recent imports - as a strip to reorder and untick.
+- **Animation:** MP4 (H.264), animated WebP or GIF from a burst or a few
+  photos, with speed, loop, forward-then-back and size, previewed live.
+- **Collage:** eleven layouts, six shapes (1:1, 4:5, 9:16, 16:9, 3:2, 2:3),
+  spacing, border, rounded corners and background colour; drag a photo onto
+  another cell to swap, drag inside a cell to move it, wheel to zoom it.
+- **Batch copies:** resize and convert with presets (Original size, Web,
+  Email, Instagram, Story, Facebook, Widescreen, PNG, WebP), rename with
+  {name} {n} {date}, keep or strip metadata (or only the location), and a
+  text watermark - into a new folder each time.
+- **Presets you can edit:** create_presets.json in the data folder adds or
+  replaces presets.
+
+### Changed
+
+- Export and Create make their pixels in one place (edit/export.rendered),
+  so a photo looks the same wherever it's saved.
+
 ## [0.16.2] - 2026-10-04
 
 The rest of the interface audit (docs/Interface-Audit.md): nothing slow is

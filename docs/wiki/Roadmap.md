@@ -71,7 +71,7 @@ In short:
 | Version | What |
 |---|---|
 | 0.16 | Locked schemas, an interface audit, import hardening (camera profiles, Sony video sidecars, import history) |
-| 0.17 | Create tab: GIF / MP4 / WebP maker, collage, batch tools, one export engine |
+| 0.17 | Create tab: GIF / MP4 / WebP maker, collage, batch tools, one export engine - done in v0.17.0 |
 | 0.18 | Phone and USB-stick import (HEIC, Live Photos, motion photos) |
 | 0.19 | Culling mode, smart albums, RAW+JPG pairing |
 | 0.20 | Scene-aware tagging with a review queue |

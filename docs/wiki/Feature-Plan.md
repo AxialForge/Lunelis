@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.16.2), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.17.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -74,14 +74,14 @@ the data folder).
 | Clear the card | Offered only after every file is verified. |
 | Interface audit, the rest (0.16.2) | Every page reads in the background; text follows Windows' text size; the Edit page fits the smallest window. |
 
-### 0.17 - Create tab, round one 🔨
+### 0.17 - Create tab, round one ✅ 0.17.0
 
 | Feature | What it does |
 |---|---|
 | Create section | A new sidebar section with a card per tool; a shared photo picker (selection, album, folder). |
 | Shared export engine | Size, format, quality and social presets (an editable JSON file), always with the original size too. |
 | GIF, MP4 and WebP maker | A burst or selection to an animation: trim, reorder, speed, loop. MP4 / WebP for quality, GIF for compatibility. |
-| Collage | Grid templates and free layout, spacing, border, background, aspect presets (1:1, 4:5, 9:16, 16:9), drag-swap cells, pan and zoom per cell. |
+| Collage | Grid templates, spacing, border, rounded corners, background, aspect presets (1:1, 4:5, 9:16, 16:9, 3:2, 2:3), drag-swap cells, pan and zoom per cell. Free placement is in the engine; drawing your own cells on the page comes with round two (0.22). |
 | Batch tools | Watermark, resize, convert, rename and strip EXIF - always to new files. |
 
 ### 0.18 - phone and USB-stick import
@@ -141,6 +141,7 @@ automatic; dismissals are remembered.
 
 | Feature | What it does |
 |---|---|
+| Free collage layout | Draw, move and resize your own cells on the collage page (the engine already lays them out). |
 | Offline-NAS view | Thumbnails and details stay visible while the NAS is unreachable, marked offline. |
 | Protection indicator | Protected / not protected per photo from backup state; scheduled integrity checks. |
 | Map and calendar | Photos by GPS on a map (opt-in, labelled online tiles) and an "on this day" calendar. |

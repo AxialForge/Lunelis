@@ -446,6 +446,28 @@ file not found on the last complete scan.
   `purged`; the file's catalog row is deleted (user data was merged into
   the keeper when it was set aside). Tests monkeypatch `_recycle`.
 
+### Create rules (create/, ui/create_page.py)
+
+- Outputs are ALWAYS new files: engine.save / animation.write use
+  export.free_path ("name (2).ext") - never overwrite, never write beside
+  the originals. One folder: Settings `create_output_dir`, else
+  engine.pictures_folder() / "Lunelis creations" (FOLDERID_Pictures, may be
+  OneDrive). Batch makes a new "Batch <stamp>" subfolder per run.
+- Pixels come from edit/export.rendered (shared with Export) - previews use
+  the cached thumbnails (create_page.thumb_image), saved files never do.
+- Presets: create/presets.json (packaged: pyproject package-data AND
+  Lunelis.spec datas) + <data>/create_presets.json; a broken user file
+  raises PresetError (shown, built-ins used meanwhile).
+- MP4 = PyAV libx264 (bundled in the av wheel), yuv420p, so frames are
+  cropped to even sizes; MP4 has no loop flag - `loops` repeats the frames.
+  GIF is capped at GIF_MAX_EDGE (1080) and quantized per frame.
+- Collage spacing/border/corners are % of the canvas's short side so the
+  preview matches the file; cells cover-fit (crop, never stretch); swap
+  moves photos (with zoom/pan) and keeps the cells. Free cells (Cell.rect)
+  are supported by the engine; the page has no UI to draw them yet (0.22).
+- Tools run on MakeWorker (own connection: commit before making) with
+  Cancel wired via lambda (the Cancel gotcha).
+
 ### Search rules (search.py)
 
 - search_fts (FTS5, rowid = file id; columns name, folder, camera, lens,
