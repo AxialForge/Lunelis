@@ -514,6 +514,19 @@ class PhotoGrid(QAbstractScrollArea):
             self.clear_selection()
         elif k in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.current >= 0:
             self.activated.emit(self.index.file_id(self.current))
+        elif k == Qt.Key.Key_Space and self.current >= 0:
+            # Space: this photo in or out of the selection, the rest kept (as Ctrl+click).
+            fid = self.index.file_id(self.current)
+            self.selected ^= {fid}
+            self.viewport().update()
+            self.selection_changed.emit(len(self.selected))
+        elif (k == Qt.Key.Key_Menu or (k == Qt.Key.Key_F10 and mods & Qt.KeyboardModifier.ShiftModifier)) \
+                and self.current >= 0:
+            # The keyboard's menu key: the Photo menu at the photo, not wherever the pointer is.
+            fid = self.index.file_id(self.current)
+            if fid not in self.selected:
+                self._set_current(self.current, Qt.KeyboardModifier.NoModifier)
+            self.customContextMenuRequested.emit(self._tile_rect(self.current).center())
         else:
             super().keyPressEvent(e)
 

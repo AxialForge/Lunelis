@@ -11,7 +11,7 @@ ones from a background thread.
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QRect, QRectF, QSize, Qt, QThread, Signal
-from PySide6.QtGui import QFont, QPainter, QPainterPath
+from PySide6.QtGui import QPen, QFont, QPainter, QPainterPath
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMenu, QMessageBox, QPushButton, QScrollArea,
     QVBoxLayout, QWidget,
@@ -52,6 +52,7 @@ class AlbumTile(QWidget):
         self.album, self.thumbs = album, thumbs
         self.setFixedSize(TILE, TILE + 46)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)       # Tab reaches every tile; Enter opens
         self.setToolTip(album.blurb or album.name)
         self._title = QFont(self.font())
         self._title.setPixelSize(13)
@@ -79,6 +80,9 @@ class AlbumTile(QWidget):
             p.fillPath(path, qcolor(t.tile_placeholder))
         if self._hover:
             p.fillPath(path, qcolor("rgba(0,0,0,0.12)"))
+        if self.hasFocus():
+            p.setPen(QPen(qcolor(t.accent), 3))
+            p.drawRoundedRect(QRectF(r).adjusted(1.5, 1.5, -1.5, -1.5), 10, 10)
         p.setPen(qcolor(t.text))
         p.setFont(self._title)
         fm = p.fontMetrics()
@@ -107,6 +111,28 @@ class AlbumTile(QWidget):
 
     def contextMenuEvent(self, e) -> None:
         self.menu.emit(self.album, e.globalPos())
+
+    def keyPressEvent(self, e) -> None:
+        if e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.clicked.emit(self.album)
+        elif e.key() == Qt.Key.Key_Menu or (e.key() == Qt.Key.Key_F10
+                                            and e.modifiers() & Qt.KeyboardModifier.ShiftModifier):
+            self.menu.emit(self.album, self.mapToGlobal(self.rect().center()))
+        else:
+            super().keyPressEvent(e)
+
+    def focusInEvent(self, e) -> None:
+        super().focusInEvent(e)
+        self.update()
+        parent = self.parentWidget()
+        while parent is not None and not hasattr(parent, "ensureWidgetVisible"):
+            parent = parent.parentWidget()
+        if parent is not None:
+            parent.ensureWidgetVisible(self)        # Tab scrolls the page to the tile
+
+    def focusOutEvent(self, e) -> None:
+        super().focusOutEvent(e)
+        self.update()
 
 
 class NewAlbumTile(QWidget):

@@ -18,6 +18,9 @@ KEYS: dict[str, list[tuple[str, str]]] = {
     "Library": [
         ("Enter", "Open the selected photo"),
         ("Ctrl+A / Esc", "Select all / select none"),
+        ("Space", "This photo in or out of the selection"),
+        ("Menu key / Shift+F10", "The Photo menu for the selection"),
+        ("Ctrl+Z / Ctrl+Shift+Z", "Undo / redo stars, tags, albums, archive, stacks, edits"),
         ("Ctrl+click, Shift+click", "Add a photo to the selection / select a range"),
         ("Arrows, Page Up/Down, Home/End", "Move through the grid (with Shift: extend the selection)"),
         ("Ctrl+mouse wheel", "Change the thumbnail size"),
