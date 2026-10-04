@@ -23,10 +23,11 @@ def window(tmp_path, monkeypatch):
     for i in range(5):
         Image.effect_noise((96, 64), 40 + i).convert("RGB").save(root / f"IMG_{i:04d}.jpg", "JPEG")
     w = MainWindow()
-    scan_root(w.conn, add_root(w.conn, root))
+    rid = add_root(w.conn, root)
+    scan_root(w.conn, rid)
     w.reload()
     monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
-    ids = [r[0] for r in w.conn.execute("SELECT id FROM files WHERE rel_path LIKE 'IMG_%' ORDER BY filename")]
+    ids = [r[0] for r in w.conn.execute("SELECT id FROM files WHERE root_id = ? ORDER BY filename", (rid,))]   # its own only
     yield w, ids
     w._quitting = True
     w.close()
@@ -50,7 +51,7 @@ def test_edit_page_works_through_the_selection_and_stays_editing(window):
     assert page.view.editing
     assert page.view.back_b.isHidden() and page.view.edit_b.isHidden()
     page.source.setCurrentIndex(page.source.findData("view"))   # what the library shows: everything
-    assert len(page.ids()) == len(ids)
+    assert set(ids) <= set(page.ids()) and len(page.ids()) == len(w.index)   # other tests share the catalog
     # Rating keys act on the photo being edited, not the library's selection.
     cur = page.current()
     w.rate(stars=4)
