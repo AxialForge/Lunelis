@@ -402,6 +402,12 @@ class MainWindow(QMainWindow):
         col.addWidget(self.toolbar)
         self.filter_bar = self._build_filter_bar()
         col.addWidget(self.filter_bar)
+        from lunelis.ui.ask_bar import AskBar
+        self.ask_bar = AskBar(self.conn)
+        self.ask_bar.asked.connect(self._ask)
+        self.ask_bar.closed.connect(lambda: self.filter.ranked and self.set_filter(Filter()))
+        self.ask_bar.hide()
+        col.addWidget(self.ask_bar)
         self.thumbs = ThumbCache(paths.THUMBNAIL_CACHE, self)
         self.grid = PhotoGrid(self.thumbs)
         self.grid.selection_changed.connect(self._update_count)
@@ -583,6 +589,9 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         menu = self.menuBar().addMenu("&Library")
+        a = QAction("&Ask your library…", self, shortcut="Ctrl+Shift+F", triggered=self.open_ask)
+        menu.addAction(a)
+        self.addAction(a)
         self.add_action = QAction("&Add folder…", self, shortcut="Ctrl+O", triggered=self.add_folder)
         self.rescan_action = QAction("&Rescan all folders", self, shortcut="F5", triggered=self.rescan_all)
         self.cancel_action = QAction("&Stop", self, shortcut="Ctrl+.", enabled=False,
@@ -648,6 +657,11 @@ class MainWindow(QMainWindow):
         a = QAction("C&ull full screen…", self, shortcut="Ctrl+K", triggered=self.cull)
         self.photo_menu.addAction(a)
         self.addAction(a)
+        self.similar_action = QAction("Find &similar photos", self, shortcut="Ctrl+Alt+F", triggered=self.find_similar)
+        self.photo_menu.addAction(self.similar_action)
+        self.addAction(self.similar_action)
+        self.photo_menu.aboutToShow.connect(lambda: self.similar_action.setText(
+            "More &like these" if len(self.grid.selected) > 1 else "Find &similar photos"))
         self.archive_action = QAction("Arc&hive", self, shortcut="Ctrl+Shift+H", triggered=self.toggle_archive)
         self.photo_menu.addAction(self.archive_action)
         self.addAction(self.archive_action)
@@ -1953,6 +1967,55 @@ class MainWindow(QMainWindow):
         self.open_page("Tags")
         self.tags_page.show_suggestions()
 
+    def open_ask(self) -> None:
+        self.open_page("Library")
+        self.ask_bar.open()
+
+    def _ask(self, asked) -> None:
+        """Show the answer to a sentence (ask.py) in the library, best first."""
+        from lunelis import ask
+        from lunelis.recognize.scenes import backend
+        rules = ask.filter_json(asked)
+        rec = backend()
+        if asked.looks and rec is None:
+            self.ask_bar.say("Scene tags are off, so this looks for the words in names, folders and tags")
+        else:
+            self.ask_bar.say("Working it out…" if asked.looks else "")
+
+        def show(result) -> None:
+            ranked, words = result
+            name = f"Asked: {asked.sentence}"
+            if ranked is not None:
+                self.ask_bar.say(f"{len(ranked):,} best matches" if ranked else "Nothing looks like that")
+                self.set_filter(Filter(smart=rules, ids=tuple(ranked), ranked=True, scope_name=name))
+            else:
+                self.ask_bar.say("")
+                self.set_filter(Filter(smart=rules, query=words, scope_name=name))
+        self._bg().run("ask", lambda c: ask.answer(c, asked, rec), show,
+                       error=lambda e: self.ask_bar.say(f"Couldn't answer that: {e}"))
+
+    def find_similar(self) -> None:
+        """Find similar (one photo) / More like these (a selection), best first."""
+        from lunelis import ask
+        from lunelis.recognize.scenes import backend
+        ids = self._targets()
+        if not ids:
+            return
+        rec = backend()
+        if rec is None:
+            self.status.setText("Find similar needs scene tags turned on (Settings > Library > Scene tags)")
+            return
+        name = "Like this photo" if len(ids) == 1 else f"Like these {len(ids):,} photos"
+
+        def show(ranked) -> None:
+            if not ranked:
+                self.status.setText("Nothing to compare yet - the scene model hasn't looked at this photo")
+                return
+            self.open_page("Library")
+            self.set_filter(Filter(ids=tuple(ranked), ranked=True, scope_name=name))
+        self._bg().run("similar", lambda c: ask.similar_to(c, ids, rec), show,
+                       error=lambda e: self.status.setText(f"Couldn't find similar photos: {e}"))
+
     def cull(self) -> None:
         """Full-screen, keyboard culling of the selection (if several are
         selected) or of everything the library shows."""
@@ -2250,12 +2313,21 @@ class MainWindow(QMainWindow):
             parts.append((f.scope_name or f.auto, "auto", None))
         if f.tag:
             parts.append(("Tag: " + f.tag.replace("|", " › "), "tag", None))
+        if f.ranked:
+            parts.append((f.scope_name or "Best matches", "ranked", None))
+        elif f.smart:
+            parts.append((f"Smart album: {f.scope_name or ''}".rstrip(": "), "smart", None))
+        if f.folder is not None:
+            parts.append((f"Folder: {f.scope_name or ''}".rstrip(": "), "folder", None))
+        # Some chips stand for several fields: an answer is its ids, order and rules.
+        groups = {"ranked": {"ids": None, "ranked": False, "smart": None, "scope_name": None},
+                  "smart": {"smart": None, "scope_name": None}, "folder": {"folder": None, "scope_name": None}}
         for text, attr, cleared in parts:
             chip = QPushButton(f"{text}  ✕", objectName="Chip")
             chip.setCursor(Qt.CursorShape.PointingHandCursor)
             chip.setToolTip("Remove this filter")
-            chip.clicked.connect(lambda _=False, a=attr, c=cleared: self.set_filter(
-                Filter(**{**self.filter.__dict__, a: c})))
+            clear = groups.get(attr, {attr: cleared})
+            chip.clicked.connect(lambda _=False, c=clear: self.set_filter(Filter(**{**self.filter.__dict__, **c})))
             self.chips.addWidget(chip)
         self.clear_all.setVisible(f.active())
 

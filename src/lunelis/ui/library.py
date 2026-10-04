@@ -82,6 +82,7 @@ class Filter:
     ids: tuple | None = None      # only these files (the Edit page's "Selected in the library")
     folder: tuple | None = None   # (root id, folder rel path): only photos in that folder and below
     smart: str | None = None      # a smart album's rules (JSON, albums/smart.py)
+    ranked: bool = False          # show `ids` in their own order (ask / find similar), best first
     hide_videos: bool = field(default=False, compare=False)      # Settings > Appearance, not a filter chip
     hide_pairs: bool = field(default=False, compare=False)       # a RAW+JPEG pair's JPEG (pairs.py)
 
@@ -198,8 +199,13 @@ class LibraryIndex:
         """The rows for a sort and filter - only reads `conn`, so a worker can
         run it on its own connection (MainWindow.reload_later)."""
         where, params = filt.sql()
+        order = SORTS[sort_key][1]
+        if filt.ranked and filt.ids is not None:
+            import json
+            order = "(SELECT CAST(j.key AS INTEGER) FROM json_each(?) j WHERE j.value = f.id), f.id"
+            params = [*params, json.dumps(list(filt.ids))]
         return conn.execute(
-            _QUERY.format(order=SORTS[sort_key][1], where=where,
+            _QUERY.format(order=order, where=where,
                           untrusted=",".join(str(i) for i in untrusted_mtime_roots(conn)) or "NULL"),
             params).fetchall()
 
