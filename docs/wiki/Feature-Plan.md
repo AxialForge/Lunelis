@@ -122,7 +122,8 @@ the data folder).
 
 Contact sheet (PDF / PNG with captions), timelapse builder (deflicker,
 stabilization), slideshow video (music, transitions), before and after
-(slider or side by side), print layout (4x6, 5x7, 8x10 sheets).
+(slider or side by side), print layout (4x6, 5x7, 8x10 sheets), and free collage
+layout (draw, move and resize your own cells - the engine already lays them out).
 
 ### 0.23 - video and GIF playback · 0.24 - S-Log previews
 
@@ -141,7 +142,6 @@ automatic; dismissals are remembered.
 
 | Feature | What it does |
 |---|---|
-| Free collage layout | Draw, move and resize your own cells on the collage page (the engine already lays them out). |
 | Offline-NAS view | Thumbnails and details stay visible while the NAS is unreachable, marked offline. |
 | Protection indicator | Protected / not protected per photo from backup state; scheduled integrity checks. |
 | Map and calendar | Photos by GPS on a map (opt-in, labelled online tiles) and an "on this day" calendar. |
