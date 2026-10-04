@@ -882,6 +882,81 @@ class TimelapseTool(Tool):
                  lambda conn, prog, stop: self.tl.make(conn, ids, opts, folder, name, prog, stop), 2 * len(ids))
 
 
+# --- Slideshow video -------------------------------------------------------------------------------
+
+class SlideshowTool(Tool):
+    title_text = "Slideshow video"
+    blurb = ("Photos one after another as a video you can share or play on a TV, with transitions, a slow zoom "
+             "and your own music. The photos play in the order of the strip.")
+
+    def __init__(self, conn, parent=None) -> None:
+        super().__init__(conn, parent)
+        from lunelis.create import slideshow
+        self.ss = slideshow
+        self.music: str | None = None
+        form = QFormLayout()
+        self.seconds = QSpinBox(minimum=1, maximum=30, value=3, suffix=" s a photo")
+        form.addRow("Timing", self.seconds)
+        self.transition = QComboBox()
+        for key, label in (("crossfade", "Crossfade"), ("black", "Fade through black"), ("cut", "Cut")):
+            self.transition.addItem(label, key)
+        form.addRow("Transition", self.transition)
+        self.zoom = QCheckBox("Slow zoom (Ken Burns)", checked=True)
+        form.addRow("", self.zoom)
+        self.fill = QCheckBox("Fill the frame (crop) instead of showing the whole photo")
+        form.addRow("", self.fill)
+        self.size = QComboBox()
+        for key, label in (("1080p", "1080p widescreen"), ("720p", "720p widescreen"), ("square", "Square 1080"),
+                           ("vertical", "Vertical 1080 x 1920 (phones)")):
+            self.size.addItem(label, key)
+        form.addRow("Size", self.size)
+        music_row = QHBoxLayout()
+        self.music_label = QLabel("No music", objectName="Help")
+        music_row.addWidget(self.music_label, 1)
+        music_row.addWidget(QPushButton("Choose…", clicked=self._choose_music))
+        music_row.addWidget(QPushButton("None", clicked=lambda: self._set_music(None)))
+        form.addRow("Music", music_row)
+        self.length = QLabel(objectName="Help")
+        form.addRow("", self.length)
+        box = QWidget()
+        box.setLayout(form)
+        box.setMaximumWidth(520)
+        self.body.addWidget(box)
+        self.body.addStretch(1)
+        self.seconds.valueChanged.connect(self._length)
+        self.picker.changed.connect(self._length)
+
+    def _choose_music(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Music for the slideshow", "",
+                                              "Audio (*.mp3 *.m4a *.aac *.wav *.flac *.ogg *.opus);;All files (*)")
+        if path:
+            self._set_music(path)
+
+    def _set_music(self, path: str | None) -> None:
+        self.music = path
+        self.music_label.setText(os.path.basename(path) if path else "No music")
+
+    def _length(self, *_a) -> None:
+        n = len(self.picker.ids())
+        secs = n * self.seconds.value()
+        self.length.setText(f"{secs // 60}:{secs % 60:02d} long" if n else "")
+
+    def make(self) -> None:
+        ids = self.picker.ids()
+        opts = self.ss.SlideshowOptions(float(self.seconds.value()), 0.8, self.transition.currentData(),
+                                        self.zoom.isChecked(), self.fill.isChecked(), self.size.currentData(),
+                                        self.music)
+        try:
+            opts.check(len(ids))
+        except ValueError as e:
+            QMessageBox.information(self, self.title_text, str(e))
+            return
+        folder, name = self.out_dir(), engine.stamp("Slideshow")
+        self.result.setText("")
+        self.run("Making the slideshow…",
+                 lambda conn, prog, stop: self.ss.make(conn, ids, opts, folder, name, prog, stop), len(ids))
+
+
 # --- the page ---------------------------------------------------------------------------------
 
 CARD_ICONS = {"animation": "status", "collage": "create", "batch": "duplicates", "contact": "albums",
@@ -931,6 +1006,7 @@ TOOLS = (
     ("batch", "Batch copies", "Resize, convert, watermark, rename or strip metadata - as new files.", BatchTool),
     ("contact", "Contact sheet", "A grid of photos with captions on printable pages - PDF or PNG.", ContactSheetTool),
     ("timelapse", "Timelapse", "An interval shoot as a smooth video, deflickered and stabilised.", TimelapseTool),
+    ("slideshow", "Slideshow video", "Photos as a video with transitions, a slow zoom and music.", SlideshowTool),
 )
 
 

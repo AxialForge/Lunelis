@@ -83,3 +83,43 @@ def test_a_timelapse_is_an_mp4_of_every_frame(photos):
         v = c.streams.video[0]
         assert (v.width, v.height) == (1280, 720) and sum(1 for _ in c.decode(v)) == 8
         assert abs(float(v.average_rate) - 12) < 0.01
+
+
+def _tone(path, seconds=10, rate=44100):
+    import wave
+    t = np.arange(int(seconds * rate)) / rate
+    data = (np.sin(2 * np.pi * 440 * t) * 12000).astype(np.int16)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(data.tobytes())
+
+
+def test_slideshow_length_transitions_and_music(photos, tmp_path):
+    from lunelis.create.slideshow import FPS, SlideshowOptions, make
+    conn, ids, out = photos
+    song = tmp_path / "song.wav"
+    _tone(song)
+    path = make(conn, ids[:4], SlideshowOptions(seconds=1.0, fade=0.3, size="720p", music=str(song)), out, "Show")
+    with av.open(path) as c:
+        v = c.streams.video[0]
+        n = sum(1 for _ in c.decode(v))
+        assert n == 4 * FPS and (v.width, v.height) == (1280, 720)
+    with av.open(path) as c:
+        a = c.streams.audio[0]
+        samples = sum(f.samples for f in c.decode(a))
+        assert abs(samples / a.rate - 4.0) < 0.15                 # cut to the video's length
+    silent = make(conn, ids[:2], SlideshowOptions(seconds=0.5, transition="cut", zoom=False, size="square"), out, "Cut")
+    with av.open(silent) as c:
+        assert not c.streams.audio and sum(1 for _ in c.decode(c.streams.video[0])) == 2 * round(0.5 * FPS)
+
+
+def test_crossfade_and_through_black_frames():
+    from lunelis.create.slideshow import SlideshowOptions, frames
+    a, b = Image.new("RGB", (40, 20), (200, 0, 0)), Image.new("RGB", (40, 20), (0, 0, 200))
+    cross = list(frames([a, b], SlideshowOptions(seconds=1.0, fade=0.5, zoom=False)))
+    mid = cross[30 - 8].getpixel((20, 10))                        # halfway through the fade
+    assert mid[0] > 40 and mid[2] > 40                            # a mix of both
+    dark = list(frames([a, b], SlideshowOptions(seconds=1.0, fade=0.5, transition="black", zoom=False)))
+    assert min(sum(f.getpixel((20, 10))) for f in dark[15:30]) < 30   # passes through black
