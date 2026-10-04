@@ -56,7 +56,8 @@ DEFAULTS: dict[str, Any] = {
     "tags_recent": [],                   # the last tags used, offered first when tagging              # where the last HDR/panorama was saved (the save dialog starts there)                 # the Export dialog's last settings (edit/export.ExportOptions)
     # Burst stacks: frames shot in quick succession show as one tile.
     "stack_bursts": True,
-    "pair_raw_jpeg": True,               # a RAW+JPEG shot shows as one photo (pairs.py)
+    "pair_raw_jpeg": True,
+    "scene_tags_auto": False,            # look at new photos (scene tags) after each scan - on once the model is in               # a RAW+JPEG shot shows as one photo (pairs.py)
     "burst_gap_seconds": 1.0,            # frames at most this far apart (sub-second times) are one burst
     "burst_min_frames": 3,               # fewer shots than this isn't a burst
     # Appearance.

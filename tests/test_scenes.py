@@ -142,3 +142,44 @@ def test_the_tokenizer_matches_clip(tmp_path):
         pytest.skip("the scene model isn't downloaded on this PC")
     tok = clip._tokenizer()
     assert tok.encode("a photo of a cat") == [49406, 320, 1125, 539, 320, 2368, 49407]
+
+
+def test_the_review_tab_accepts_and_rejects(lib, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    conn, ids, rid, data = lib
+    scenes.tag_files(conn, list(ids.values()), FakeModel(), data)
+    from lunelis.ui.scene_review import SceneReview
+    page = SceneReview(conn)
+    page.refresh()
+    page.bg.wait()
+    tags_shown = [page.tags.item(i).data(0x0100) for i in range(page.tags.count())]
+    assert "Scene|Beach" in tags_shown
+    page.tags.setCurrentRow(tags_shown.index("Scene|Beach"))
+    assert sorted(page.ticked() + [page.photos.item(i).data(0x0100) for i in range(page.photos.count())
+                                   if page.photos.item(i).data(0x0100) not in page.ticked()]) == \
+        sorted([ids["beach1.jpg"], ids["beach2.jpg"]])
+    page._tick_all(False)
+    page.photos.item(0).setCheckState(page.photos.item(0).checkState().Checked)
+    first = page.photos.item(0).data(0x0100)
+    page.accept_ticked()
+    page.bg.wait()
+    assert tags.tags_of(conn, first) == ["Scene|Beach"]
+    page.tags.setCurrentRow([page.tags.item(i).data(0x0100) for i in range(page.tags.count())].index("Scene|Beach"))
+    page._tick_all(True)
+    page.reject_ticked()
+    page.bg.wait()
+    assert not [t for t, _ in scenes.suggestions_of(conn, ids["beach2.jpg"] if first == ids["beach1.jpg"] else ids["beach1.jpg"]) if t == "Scene|Beach"]
+
+
+def test_settings_card_shows_the_model_state(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.settings_view import SettingsView
+    monkeypatch.setattr(clip, "available", lambda: False)
+    conn = open_catalog(tmp_path / "s.db")
+    view = SettingsView(conn)
+    assert view.scene_b.text() == "Download and turn on" and not view.scene_job_b.isEnabled()
+    monkeypatch.setattr(clip, "available", lambda: True)
+    view._load_scene_tags()
+    assert view.scene_b.text() == "Remove" and view.scene_job_b.isEnabled() and view.scene_status.text().startswith("On")

@@ -62,7 +62,19 @@ class TagsView(QWidget):
         self.tree.itemActivated.connect(lambda item, _c: self.open_tag.emit(item.data(0, Qt.ItemDataRole.UserRole)))
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._menu)
-        v.addWidget(self.tree, 1)
+        from PySide6.QtWidgets import QTabWidget
+        from lunelis.ui.scene_review import SceneReview
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self.tree, "Your tags")
+        self.review = SceneReview(conn)
+        self.review.changed.connect(self.refresh)
+        self.tabs.addTab(self.review, "Scene suggestions")
+        self.tabs.currentChanged.connect(lambda i: self.review.refresh() if i == 1 else None)
+        v.addWidget(self.tabs, 1)
+
+    def show_suggestions(self) -> None:
+        self.tabs.setCurrentWidget(self.review)
+        self.review.refresh()
 
     def refresh(self) -> None:
         # A count per tag over the whole library: on a worker.

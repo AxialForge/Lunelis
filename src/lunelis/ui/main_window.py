@@ -186,12 +186,34 @@ class LibraryWorker(QObject):
                     on_progress=lambda d, t: self._say(7, f"Comparing photos… {d:,} / {t:,}", d, t))
                 if groups is not None:
                     self.similar_done.emit(groups)
+            # Scene suggestions for photos the model hasn't seen (thumbnails only).
+            if not self._cancel:
+                self._scene_tags(conn, stop)
             if not self._cancel:
                 self._say(8, "Checking for damaged files…")
                 self.damage_done.emit(check_damage(conn))
         finally:
             conn.close()
             self.finished.emit()
+
+    def _scene_tags(self, conn, stop) -> None:
+        from lunelis.settings import Settings
+        if not Settings(conn).get("scene_tags_auto"):
+            return
+        from lunelis.recognize import scenes
+        rec = scenes.backend()
+        if rec is None:
+            return
+        todo = [r[0] for r in conn.execute(
+            "SELECT f.id FROM files f LEFT JOIN embeddings em ON em.file_id = f.id AND em.model = ?"
+            " WHERE em.file_id IS NULL AND f.thumbnail_path IS NOT NULL AND f.missing_since IS NULL"
+            " AND f.excluded = 0 AND f.quarantined_at IS NULL AND COALESCE(f.format, '') NOT IN ('mp4', 'mov', 'mpeg-ts')",
+            (rec.model_id,))]
+        for start in range(0, len(todo), 64):
+            if stop():
+                return
+            self._say(7, f"Looking at scenes… {start:,} / {len(todo):,}", start, len(todo))
+            scenes.tag_files(conn, todo[start:start + 64], rec, paths.DATA_DIR, stop)
 
     @staticmethod
     def _store(conn):
@@ -460,6 +482,8 @@ class MainWindow(QMainWindow):
         self.settings_page.library_changed.connect(self.reload)
         self.settings_page.rescan.connect(self._rescan_roots)
         self.settings_page.add_source.connect(self.add_folder)
+        self.settings_page.scene_job.connect(self._tag_the_library)
+        self.settings_page.open_suggestions.connect(self._open_suggestions)
         self.settings_page.rewrite_sidecars.connect(self._xmp_timer.start)
         self.settings_page.tray_changed.connect(self.set_tray_enabled)
         self.settings_page.autostart_changed.connect(self._autostart_changed)
@@ -1911,6 +1935,23 @@ class MainWindow(QMainWindow):
         added = albums.add_files(self.conn, aid, both)
         self.status.setText(f"Added {added:,} photo{'s' if added != 1 else ''} to \"{name}\""
                             + (f" ({len(ids) - added:,} already there)" if added < len(ids) else ""))
+
+    def _tag_the_library(self) -> None:
+        """Scene tags for every photo the model hasn't seen: a background job."""
+        from lunelis.jobs import engine
+        roots = [(rid, None) for rid, in self.conn.execute("SELECT id FROM roots WHERE enabled = 1")]
+        if not roots:
+            return
+        s = Settings(self.conn)
+        schedule = {"mode": s.get("job_default_when"), "idle_minutes": s.get("job_idle_minutes"),
+                    "start_hour": s.get("job_window_start_hour"), "end_hour": s.get("job_window_end_hour")}
+        engine.create_job(self.conn, "scene_tags", "Scene tags", roots, {"schedule": schedule})
+        self._job_queued()
+        self.status.setText("Scene tags: looking through the library in the background (Jobs, Ctrl+J)")
+
+    def _open_suggestions(self) -> None:
+        self.open_page("Tags")
+        self.tags_page.show_suggestions()
 
     def cull(self) -> None:
         """Full-screen, keyboard culling of the selection (if several are

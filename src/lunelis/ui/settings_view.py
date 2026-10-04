@@ -95,6 +95,8 @@ class SettingsView(QWidget):
     tray_changed = Signal(bool)
     autostart_changed = Signal(bool)
     backup_now = Signal()
+    scene_job = Signal()             # Tag the library (a scene_tags job)
+    open_suggestions = Signal()      # the Tags page's Scene suggestions
     restart = Signal()
     theme_changed = Signal(str)      # Appearance: apply it now
     view_changed = Signal()          # Appearance: library defaults changed
@@ -141,7 +143,7 @@ class SettingsView(QWidget):
             "General": [self._startup, self._tray],
             "Edit": [self._editing, self._ai_models, self._edit_caches],
             "Appearance": [self._appearance, self._library_view],
-            "Library": [self._sources, self._thumbnails],
+            "Library": [self._sources, self._thumbnails, self._scene_tags],
             "Import": [self._import],
             "Ratings & sidecars": [self._sidecars],
             "Duplicates & jobs": [self._duplicates_and_jobs],
@@ -337,6 +339,104 @@ class SettingsView(QWidget):
         unfold = QPushButton("Unfold every section", clicked=lambda: self._set("edit_sections_closed", []))
         self._row(v, "Edit panel", unfold, help="Sections you fold stay folded; this opens them all again.")
         return card
+
+    def _scene_tags(self) -> QFrame:
+        card, v = self._card("Scene tags", "A model that runs only on this PC looks at your photos' thumbnails "
+                                           "and suggests what's in them - Scene > Beach, Scene > Food... You "
+                                           "review the suggestions; only the ones you accept become tags.")
+        from lunelis.recognize import clip
+        self.scene_status = QLabel(objectName="Help")
+        self.scene_status.setWordWrap(True)
+        self.scene_b = QPushButton(clicked=self._scene_model_action)
+        self._row(v, f"Scene model ({clip.TOTAL / 1e6:,.0f} MB, CLIP from Hugging Face)", self.scene_status,
+                  self.scene_b)
+        self.scene_auto = QCheckBox("Look at new photos after each scan")
+        self.scene_auto.toggled.connect(lambda on: self._set("scene_tags_auto", on))
+        v.addWidget(self.scene_auto)
+        row = QHBoxLayout()
+        self.scene_job_b = QPushButton("Tag the library…", clicked=self.scene_job.emit)
+        self.scene_job_b.setToolTip("A background job: pausable, and runs only when you choose (Jobs, Ctrl+J)")
+        row.addWidget(self.scene_job_b)
+        row.addWidget(QPushButton("Review suggestions", clicked=self.open_suggestions.emit))
+        row.addWidget(QPushButton("Edit the labels…", clicked=self._edit_scene_labels))
+        row.addStretch(1)
+        v.addLayout(row)
+        return card
+
+    def _load_scene_tags(self) -> None:
+        from lunelis.recognize import clip
+        have = clip.available()
+        self.scene_b.setText("Remove" if have else "Download and turn on")
+        self.scene_job_b.setEnabled(have)
+        self.scene_auto.setEnabled(have)
+        self.scene_auto.setChecked(bool(Settings(self.conn).get("scene_tags_auto")))
+        if not have:
+            self.scene_status.setText("Off")
+            return
+        n, s = self.conn.execute(
+            "SELECT (SELECT COUNT(*) FROM embeddings), (SELECT COUNT(*) FROM file_tags WHERE confidence IS NOT NULL)"
+        ).fetchone()
+        self.scene_status.setText(f"On - {n:,} photos looked at, {s:,} suggestions waiting")
+
+    def _scene_model_action(self) -> None:
+        from lunelis.recognize import clip
+        if clip.available():
+            if QMessageBox.question(self, "Remove the scene model", "Remove the scene model? Suggestions already "
+                                    "made stay; accepted tags are yours either way.") == QMessageBox.StandardButton.Yes:
+                clip.remove()
+            self._load_scene_tags()
+            return
+        if QMessageBox.question(
+                self, "Turn on scene tags",
+                f"Download the scene model ({clip.TOTAL / 1e6:,.0f} MB, OpenAI's CLIP, from Hugging Face)?\n\n"
+                "It runs only on this PC and reads your photos' thumbnails - nothing is sent anywhere. Each file is "
+                "checked against its known fingerprint before it's used.") != QMessageBox.StandardButton.Yes:
+            return
+        from PySide6.QtCore import QThreadPool, QRunnable
+        from PySide6.QtWidgets import QProgressDialog
+        dlg = QProgressDialog("Downloading the scene model…", "Cancel", 0, 100, self)
+        dlg.setWindowTitle("Scene tags")
+        dlg.setMinimumDuration(0)
+
+        class Job(QRunnable):
+            def __init__(self, sig):
+                super().__init__()
+                self.sig, self.stop = sig, False
+
+            def cancel(self):
+                self.stop = True
+
+            def run(self):
+                try:
+                    clip.download(lambda d, t: self.sig.progress.emit(d, t), lambda: self.stop)
+                    self.sig.downloaded.emit("scene", True, "")
+                except Exception as e:
+                    self.sig.downloaded.emit("scene", False, str(e))
+        from lunelis.ui.develop import _AiSignals
+        self._scene_sig = sig = _AiSignals()
+        job = Job(sig)
+        queued = Qt.ConnectionType.QueuedConnection
+        sig.progress.connect(lambda d, t: dlg.setValue(int(d * 100 / max(1, t))), queued)
+
+        def done(_k, ok, message):
+            dlg.close()
+            self._scene_sig = None
+            if not ok and message != "cancelled":
+                QMessageBox.warning(self, "Scene tags", f"The download didn't work: {message}")
+            elif ok:
+                self._set("scene_tags_auto", True)
+            self._load_scene_tags()
+        sig.downloaded.connect(done, queued)
+        dlg.canceled.connect(job.cancel)
+        QThreadPool.globalInstance().start(job)
+
+    def _edit_scene_labels(self) -> None:
+        import shutil
+        from lunelis.recognize import scenes
+        path = paths.DATA_DIR / scenes.USER_FILE
+        if not path.exists():
+            shutil.copyfile(scenes.BUILTIN, path)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def _ai_models(self) -> QFrame:
         card, v = self._card("AI models", "Subject and Sky masks use small free models that run only on this "
@@ -1065,6 +1165,7 @@ class SettingsView(QWidget):
             self.stack_bursts.setChecked(s.get("stack_bursts"))
             self.pair_raw.setChecked(s.get("pair_raw_jpeg"))
             self._load_thumbnails()
+            self._load_scene_tags()
             self.version_label.setText(f"Lunelis {paths.version()}" + (" (from source)" if not paths.FROZEN else ""))
             self.auto_update.setChecked(s.get("update_check"))
         finally:
