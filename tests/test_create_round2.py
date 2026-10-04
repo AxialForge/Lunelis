@@ -123,3 +123,24 @@ def test_crossfade_and_through_black_frames():
     assert mid[0] > 40 and mid[2] > 40                            # a mix of both
     dark = list(frames([a, b], SlideshowOptions(seconds=1.0, fade=0.5, transition="black", zoom=False)))
     assert min(sum(f.getpixel((20, 10))) for f in dark[15:30]) < 30   # passes through black
+
+
+def test_before_and_after_side_by_side_and_slider(photos):
+    from lunelis.create import before_after as ba
+    from lunelis.edit import store
+    from lunelis.edit.stack import Stack
+    conn, ids, out = photos
+    store.save(conn, ids[0], Stack(adjust={"exposure": 1.5}))
+    before, after = ba.pair(conn, ids[0], 300)
+    assert np.asarray(after).mean() > np.asarray(before).mean() + 10   # the edit shows in "after" only
+    side = ba.combined(before, after, stacked=False, labels=True)
+    assert side.width > 2 * after.width and side.height == after.height
+    frames = ba.slider_frames(before, after, 9)
+    mid = frames[2]                                                     # the line a quarter... half way across
+    left, right = np.asarray(mid)[:, : after.width // 4].mean(), np.asarray(mid)[:, -after.width // 4:].mean()
+    assert right > left                                                 # before on the left, after on the right
+    files = ba.make(conn, ids[:2], ba.BeforeAfterOptions(layout="slider", slider_kind="gif", seconds=1), out, "BA")
+    assert [f.rsplit(".", 1)[1] for f in files] == ["gif", "gif"]
+    pic = ba.make(conn, ids[:1], ba.BeforeAfterOptions(layout="stacked", long_edge=400), out, "BA")
+    with Image.open(pic[0]) as im:
+        assert im.height > 2 * im.width * 0.6

@@ -153,9 +153,11 @@ def _srgb_icc() -> bytes:
 
 # --- one photo ----------------------------------------------------------------------------------
 
-def rendered(conn: sqlite3.Connection, file_id: int, long_edge: int | None = None) -> Image.Image:
+def rendered(conn: sqlite3.Connection, file_id: int, long_edge: int | None = None,
+             geometry_only: bool = False) -> Image.Image:
     """The photo with its edits, no bigger than `long_edge` (None: full size).
-    Export and every Create tool make their pixels here."""
+    Export and every Create tool make their pixels here. `geometry_only`: the
+    original look with just its crop and rotation (a "before")."""
     row = conn.execute("SELECT r.path, f.rel_path, f.is_raw FROM files f JOIN roots r ON r.id = f.root_id"
                        " WHERE f.id = ?", (file_id,)).fetchone()
     if row is None:
@@ -163,6 +165,9 @@ def rendered(conn: sqlite3.Connection, file_id: int, long_edge: int | None = Non
     root, rel, is_raw = row
     src_path = os.path.join(root, *rel.split("/"))
     stack = store.get(conn, file_id)
+    if geometry_only:
+        from lunelis.edit.stack import Stack
+        stack = Stack(geometry=stack.geometry)
     g = stack.geometry
     # A crop or straighten throws pixels away: decode at full size then.
     whole = g.crop == (0.0, 0.0, 1.0, 1.0) and not g.angle

@@ -957,6 +957,51 @@ class SlideshowTool(Tool):
                  lambda conn, prog, stop: self.ss.make(conn, ids, opts, folder, name, prog, stop), len(ids))
 
 
+# --- Before and after ------------------------------------------------------------------------------
+
+class BeforeAfterTool(Tool):
+    title_text = "Before and after"
+    blurb = ("Each photo as it was shot next to how you edited it - side by side, one above the other, or a "
+             "slider that sweeps across (a video or GIF). One file per photo.")
+
+    def __init__(self, conn, parent=None) -> None:
+        super().__init__(conn, parent)
+        from lunelis.create import before_after
+        self.ba = before_after
+        form = QFormLayout()
+        self.layout_box = QComboBox()
+        for key, label in (("side", "Side by side"), ("stacked", "One above the other"), ("slider", "Slider")):
+            self.layout_box.addItem(label, key)
+        form.addRow("Layout", self.layout_box)
+        self.kind = QComboBox()
+        self.kind.addItem("MP4 video", "mp4")
+        self.kind.addItem("GIF", "gif")
+        form.addRow("Slider as", self.kind)
+        self.labels = QCheckBox("Label Before and After", checked=True)
+        form.addRow("", self.labels)
+        self.edge = QComboBox()
+        for e in (1080, 2048, 3840):
+            self.edge.addItem(f"{e} px", e)
+        self.edge.setCurrentIndex(1)
+        form.addRow("Size", self.edge)
+        box = QWidget()
+        box.setLayout(form)
+        box.setMaximumWidth(460)
+        self.body.addWidget(box)
+        self.body.addStretch(1)
+        self.layout_box.currentIndexChanged.connect(lambda _i: self.kind.setEnabled(self.layout_box.currentData() == "slider"))
+        self.kind.setEnabled(False)
+
+    def make(self) -> None:
+        ids = self.picker.ids()
+        opts = self.ba.BeforeAfterOptions(self.layout_box.currentData(), self.edge.currentData(),
+                                          self.labels.isChecked(), self.kind.currentData())
+        folder, name = self.out_dir(), engine.stamp("Before and after")
+        self.result.setText("")
+        self.run("Making before and after…",
+                 lambda conn, prog, stop: self.ba.make(conn, ids, opts, folder, name, prog, stop), len(ids))
+
+
 # --- the page ---------------------------------------------------------------------------------
 
 CARD_ICONS = {"animation": "status", "collage": "create", "batch": "duplicates", "contact": "albums",
@@ -1007,6 +1052,8 @@ TOOLS = (
     ("contact", "Contact sheet", "A grid of photos with captions on printable pages - PDF or PNG.", ContactSheetTool),
     ("timelapse", "Timelapse", "An interval shoot as a smooth video, deflickered and stabilised.", TimelapseTool),
     ("slideshow", "Slideshow video", "Photos as a video with transitions, a slow zoom and music.", SlideshowTool),
+    ("before_after", "Before and after", "The original next to your edit - side by side or a sweeping slider.",
+     BeforeAfterTool),
 )
 
 
