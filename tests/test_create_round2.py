@@ -144,3 +144,22 @@ def test_before_and_after_side_by_side_and_slider(photos):
     pic = ba.make(conn, ids[:1], ba.BeforeAfterOptions(layout="stacked", long_edge=400), out, "BA")
     with Image.open(pic[0]) as im:
         assert im.height > 2 * im.width * 0.6
+
+
+def test_print_sheets_pack_real_sizes(photos):
+    from lunelis.create import print_layout as pl
+    assert pl.grid(pl.PrintOptions("4x6", "letter"))[:2] in ((1, 2), (2, 1))
+    assert pl.grid(pl.PrintOptions("wallet", "letter"))[:2] == (3, 2) or \
+        pl.grid(pl.PrintOptions("wallet", "letter"))[0] * pl.grid(pl.PrintOptions("wallet", "letter"))[1] >= 6
+    assert pl.grid(pl.PrintOptions("8x10", "letter"))[:2] == (1, 1)
+    conn, ids, out = photos
+    sheet = pl.sheets(conn, ids[:3], pl.PrintOptions("4x6", "letter"))
+    assert len(sheet) == 2 and sheet[0].size == (2550, 3300)          # Letter at 300 dpi; 2 prints a sheet
+    lab = pl.make(conn, ids[:2], pl.PrintOptions("4x6", "lab", copies=2), out, "Prints")
+    assert len(lab) == 4
+    with Image.open(lab[0]) as im:
+        assert sorted(im.size) == [1200, 1800] and round(im.info["dpi"][0]) == 300
+    pdf = pl.make(conn, ids[:5], pl.PrintOptions("5x7", "a4"), out, "Prints")
+    assert pdf[0].endswith(".pdf")
+    with pytest.raises(ValueError):
+        pl.PrintOptions("10x15").check(1)
