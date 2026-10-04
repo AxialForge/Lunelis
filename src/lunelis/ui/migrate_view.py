@@ -23,6 +23,7 @@ from lunelis.importing.templates import PRESETS, Context, TemplateError, render
 from lunelis.migrate import execute
 from lunelis.migrate.plan import Options, PlanError, discard, plan, summary
 from lunelis.settings import Settings
+from lunelis.ui.background import Background
 
 STATE_TEXT = {"planned": "Waiting", "copied": "Copied, original pending", "done": "Done",
               "kept": "Done - original kept for review", "released": "Done - original released",
@@ -52,6 +53,34 @@ class Worker(QObject):
             conn.close()
 
 
+def _load_page(conn):
+    """Sources with their counts, duplicate counts, and the migration to show (on a worker)."""
+    sources = [tuple(r) for r in conn.execute(
+        "SELECT r.id, r.path, COUNT(f.id), COALESCE(SUM(f.size_bytes), 0) FROM roots r"
+        " LEFT JOIN files f ON f.root_id = r.id AND f.missing_since IS NULL AND f.excluded = 0"
+        " AND f.quarantined_at IS NULL WHERE r.enabled = 1 GROUP BY r.id ORDER BY r.id")]
+    dups = tuple(conn.execute(
+        "SELECT COALESCE(SUM(method = 'exact' AND verified = 1), 0), COALESCE(SUM(method = 'sampled'), 0)"
+        " FROM duplicate_groups").fetchone())
+    # The latest migration that isn't finished with (running, done-with-kept-originals, or a plan).
+    row = conn.execute(
+        "SELECT id FROM migrations WHERE state IN ('planned', 'running', 'done') ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    mid = row[0] if row else None
+    return sources, dups, mid, (_load_plan(conn, mid) if mid is not None else None)
+
+
+def _load_plan(conn, mid: int):
+    """A plan's summary (incl. the target's free space) and its notes (on a worker)."""
+    s = summary(conn, mid)
+    rows = [tuple(r) for r in conn.execute(
+        "SELECT r.path, m.src_rel, m.action, m.note, m.state, m.error FROM migration_items m"
+        " JOIN roots r ON r.id = m.src_root WHERE m.migration_id = ?"
+        " AND (m.note IS NOT NULL OR m.state = 'failed') ORDER BY m.state = 'failed' DESC, m.id LIMIT 2000",
+        (mid,))]
+    return s, rows
+
+
 def _item(text: str, right: bool = False) -> QTableWidgetItem:
     it = QTableWidgetItem(text)
     it.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
@@ -69,6 +98,8 @@ class MigrateView(QWidget):
         self.conn = conn
         self.migration_id: int | None = None
         self._thread: QThread | None = None
+        self._summary = None                       # the plan on screen (Start / Release use it)
+        self.bg = Background(self, conn)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -245,31 +276,30 @@ class MigrateView(QWidget):
                              "are copied, checked, and only then set aside from their old place.")
 
     def refresh(self) -> None:
+        # Counting every source's files and the duplicate groups takes seconds on
+        # a big library, and the plan's summary checks the target's free space
+        # (a sleeping NAS): all on a worker.
+        self.bg.run("page", _load_page, self._fill_page,
+                    error=lambda e: self.message.setText(f"Couldn't read the migration: {e}"))
+        self._buttons()
+
+    def _fill_page(self, data) -> None:
+        sources, (exact, likely), mid, plan_data = data
         checked = {self.sources.item(i).data(Qt.ItemDataRole.UserRole)
                    for i in range(self.sources.count())
                    if self.sources.item(i).checkState() == Qt.CheckState.Checked}
         self.sources.clear()
-        for rid, path, n, size in self.conn.execute(
-                "SELECT r.id, r.path, COUNT(f.id), COALESCE(SUM(f.size_bytes), 0) FROM roots r"
-                " LEFT JOIN files f ON f.root_id = r.id AND f.missing_since IS NULL AND f.excluded = 0"
-                " AND f.quarantined_at IS NULL WHERE r.enabled = 1 GROUP BY r.id ORDER BY r.id"):
+        for rid, path, n, size in sources:
             it = QListWidgetItem(f"{path}   ({n:,} files, {_gb(size)})")
             it.setData(Qt.ItemDataRole.UserRole, rid)
             it.setCheckState(Qt.CheckState.Checked if rid in checked else Qt.CheckState.Unchecked)
             self.sources.addItem(it)
-        exact, likely = self.conn.execute(
-            "SELECT COALESCE(SUM(method = 'exact' AND verified = 1), 0), COALESCE(SUM(method = 'sampled'), 0)"
-            " FROM duplicate_groups").fetchone()
         self.dup_help.setText(
             f"{exact:,} verified groups. {likely:,} likely groups aren't verified yet - verify them in "
             "Duplicates first, or their copies move too (an identical file that lands in the same place is "
             "still recognised and not copied twice).")
-        # Show the latest migration that isn't finished with (running, done-with-kept-originals, or a plan).
-        row = self.conn.execute(
-            "SELECT id FROM migrations WHERE state IN ('planned', 'running', 'done') ORDER BY id DESC LIMIT 1"
-        ).fetchone()
-        self.migration_id = row[0] if row else None
-        self._show()
+        self.migration_id = mid
+        self._render(plan_data)
 
     def _example(self, text: str) -> None:
         try:
@@ -285,17 +315,40 @@ class MigrateView(QWidget):
         self.example.style().polish(self.example)
 
     def _show(self) -> None:
+        """Redraw the plan: the buttons now, the figures once the worker has them."""
         mid = self.migration_id
+        if mid is None:
+            self._render(None)
+            return
+        self.bg.run("plan", lambda c: _load_plan(c, mid), self._render,
+                    error=lambda e: self.message.setText(f"Couldn't read the plan: {e}"))
+        self._buttons()
+
+    def _buttons(self) -> None:
         busy = self._thread is not None
+        loading = self.bg.busy()
+        s = self._summary
         self.preview_b.setEnabled(not busy)
+        planned = s is not None and s.state == "planned"
+        self.start_b.setVisible(planned)
+        # Start and Release act on the figures on screen: not while newer ones load.
+        self.start_b.setEnabled(planned and s.enough_space and s.move_files > 0 and not busy and not loading)
+        self.discard_b.setVisible(planned)
+        self.release_b.setVisible(s is not None and s.state == "done" and bool(s.states.get("kept")))
+        # Nothing that changes the plan while a worker uses it.
+        self.discard_b.setEnabled(not busy)
+        self.release_b.setEnabled(not busy and not loading)
+
+    def _render(self, data) -> None:
         self.folders.setRowCount(0)
         self.notes.setRowCount(0)
-        if mid is None:
+        if data is None or data[0].migration_id != self.migration_id:
+            self._summary = None
             self.headline.setText("")
-            for b in (self.start_b, self.discard_b, self.release_b):
-                b.setVisible(False)
+            self._buttons()
             return
-        s = summary(self.conn, mid)
+        s, rows = data
+        self._summary = s
         opts = s.options
         keep = opts.get("keep_sources", True)
         lines = [f"<b>{s.move_files:,} files ({_gb(s.move_bytes)})</b> into <b>{s.target}</b>"]
@@ -334,23 +387,12 @@ class MigrateView(QWidget):
             self.folders.setItem(i, 0, _item(top or "(top level)"))
             self.folders.setItem(i, 1, _item(f"{n:,}", True))
             self.folders.setItem(i, 2, _item(_gb(size), True))
-        rows = self.conn.execute(
-            "SELECT r.path, m.src_rel, m.action, m.note, m.state, m.error FROM migration_items m"
-            " JOIN roots r ON r.id = m.src_root WHERE m.migration_id = ?"
-            " AND (m.note IS NOT NULL OR m.state = 'failed') ORDER BY m.state = 'failed' DESC, m.id LIMIT 2000",
-            (mid,)).fetchall()
         self.notes.setRowCount(len(rows))
         for i, (root, rel, act, note, st, err) in enumerate(rows):
             self.notes.setItem(i, 0, _item(os.path.join(root, *rel.split("/"))))
             self.notes.setItem(i, 1, _item(err or note or ""))
             self.notes.setItem(i, 2, _item(STATE_TEXT.get(st, st)))
-        self.start_b.setVisible(s.state == "planned")
-        self.start_b.setEnabled(s.state == "planned" and s.enough_space and s.move_files > 0 and not busy)
-        self.discard_b.setVisible(s.state == "planned")
-        self.release_b.setVisible(s.state == "done" and bool(s.states.get("kept")))
-        # Nothing that changes the plan while a worker uses it.
-        self.discard_b.setEnabled(not busy)
-        self.release_b.setEnabled(not busy)
+        self._buttons()
 
     # --- actions -------------------------------------------------------------------------------------
 
@@ -394,7 +436,7 @@ class MigrateView(QWidget):
                        skip_damaged_copies=self.skip_damaged.isChecked(), include_videos=self.videos.isChecked(),
                        only_archived=self.archived_only.isChecked())
         preferred = Settings(self.conn).get("preferred_roots")
-        if self.migration_id is not None and summary(self.conn, self.migration_id).state == "planned":
+        if self.migration_id is not None and self._summary is not None and self._summary.state == "planned":
             discard(self.conn, self.migration_id)          # a new preview replaces the old one
         self.migration_id = None
         self.message.setText("Working out where everything goes…")
@@ -414,7 +456,9 @@ class MigrateView(QWidget):
         self.refresh()
 
     def _start(self) -> None:
-        s = summary(self.conn, self.migration_id)
+        s = self._summary                              # what's on screen (Start waits for it)
+        if s is None or s.migration_id != self.migration_id:
+            return
         keep = s.options.get("keep_sources", True)
         if QMessageBox.question(
                 self, "Start the migration?",
@@ -440,7 +484,9 @@ class MigrateView(QWidget):
         self.refresh()
 
     def _release(self) -> None:
-        s = summary(self.conn, self.migration_id)
+        s = self._summary
+        if s is None or s.migration_id != self.migration_id:
+            return
         n = s.states.get("kept", 0)
         if QMessageBox.question(
                 self, "Release the originals?",

@@ -200,11 +200,15 @@ def test_migrate_page_shows_the_plan_and_guards_start(lib):
     conn, tmp, a, b, target, ra, rb, ids = lib
     mid = plan(conn, str(target), DEFAULT_TEMPLATE, Options([ra, rb]))
     view = MigrateView(conn)
+    view.bg.wait()                                     # read on a worker
     assert view.migration_id == mid
     assert "Preview - nothing has moved yet" in view.message.text()
     assert view.start_b.isEnabled() and not view.discard_b.isHidden()
     conn.execute("UPDATE migration_items SET size = 10 * 1000 * 1000 * 1000 * 1000 WHERE migration_id = ?", (mid,))
+    conn.commit()                                      # the page reads on its own connection
     view._show()
+    assert not view.start_b.isEnabled()                            # not while newer figures load
+    view.bg.wait()
     assert not view.start_b.isEnabled()                            # not enough space: can't start
     assert "Not enough space" in view.message.text()
 

@@ -92,6 +92,7 @@ def test_library_status_page_tracks_a_scan_and_counts(lib):
     archive.archive(conn, ids[:1])
     page = StatusView(conn, SCAN_STEPS)
     page.refresh()
+    page.bg.wait()                                     # counted on a worker
     figures = {page.glance.itemAtPosition(r, c).widget().text(): page.glance.itemAtPosition(r, c + 1).widget().text()
                for r in range(page.glance.rowCount()) for c in (0, 2) if page.glance.itemAtPosition(r, c)}
     assert figures["Photos & videos"] == "6" and ">1<" in figures["Archived"]   # a link to the Archive

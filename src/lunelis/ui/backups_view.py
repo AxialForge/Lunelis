@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from lunelis import paths
 from lunelis.backups import core
 from lunelis.catalog.schema import open_catalog
+from lunelis.ui.background import Background
 
 
 def _gb(n: int) -> str:
@@ -151,6 +152,7 @@ class BackupsView(QWidget):
         self.conn = conn
         self.sets: list[core.BackupSet] = []
         self._thread = None
+        self.bg = Background(self, conn)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -213,11 +215,18 @@ class BackupsView(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
+        # Each set's status checks its drive (a sleeping NAS can take seconds)
+        # and counts its files: on a worker, never the GUI thread.
+        if not self.sets and not self.table.rowCount():
+            self.message.setText("Checking backups…")
+        self.bg.run("sets", lambda conn: [(s, core.status(conn, s.id)) for s in core.all_sets(conn)],
+                    self._fill, error=lambda e: self.message.setText(f"Couldn't read the backups: {e}"))
+
+    def _fill(self, rows) -> None:
         keep = self._current()
-        self.sets = core.all_sets(self.conn)
+        self.sets = [s for s, _st in rows]
         self.table.setRowCount(len(self.sets))
-        for i, s in enumerate(self.sets):
-            st = core.status(self.conn, s.id)
+        for i, (s, st) in enumerate(rows):
             where = st.dest or s.dest_path
             if s.volume_label and s.volume_serial:
                 where = f"{where}  ({s.volume_label})"
@@ -242,7 +251,7 @@ class BackupsView(QWidget):
             self.table.selectRow(0)
         if not self.sets:
             self.message.setText("No backups yet - New backup… to make one.")
-        elif self.message.text().startswith("No backups yet"):
+        elif self.message.text().startswith(("No backups yet", "Checking backups")):
             self.message.setText("")
         self._buttons()
 

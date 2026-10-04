@@ -149,8 +149,10 @@ def test_backups_page_lists_sets_and_their_state(lib):
     conn, tmp, photos, usb, rid = lib
     sid = core.create_set(conn, "Blue USB", str(usb), [rid])
     view = BackupsView(conn)
+    view.bg.wait()                                     # read on a worker
     assert view.table.rowCount() == 1
     assert view.table.item(0, 3).text() == "0 of 3" and view.table.item(0, 5).text() == "Never"
     run(conn, sid)
     view.refresh()
+    view.bg.wait()
     assert view.table.item(0, 2).text() == "Up to date" and view.table.item(0, 4).text() == "Nothing"

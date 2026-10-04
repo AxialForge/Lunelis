@@ -37,6 +37,48 @@ def _when(stamp: str | None) -> str:
     return t.strftime("%b %d, %Y %I:%M %p").replace(" 0", " ")
 
 
+def _figures(conn) -> tuple[list, list]:
+    """The page's figures and its sources' rows (on a worker: see refresh)."""
+    q = lambda sql, *a: conn.execute(sql, a).fetchone()[0]  # noqa: E731
+    base = "FROM files f JOIN roots r ON r.id = f.root_id WHERE r.enabled = 1"
+    total = q(f"SELECT COUNT(*) {base} AND {LIVE}")
+    archived = q(f"SELECT COUNT(*) {base} AND {LIVE} AND f.archived_at IS NOT NULL")
+    missing = q(f"SELECT COUNT(*) {base} AND f.missing_since IS NOT NULL AND f.quarantined_at IS NULL"
+                " AND f.excluded = 0")
+    damaged = q("SELECT COUNT(*) FROM damaged d JOIN files f ON f.id = d.file_id"
+                f" WHERE d.dismissed = 0 AND {LIVE}")
+    thumbs = q(f"SELECT COUNT(*) {base} AND {LIVE} AND f.thumbnail_path IS NULL AND f.thumb_error IS NULL")
+    meta = q(f"SELECT COUNT(*) FROM files f JOIN roots r ON r.id = f.root_id LEFT JOIN exif e ON e.file_id = f.id"
+             f" WHERE r.enabled = 1 AND {LIVE} AND e.file_id IS NULL")
+    dupes = q("SELECT COUNT(*) FROM duplicate_groups WHERE resolved = 0")
+    quarantined = q("SELECT COUNT(*) FROM files WHERE quarantined_at IS NOT NULL")
+    backup_sets = q("SELECT COUNT(*) FROM backup_sets")
+    last_photo_backup = q("SELECT MAX(last_run_at) FROM backup_sets")
+    from lunelis import paths
+    from lunelis.catalog import backup
+    from lunelis.settings import Settings
+    snap = backup.last_snapshot_time(backup.backup_dir(Settings(conn), paths.DATA_DIR))
+    cells = [
+        ("Photos & videos", f"{total:,}", None),
+        ("Archived", f"{archived:,}", "Albums" if archived else None),
+        ("Missing (not found at the last scan)", f"{missing:,}", None),
+        ("Damaged", f"{damaged:,}", "Damaged files" if damaged else None),
+        ("Waiting for thumbnails", f"{thumbs:,}", None),
+        ("Waiting for metadata", f"{meta:,}", None),
+        ("Duplicate groups to review", f"{dupes:,}", "Duplicates" if dupes else None),
+        ("In quarantine", f"{quarantined:,}", "Quarantine" if quarantined else None),
+        ("Last catalog backup", snap.strftime("%b %d, %I:%M %p").replace(" 0", " ") if snap else "Never", None),
+        ("Photo backups", (f"{backup_sets} · last run {_when(last_photo_backup) if last_photo_backup else 'never'}"
+                           if backup_sets else "None set up"), "Backups"),
+    ]
+    rows = conn.execute(
+        "SELECT r.id, r.path, r.enabled, r.last_scanned_at,"
+        " SUM(CASE WHEN f.missing_since IS NULL AND f.excluded = 0 AND f.quarantined_at IS NULL THEN 1 ELSE 0 END),"
+        " SUM(CASE WHEN f.missing_since IS NOT NULL AND f.quarantined_at IS NULL THEN 1 ELSE 0 END)"
+        " FROM roots r LEFT JOIN files f ON f.root_id = r.id GROUP BY r.id ORDER BY r.path").fetchall()
+    return cells, [tuple(r) for r in rows]
+
+
 class _ReachSignals(QObject):
     done = Signal(int, bool)            # root id, reachable
 
@@ -218,38 +260,14 @@ class StatusView(QWidget):
     # --- figures -----------------------------------------------------------------------------
 
     def refresh(self) -> None:
-        q = lambda sql, *a: self.conn.execute(sql, a).fetchone()[0]  # noqa: E731
-        base = "FROM files f JOIN roots r ON r.id = f.root_id WHERE r.enabled = 1"
-        total = q(f"SELECT COUNT(*) {base} AND {LIVE}")
-        archived = q(f"SELECT COUNT(*) {base} AND {LIVE} AND f.archived_at IS NOT NULL")
-        missing = q(f"SELECT COUNT(*) {base} AND f.missing_since IS NOT NULL AND f.quarantined_at IS NULL"
-                    " AND f.excluded = 0")
-        damaged = q("SELECT COUNT(*) FROM damaged d JOIN files f ON f.id = d.file_id"
-                    f" WHERE d.dismissed = 0 AND {LIVE}")
-        thumbs = q(f"SELECT COUNT(*) {base} AND {LIVE} AND f.thumbnail_path IS NULL AND f.thumb_error IS NULL")
-        meta = q(f"SELECT COUNT(*) FROM files f JOIN roots r ON r.id = f.root_id LEFT JOIN exif e ON e.file_id = f.id"
-                 f" WHERE r.enabled = 1 AND {LIVE} AND e.file_id IS NULL")
-        dupes = q("SELECT COUNT(*) FROM duplicate_groups WHERE resolved = 0")
-        quarantined = q("SELECT COUNT(*) FROM files WHERE quarantined_at IS NOT NULL")
-        backup_sets = q("SELECT COUNT(*) FROM backup_sets")
-        last_photo_backup = q("SELECT MAX(last_run_at) FROM backup_sets")
-        from lunelis import paths
-        from lunelis.catalog import backup
-        from lunelis.settings import Settings
-        snap = backup.last_snapshot_time(backup.backup_dir(Settings(self.conn), paths.DATA_DIR))
-        cells = [
-            ("Photos & videos", f"{total:,}", None),
-            ("Archived", f"{archived:,}", "Albums" if archived else None),
-            ("Missing (not found at the last scan)", f"{missing:,}", None),
-            ("Damaged", f"{damaged:,}", "Damaged files" if damaged else None),
-            ("Waiting for thumbnails", f"{thumbs:,}", None),
-            ("Waiting for metadata", f"{meta:,}", None),
-            ("Duplicate groups to review", f"{dupes:,}", "Duplicates" if dupes else None),
-            ("In quarantine", f"{quarantined:,}", "Quarantine" if quarantined else None),
-            ("Last catalog backup", snap.strftime("%b %d, %I:%M %p").replace(" 0", " ") if snap else "Never", None),
-            ("Photo backups", (f"{backup_sets} · last run {_when(last_photo_backup) if last_photo_backup else 'never'}"
-                               if backup_sets else "None set up"), "Backups"),
-        ]
+        # Counting 159k rows several ways takes a while: on a worker.
+        if not hasattr(self, "bg"):
+            from lunelis.ui.background import Background
+            self.bg = Background(self, self.conn)
+        self.bg.run("figures", _figures, self._show)
+
+    def _show(self, figures) -> None:
+        cells, sources = figures
         while self.glance.count():
             w = self.glance.takeAt(0).widget()
             if w is not None:
@@ -273,14 +291,9 @@ class StatusView(QWidget):
         self.glance.setColumnStretch(3, 1)
         if not self._running and not self.state.text():
             self.state.setText("Idle")
-        self._load_sources()
+        self._load_sources(sources)
 
-    def _load_sources(self) -> None:
-        rows = self.conn.execute(
-            "SELECT r.id, r.path, r.enabled, r.last_scanned_at,"
-            " SUM(CASE WHEN f.missing_since IS NULL AND f.excluded = 0 AND f.quarantined_at IS NULL THEN 1 ELSE 0 END),"
-            " SUM(CASE WHEN f.missing_since IS NOT NULL AND f.quarantined_at IS NULL THEN 1 ELSE 0 END)"
-            " FROM roots r LEFT JOIN files f ON f.root_id = r.id GROUP BY r.id ORDER BY r.path").fetchall()
+    def _load_sources(self, rows) -> None:
         self.sources.setRowCount(len(rows))
         self.sources.verticalHeader().setDefaultSectionSize(38)
         self._row_of_root.clear()
