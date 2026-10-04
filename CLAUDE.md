@@ -468,6 +468,21 @@ file not found on the last complete scan.
 - Tools run on MakeWorker (own connection: commit before making) with
   Cancel wired via lambda (the Cancel gotcha).
 
+### Scene tag rules (recognize/)
+
+- Everything that understands pixels goes through the Recognizer interface
+  (recognize/__init__.py): embed_images / embed_texts, model_id stored with
+  each embedding. clip.py = CLIP ViT-B/32 quantized ONNX (Xenova), files
+  pinned by SHA-256 in clip.FILES; the BPE tokenizer is written out there
+  (no `regex` package) and matches CLIP's ids (a photo of a cat -> 49406 320
+  1125 539 320 2368 49407).
+- Thumbnails only (scenes.thumbnail_image) - never a RAW decode, never the NAS.
+- Suggestions = file_tags rows with confidence; EVERY normal tag query has
+  `confidence IS NULL` (tags_of, counts_in, all_tags, filter_sql, XMP export).
+  A new tag query must too. tags.add() on a suggested tag accepts it.
+- Tests use a fake model (tests/test_scenes.py FakeModel); the real model is
+  never downloaded by a test.
+
 ### Search rules (search.py)
 
 - search_fts (FTS5, rowid = file id; columns name, folder, camera, lens,

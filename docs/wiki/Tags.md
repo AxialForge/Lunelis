@@ -58,3 +58,29 @@ time the folder is scanned. They're only ever added, never removed: a tool
 that rewrites a sidecar without its keywords can't wipe your tags.
 darktable's automatic tags (`darktable|format|arw` and the like) are kept
 in the sidecar but never shown as tags.
+
+## Scene suggestions
+
+Lunelis can suggest **what's in your photos** - Scene > Beach, Scene > Food,
+Scene > Night sky... - with a model that runs **only on this PC**.
+
+1. **Settings > Library > Scene tags > Download and turn on.** The model
+   (OpenAI's CLIP, about 155 MB from Hugging Face) is downloaded once and
+   checked against its known fingerprint.
+2. **Tag the library...** starts a background job (Jobs, Ctrl+J) that looks
+   at every photo's thumbnail - never the RAW, never the NAS - and can be
+   paused, or run only while you're away. After that, new photos are looked
+   at after each scan.
+3. **Tags > Scene suggestions** lists each suggested tag with how many photos
+   and how sure the model is. Tick photos and **Accept** (they become your
+   tags and go to sidecars) or **Reject** (removed, and never suggested
+   again for those photos), or accept every one above a percentage you trust.
+
+Suggestions aren't tags until you accept them: they don't show in the tag
+list, the Tag filter or search, and they're never written to sidecars.
+Tagging a photo yourself with a suggested tag accepts it. A tag you gave
+yourself is never changed.
+
+**Your own labels:** *Edit the labels...* opens `scene_labels.json` in the
+data folder - add a label (`{"name": "Skatepark", "prompt": "a photo of a
+skatepark"}`), change a prompt, or turn one off (`"off": true`).

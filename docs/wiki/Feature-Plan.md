@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.19.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.20.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -102,7 +102,7 @@ the data folder).
 | Smart albums | Saved searches, e.g. ISO above 3200 AND 5 stars AND a given lens. |
 | RAW+JPG pairing | One tile per shot, built on burst stacks. |
 
-### 0.20 - scene-aware tagging
+### 0.20 - scene-aware tagging ✅ 0.20.0
 
 | Feature | What it does |
 |---|---|

@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-04
+
+### Added
+
+- **Scene suggestions:** an opt-in model that runs only on this PC (CLIP,
+  ~155 MB, checked against pinned fingerprints) looks at each photo's
+  thumbnail and suggests scene tags - Scene > Beach, Food, Night sky and 37
+  more, or your own labels.
+- **Tag the library** as a background job (pausable, idle-only if you like);
+  after that, new photos are looked at after each scan.
+- **Tags > Scene suggestions:** accept or reject per photo, or accept
+  everything above a confidence; rejected ones aren't suggested again.
+
+### Changed
+
+- Suggestions are kept apart from your tags: not in the tag list, the Tag
+  filter, search or sidecars until accepted. Tagging a photo yourself with a
+  suggested tag accepts it.
+- Catalog schema 30: embeddings (one per photo per model) and remembered
+  rejections.
+
 ## [0.19.0] - 2026-10-04
 
 ### Added
