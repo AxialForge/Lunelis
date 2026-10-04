@@ -53,7 +53,8 @@ class _PreviewLoad(QRunnable):
         super().__init__()
         self.signals, self.file_id, self.path, self.orientation = signals, file_id, path, orientation
         self.edit = edit                   # (is_raw, stack, filter params) of an edited photo
-        self.setAutoDelete(True)
+        # Kept by PreviewCache (not auto-deleted) so a queued load can be taken back.
+        self.setAutoDelete(False)
 
     def run(self) -> None:
         try:
@@ -74,8 +75,10 @@ class _PreviewLoad(QRunnable):
                     from lunelis.edit import ai
                     src = edit_render.load_source(self.path, is_raw, PREVIEW_EDGE)
                     from lunelis.edit import lens
+                    # Cached AI masks only: running the model here would race the
+                    # edit controller (the one that computes and stores them).
                     img = pipeline.to_image(pipeline.apply(src, stack, fparams,
-                                                           ai.maps_for(self.file_id, stack, src),
+                                                           ai.maps_for(self.file_id, stack, None),
                                                            lens.info_for_id(self.file_id) if stack.lens else None))
             else:
                 img = render(self.path, self.orientation, edge=PREVIEW_EDGE).convert("RGB")
@@ -126,7 +129,7 @@ class PreviewCache(QObject):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._pix: OrderedDict[int, QPixmap] = OrderedDict()
-        self._pending: set[int] = set()
+        self._pending: dict[int, _PreviewLoad] = {}
         self.failed: set[int] = set()
         self._signals = _PreviewSignals()
         self._signals.loaded.connect(self._loaded)
@@ -139,16 +142,26 @@ class PreviewCache(QObject):
             self._pix.move_to_end(info.file_id)
             return pix
         if info.file_id not in self._pending and info.file_id not in self.failed:
-            self._pending.add(info.file_id)
-            self.pool.start(_PreviewLoad(self._signals, info.file_id, info.path, info.orientation, edit))
+            job = _PreviewLoad(self._signals, info.file_id, info.path, info.orientation, edit)
+            self._pending[info.file_id] = job
+            self.pool.start(job)
         return None
+
+    def keep_only(self, file_ids) -> None:
+        """Take back queued loads for photos no longer wanted (holding an arrow
+        key queues a pair of neighbours per photo passed; without this the
+        photo you stop on waits behind all of them)."""
+        wanted = set(file_ids)
+        for fid, job in list(self._pending.items()):
+            if fid not in wanted and self.pool.tryTake(job):     # False once it has started
+                del self._pending[fid]
 
     def forget(self, file_id: int) -> None:
         self._pix.pop(file_id, None)
         self.failed.discard(file_id)
 
     def _loaded(self, file_id: int, img: QImage) -> None:
-        self._pending.discard(file_id)
+        self._pending.pop(file_id, None)
         if img.isNull():
             self.failed.add(file_id)
         else:
@@ -186,7 +199,7 @@ class PhotoCanvas(QWidget):
         self._pan: QPointF | None = None
         self._asked = False
         self._last_tilt = 0.0
-        self.setMinimumSize(200, 200)
+        self.setMinimumSize(200, 100)                 # short windows (the 900 x 350 minimum) still fit
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     @property
@@ -815,12 +828,14 @@ class DetailView(QWidget):
         if self.editing:
             self.edit.start(self.info)
         self.edit_b.setEnabled(not self.info.is_video)
-        # Decode the neighbours ahead of time.
-        for p in (pos + 1, pos - 1):
-            if 0 <= p < n:
-                nb = photoinfo.load(self.conn, self.index.file_id(p))
-                if nb and not nb.is_video:
-                    self.previews.get(nb, self._edit_of(nb))
+        # Decode the neighbours ahead of time - and drop what's still queued
+        # for photos already passed.
+        near = [self.index.file_id(p) for p in (pos, pos + 1, pos - 1) if 0 <= p < n]
+        self.previews.keep_only(near)
+        for nfid in near[1:]:
+            nb = photoinfo.load(self.conn, nfid)
+            if nb and not nb.is_video:
+                self.previews.get(nb, self._edit_of(nb))
         self.current_changed.emit(fid)
 
     # --- tags ---------------------------------------------------------------------------------

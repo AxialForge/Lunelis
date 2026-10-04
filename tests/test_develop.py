@@ -323,7 +323,7 @@ def test_every_edit_button_really_clicks(app, lib):
     v.develop.reset_b.click()
     assert v.edit.stack.is_identity()
     v.develop.auto_b.click()
-    assert v.edit.stack.adjust
+    assert pump(app, lambda: bool(v.edit.stack.adjust))      # measured on a pool thread
     v.develop.mask_buttons["radial"].click()
     v.develop.mask_del.click()
     assert not v.edit.stack.masks
@@ -379,3 +379,21 @@ def test_slider_number_box_and_double_click(app, lib):
     v.develop.sections["Light"].header.click()
     assert "Light" not in Settings(conn).get("edit_sections_closed")
     v.set_editing(False)
+
+
+def test_undo_while_cropping_moves_the_crop_frame_back(app, lib):
+    from lunelis.ui.detail_view import DetailView
+    conn, idx = lib
+    v = DetailView(conn)
+    v.resize(1200, 900)
+    v.open(idx, 0)
+    v.set_editing(True)
+    assert pump(app, lambda: v.edit.has_render)
+    before = v.edit.stack.geometry.crop
+    v.edit.set_crop_mode(True)
+    v.edit._crop_moved((0.1, 0.1, 0.9, 0.9), True)
+    assert v.edit.canvas.crop is not None
+    v.edit.undo()
+    assert v.edit.stack.geometry.crop == before and tuple(v.edit.canvas.crop) == tuple(before)
+    v.edit.redo()
+    assert tuple(v.edit.canvas.crop) == (0.1, 0.1, 0.9, 0.9)

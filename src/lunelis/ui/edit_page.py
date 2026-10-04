@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QSize, Signal
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from lunelis.ui.detail_view import DetailView
@@ -31,6 +31,47 @@ SOURCES = (
     ("favorites", "4 and 5 stars"),
     ("recent", "Recently imported"),
 )
+
+
+class _FoldingBar(QWidget):
+    """The page's bar. Its full labels need ~1,000 px; below that it folds:
+    the "Photos:" label and the count go, the buttons get short names (the
+    full one stays as the tooltip). It never asks for more than its folded
+    width, so the window still goes down to its 900 px minimum."""
+
+    def __init__(self) -> None:
+        super().__init__(objectName="Toolbar")
+        self.folding: list[tuple[QWidget, str | None, str | None]] = []   # widget, full text, short text
+        self._folded = False
+
+    def fold_with(self, w: QWidget, short: str | None = None) -> None:
+        self.folding.append((w, w.text() if short else None, short))
+
+    def _full_width(self) -> int:
+        lay = self.layout()
+        m = lay.contentsMargins()
+        items = [lay.itemAt(i) for i in range(lay.count())]
+        return (m.left() + m.right() + lay.spacing() * max(0, len(items) - 1)
+                + sum(it.sizeHint().width() for it in items if it.widget() is None or not it.widget().isHidden()))
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(0, super().minimumSizeHint().height())
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        if not self._folded:
+            self._full = self._full_width()          # measured unfolded; kept while folded
+        self._fold(self.width() < getattr(self, "_full", 0))
+
+    def _fold(self, on: bool) -> None:
+        if on == self._folded:
+            return
+        self._folded = on
+        for w, full, short in self.folding:
+            if short is None:
+                w.setVisible(not on)
+            else:
+                w.setText(short if on else full)
 
 
 class EditPage(QWidget):
@@ -49,15 +90,20 @@ class EditPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        bar = QWidget(objectName="Toolbar")
+        bar = self.bar = _FoldingBar()
         bar.setFixedHeight(56)
         h = QHBoxLayout(bar)
         h.setContentsMargins(16, 0, 16, 0)
         h.setSpacing(10)
         h.addWidget(QLabel("Edit", objectName="PageTitle"))
         h.addSpacing(10)
-        h.addWidget(QLabel("Photos:", objectName="ToolLabel"))
+        photos = QLabel("Photos:", objectName="ToolLabel")
+        h.addWidget(photos)
         self.source = QComboBox()
+        self.source.setToolTip("Which photos to work through")
+        # Sized to a short label, not the longest one ("What the library shows now").
+        self.source.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.source.setMinimumContentsLength(16)
         for key, label in SOURCES:
             self.source.addItem(label, key)
         self.source.currentIndexChanged.connect(lambda _i: self.load())
@@ -74,6 +120,12 @@ class EditPage(QWidget):
                                     clicked=lambda: self.export_all.emit(self.ids()))
         for b in (self.copy_b, self.paste_b, self.reset_b, self.export_b):
             h.addWidget(b)
+        bar.fold_with(photos)
+        bar.fold_with(self.count)
+        for b, short in ((self.copy_b, "Copy"), (self.paste_b, "Paste"), (self.reset_b, "Reset…"),
+                         (self.export_b, "Export…")):
+            bar.fold_with(b, short)
+            b.setToolTip(b.toolTip() or b.text().rstrip("…"))
         outer.addWidget(bar)
 
         self.view = DetailView(conn, workspace=True)

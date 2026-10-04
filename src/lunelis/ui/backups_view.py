@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from lunelis import paths
 from lunelis.backups import core
 from lunelis.catalog.schema import open_catalog
-from lunelis.ui.background import Background
+from lunelis.ui.background import Background, unless_closed
 
 
 def _gb(n: int) -> str:
@@ -349,6 +349,7 @@ class BackupsView(QWidget):
         self._thread.start()
         self._buttons()
 
+    @unless_closed
     def _restored(self, res) -> None:
         self._thread.quit()
         self._thread.wait()

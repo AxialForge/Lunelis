@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from lunelis import paths
 from lunelis.dupes import manage
 from lunelis.dupes.quarantine import QuarantineRefused
+from lunelis.ui.background import unless_closed
 
 
 def _local_date(iso: str | None) -> str:
@@ -244,6 +245,7 @@ class QuarantineView(QWidget):
         self._thread.wait()
         self._thread = None
 
+    @unless_closed
     def _loaded(self, result) -> None:
         self._end()
         if isinstance(result, Exception):
@@ -329,6 +331,7 @@ class QuarantineView(QWidget):
         self._progress.canceled.connect(lambda: worker.cancel())   # direct: the worker's thread is busy
         self._run(worker, self._restored)
 
+    @unless_closed
     def _restored(self, result) -> None:
         self._end()
         self._progress.close()
@@ -370,6 +373,7 @@ class QuarantineView(QWidget):
     def _step(self, i: int, n: int) -> None:
         self._progress.setValue(i)
 
+    @unless_closed
     def _emptied(self, res) -> None:
         self._thread.quit()
         self._thread.wait()

@@ -71,3 +71,23 @@ def test_an_in_memory_catalog_runs_inline():
     got = []
     bg.run("k", lambda c: c is conn, got.append)
     assert got == [True] and not bg.busy()
+
+
+def test_unless_closed_drops_a_result_after_the_window_closed():
+    from lunelis.ui.background import unless_closed
+    _app()
+
+    class Page(QWidget):
+        def __init__(self):
+            super().__init__()
+            self.got = []
+
+        @unless_closed
+        def _done(self, result):
+            self.got.append(result)
+
+    page = Page()
+    page._done(1)
+    page._closed = True
+    page._done(2)
+    assert page.got == [1]

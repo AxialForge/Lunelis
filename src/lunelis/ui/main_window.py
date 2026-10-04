@@ -38,6 +38,7 @@ from lunelis.ui.import_view import ImportView
 from lunelis.ui.dupes_view import DuplicatesView
 from lunelis.ui.grid import DEFAULT_TILE, MAX_TILE, MIN_TILE, PhotoGrid
 from lunelis.ui.jobs import JobRunner, JobsDialog, ScopeDialog
+from lunelis.ui.background import unless_closed
 from lunelis.ui.library import SORTS, UNRATED, Filter, LibraryIndex
 from lunelis.settings import Settings
 from lunelis.ui.settings_view import SettingsView
@@ -76,6 +77,9 @@ SCAN_STEPS = ("Scanning folders", "Reading sidecars", "Reading metadata", "Googl
               "Finding burst shots", "Updating the search index", "Making thumbnails", "Comparing photos",
               "Checking for damaged files")
 
+
+EDITS_INLINE = 20                # Paste / Reset on more photos than this saves on a worker
+SEARCH_NOW_LIMIT = 2000          # search-index rows brought up to date before a query; the rest on a worker
 
 class LibraryWorker(QObject):
     """scan -> metadata -> thumbnails, on a background thread."""
@@ -482,7 +486,7 @@ class MainWindow(QMainWindow):
 
         # While a long pass runs, fold its new thumbnails into the grid now
         # and then rather than only at the end.
-        self._refresh_timer = QTimer(self, interval=15000, timeout=self.reload)
+        self._refresh_timer = QTimer(self, interval=15000, timeout=self.reload_later)
         if ratings.pending_count(self.conn):
             self._xmp_timer.start()   # changes from a previous session not yet written
         self._later(3000, self._daily_backup)
@@ -945,7 +949,7 @@ class MainWindow(QMainWindow):
         Settings(self.conn).set("grid_default_sort", self.sort.currentData())
         self.reload()
 
-    def reload(self) -> None:
+    def _view_settings(self):
         from dataclasses import replace as _replace
         from lunelis.settings import Settings
         hide = not Settings(self.conn).get("show_videos")
@@ -954,7 +958,48 @@ class MainWindow(QMainWindow):
             self.stack_cb.blockSignals(True)
             self.stack_cb.setChecked(self.index.collapse)
             self.stack_cb.blockSignals(False)
-        self.index.load(self.conn, self.sort.currentData(), _replace(self.filter, hide_videos=hide))
+        return self.sort.currentData(), _replace(self.filter, hide_videos=hide)
+
+    def _catalog_mark(self) -> tuple[int, int]:
+        """Changes since the last load: another connection's commits (the scan,
+        jobs) move data_version, this connection's own writes total_changes."""
+        return self.conn.execute("PRAGMA data_version").fetchone()[0], self.conn.total_changes
+
+    def reload(self) -> None:
+        """Load the grid now (a filter, sort or edit the user is waiting on)."""
+        self._index_gen = getattr(self, "_index_gen", 0) + 1     # an older background load is stale
+        self._loaded_mark = self._catalog_mark()
+        sort_key, filt = self._view_settings()
+        self.index.load(self.conn, sort_key, filt)
+        self._show_index(catalog_stats(self.conn))
+
+    def reload_later(self, only_if_changed: bool = False) -> None:
+        """Load the grid on a worker (the scan's periodic refresh, coming back
+        to the Library page): ~0.3 s of query on a 159k library that the window
+        shouldn't freeze for. The grid keeps showing the old rows until then."""
+        if only_if_changed and getattr(self, "_loaded_mark", None) == self._catalog_mark():
+            return
+        mark = self._catalog_mark()
+        gen = getattr(self, "_index_gen", 0)
+        sort_key, filt = self._view_settings()
+
+        def load(conn):
+            import time
+            t = time.perf_counter()
+            rows = LibraryIndex.query(conn, sort_key, filt)
+            return rows, time.perf_counter() - t, catalog_stats(conn)
+
+        def show(result) -> None:
+            if gen != getattr(self, "_index_gen", 0) or (sort_key, filt) != self._view_settings():
+                return                                   # the user changed the view meanwhile
+            rows, seconds, stats = result
+            self.index.sort_key, self.index.filter = sort_key, filt
+            self.index.apply(rows, seconds)
+            self._loaded_mark = mark
+            self._show_index(stats)
+        self._bg().run("index", load, show)
+
+    def _show_index(self, s) -> None:
         self.grid.set_timeline(self.sort.currentData() in ("date_desc", "date_asc"))
         self.thumbs.reset_failed()
         if len(self.index):
@@ -966,7 +1011,6 @@ class MainWindow(QMainWindow):
         else:
             self.grid.empty_text = "No folders yet — Library ▸ Add folder… (Ctrl+O)"
         self.grid.set_index(self.index)
-        s = catalog_stats(self.conn)
         self.footer.setText(f"{s['bytes'] / 1e12:,.1f} TB indexed\n{s['files'] - s['missing'] - s['excluded']:,} photos & videos")
         self._update_count(len(self.grid.selected))
 
@@ -1319,7 +1363,7 @@ class MainWindow(QMainWindow):
                 self, "Paste to all", f"Paste the copied edit onto all {len(ids):,} photos? Each keeps its own "
                 "crop and rotation; Reset all takes it off again.") != QMessageBox.StandardButton.Yes:
             return
-        self._apply_edits(ids, lambda fid: replace(clip, geometry=store.get(self.conn, fid).geometry),
+        self._apply_edits(ids, lambda c, fid: replace(clip, geometry=store.get(c, fid).geometry),
                           f"Pasted the edit settings onto {len(ids):,} photo{'s' if len(ids) != 1 else ''}")
 
     def _reset_edits_of(self, ids: list[int]) -> None:
@@ -1334,7 +1378,7 @@ class MainWindow(QMainWindow):
                                 "(crop and rotation too)? The files themselves were never changed.") \
                 != QMessageBox.StandardButton.Yes:
             return
-        self._apply_edits(ids, lambda _fid: Stack(), f"Reset {len(ids):,} photos to the original")
+        self._apply_edits(ids, lambda _c, _fid: Stack(), f"Reset {len(ids):,} photos to the original")
 
     def copy_edit(self) -> None:
         from lunelis.edit import store
@@ -1359,7 +1403,7 @@ class MainWindow(QMainWindow):
         if clip is None or not ids:
             self.status.setText("Copy a photo's edit settings first (Ctrl+Shift+C)")
             return
-        self._apply_edits(ids, lambda fid: replace(clip, geometry=store.get(self.conn, fid).geometry),
+        self._apply_edits(ids, lambda c, fid: replace(clip, geometry=store.get(c, fid).geometry),
                           f"Pasted the edit settings onto {len(ids):,} photo{'s' if len(ids) != 1 else ''}")
 
     def reset_edits(self) -> None:
@@ -1374,19 +1418,40 @@ class MainWindow(QMainWindow):
                                 "(crop and rotation too)? The files themselves were never changed.") \
                 != QMessageBox.StandardButton.Yes:
             return
-        self._apply_edits(ids, lambda _fid: Stack(), f"Reset {len(ids):,} photos to the original")
+        self._apply_edits(ids, lambda _c, _fid: Stack(), f"Reset {len(ids):,} photos to the original")
 
     def _apply_edits(self, ids: list[int], stack_for, message: str) -> None:
+        """Save `stack_for(conn, fid)` for each photo. Each save writes a sidecar
+        (on the NAS, often), so more than a few photos are saved on a worker."""
         from lunelis.edit import store
+        if self._bg().busy("edits"):
+            self.status.setText("Still saving the last batch of edits - try again in a moment")
+            return
         editing = self._editing_view()
         if editing:
             editing.edit.finish()
-        changed = [fid for fid in ids if store.save(self.conn, fid, stack_for(fid), commit=False)]
-        self.conn.commit()
-        if editing:
-            editing.edit.start(editing.info)
-        self.status.setText(message)
-        self.render_edits(changed)
+
+        def save(conn) -> list[int]:
+            changed = [fid for fid in ids if store.save(conn, fid, stack_for(conn, fid), commit=False)]
+            conn.commit()
+            return changed
+
+        def saved(changed: list[int]) -> None:
+            if editing and editing.info is not None:
+                editing.edit.start(editing.info)
+            self.status.setText(message)
+            self.render_edits(changed)
+
+        def failed(e) -> None:
+            if editing and editing.info is not None:
+                editing.edit.start(editing.info)
+            self.status.setText(f"Saving the edits stopped: {e}")
+
+        if len(ids) <= EDITS_INLINE:
+            saved(save(self.conn))
+            return
+        self.status.setText(f"Saving edits for {len(ids):,} photos…")
+        self._bg().run("edits", save, saved, error=failed)
 
     def export_photos(self, ids: list[int] | None = None) -> None:
         from lunelis.ui.export_dialog import ExportDialog, ExportWorker
@@ -1423,6 +1488,7 @@ class MainWindow(QMainWindow):
         self._export_progress.setValue(i)
         self._export_progress.setLabelText(f"Exporting {i:,} of {n:,}…")
 
+    @unless_closed
     def _export_done(self, made: int, videos: int, errors: list) -> None:
         self._export_thread.quit()
         self._export_thread.wait()
@@ -1466,7 +1532,15 @@ class MainWindow(QMainWindow):
         if text == self.filter.query:
             return
         if text:
-            search.refresh(self.conn)             # anything changed since: usually a handful of photos
+            # Anything changed since the last scan: usually a handful of photos. A
+            # big backlog (a scan that was stopped) is finished on a worker, and
+            # the results are shown again when it's done.
+            search.refresh(self.conn, limit=SEARCH_NOW_LIMIT)
+            left = search.pending(self.conn)
+            if left:
+                self.status.setText(f"Search is catching up on {left:,} photos - the results update when it's done")
+                self._bg().run("search index", lambda c: search.refresh(c),
+                               lambda _n: self.filter.query and self.reload())
             if self.pages.currentWidget() is not self.grid:
                 self.show_page("Library")
                 b = self._nav.get("Library")
@@ -1528,6 +1602,7 @@ class MainWindow(QMainWindow):
         self._merge_progress.canceled.connect(lambda: self._merge.cancel())     # direct, see CLAUDE.md
         self._merge_thread.start()
 
+    @unless_closed
     def _merge_done(self, file_id, path: str, error: str) -> None:
         self._merge_thread.quit()
         self._merge_thread.wait()
@@ -1579,6 +1654,7 @@ class MainWindow(QMainWindow):
         if n > 1:
             self.status.setText(f"Rendering edits… {i:,} / {n:,}")
 
+    @unless_closed
     def _batch_finished(self) -> None:
         self._batch_thread.quit()
         self._batch_thread.wait()
@@ -1648,7 +1724,7 @@ class MainWindow(QMainWindow):
         self.filter_bar.setVisible(library)
         if library:
             self.pages.setCurrentWidget(self.grid)
-            self.reload()
+            self.reload_later(only_if_changed=True)      # back from another page: only if something changed
         elif name == "Import":
             self.pages.setCurrentWidget(self.importer)
             self.importer.refresh()
@@ -2077,6 +2153,7 @@ class MainWindow(QMainWindow):
         self._backup_worker.done.connect(self._on_backup_done)
         self._backup_thread.start()
 
+    @unless_closed
     def _on_backup_done(self, result) -> None:
         self._backup_thread.quit()
         self._backup_thread.wait()
@@ -2101,6 +2178,7 @@ class MainWindow(QMainWindow):
         self._xmp_worker.done.connect(self._on_sidecars_written)
         self._xmp_thread.start()
 
+    @unless_closed
     def _on_sidecars_written(self, r) -> None:
         self._xmp_thread.quit()
         self._xmp_thread.wait()
@@ -2174,21 +2252,25 @@ class MainWindow(QMainWindow):
             self._worker.cancel()
             self.status.setText("Stopping…")
 
+    @unless_closed
     def _on_root_done(self, r: ScanResult) -> None:
         self.status.setText(f"Scanned in {r.seconds:.1f}s: {r.added:,} new, {r.updated:,} changed, "
                             f"{r.missing:,} missing")
         self.reload()
 
+    @unless_closed
     def _on_meta_done(self, r: ExtractResult) -> None:
         if r.read or r.failed:
             self.status.setText(f"Metadata read for {r.read:,} files in {r.seconds:.1f}s")
             self.reload()
 
+    @unless_closed
     def _on_thumb_done(self, r) -> None:
         if r.made or r.failed:
             self.status.setText(f"Made {r.made:,} thumbnails in {r.seconds:.1f}s"
                                 + (f" ({r.failed:,} preview unavailable)" if r.failed else ""))
 
+    @unless_closed
     def _on_similar_done(self, groups: int) -> None:
         if self.pages.currentWidget() is self.dupes:
             self.dupes.refresh()
@@ -2220,6 +2302,7 @@ class MainWindow(QMainWindow):
         self.scan_bar.show()
         self.library_state.setText("Updating the library…")
 
+    @unless_closed
     def _on_damage_done(self, r) -> None:
         from datetime import datetime
         n = sum(r.found.values())
@@ -2232,6 +2315,7 @@ class MainWindow(QMainWindow):
         self.library_state.set_links([(f"Library up to date ({when})", "Library status")]
                                      + ([(f"{n:,} damaged file{'s' if n != 1 else ''}", "Damaged files")] if n else []))
 
+    @unless_closed
     def _on_finished(self) -> None:
         self._refresh_timer.stop()
         self.scan_step.hide()

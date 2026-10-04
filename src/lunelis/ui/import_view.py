@@ -24,7 +24,7 @@ from lunelis.catalog.schema import open_catalog
 from lunelis.importing import ingest
 from lunelis.importing.templates import PRESETS, Context, TemplateError, render
 from lunelis.settings import Settings
-from lunelis.ui.background import Background
+from lunelis.ui.background import Background, unless_closed
 
 
 def _gb(n: int) -> str:
@@ -428,6 +428,7 @@ class ImportView(QWidget):
         self.bar.setFormat(f"{verb}: {done:,} / {total:,}")
         self.message.setText(f"{verb}… {os.path.basename(current)}")
 
+    @unless_closed
     def _finished(self, import_id: int, result) -> None:
         self._end_thread()
         self._import_id = import_id or self._import_id

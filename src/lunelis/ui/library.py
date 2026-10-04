@@ -172,13 +172,22 @@ class LibraryIndex:
             self.sort_key = sort_key
         if filt is not None:
             self.filter = filt
-        where, params = self.filter.sql()
-        self.all_rows = conn.execute(
-            _QUERY.format(order=SORTS[self.sort_key][1], where=where,
+        self.apply(self.query(conn, self.sort_key, self.filter), time.perf_counter() - started)
+
+    @staticmethod
+    def query(conn: sqlite3.Connection, sort_key: str, filt: Filter) -> list:
+        """The rows for a sort and filter - only reads `conn`, so a worker can
+        run it on its own connection (MainWindow.reload_later)."""
+        where, params = filt.sql()
+        return conn.execute(
+            _QUERY.format(order=SORTS[sort_key][1], where=where,
                           untrusted=",".join(str(i) for i in untrusted_mtime_roots(conn)) or "NULL"),
             params).fetchall()
+
+    def apply(self, rows: list, seconds: float = 0.0) -> None:
+        self.all_rows = rows
         self._collapse()
-        self.load_seconds = time.perf_counter() - started
+        self.load_seconds = seconds
 
     def _collapse(self) -> None:
         self._pos = None

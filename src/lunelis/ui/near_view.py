@@ -25,6 +25,7 @@ from lunelis.dupes import similar
 from lunelis.dupes.quarantine import QUARANTINE_DIR, QuarantineRefused
 from lunelis.raw.thumbnails import cache_rel_path
 from lunelis.settings import Settings
+from lunelis.ui.background import unless_closed
 
 
 def _size(n: int) -> str:
@@ -253,6 +254,7 @@ class NearView(QWidget):
         self._buttons()
         self._thread.start()
 
+    @unless_closed
     def _done(self, result) -> None:
         self._thread.quit()
         self._thread.wait()

@@ -23,7 +23,7 @@ from lunelis.importing.templates import PRESETS, Context, TemplateError, render
 from lunelis.migrate import execute
 from lunelis.migrate.plan import Options, PlanError, discard, plan, summary
 from lunelis.settings import Settings
-from lunelis.ui.background import Background
+from lunelis.ui.background import Background, unless_closed
 
 STATE_TEXT = {"planned": "Waiting", "copied": "Copied, original pending", "done": "Done",
               "kept": "Done - original kept for review", "released": "Done - original released",
@@ -414,6 +414,7 @@ class MigrateView(QWidget):
         self._thread.start()
         self._show()
 
+    @unless_closed
     def _finished(self, result) -> None:
         then = self._then
         self._thread.quit()

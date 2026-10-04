@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from lunelis import paths
 from lunelis.catalog.schema import open_catalog
 from lunelis.damage.check import PROBLEM_TEXT, check, survivors
+from lunelis.ui.background import unless_closed
 
 
 # Short words for the summary line ("80 zero-filled, 44 corrupt, 2 empty").
@@ -161,6 +162,7 @@ class DamagedView(QWidget):
         self.summary.setText("Checking…")
         self._thread.start()
 
+    @unless_closed
     def _check_done(self, result) -> None:
         self._thread.quit()
         self._thread.wait()

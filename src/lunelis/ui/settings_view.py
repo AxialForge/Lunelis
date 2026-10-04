@@ -19,7 +19,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, QThread, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QHBoxLayout,
+    QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton,
     QRadioButton, QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
@@ -360,15 +360,28 @@ class SettingsView(QWidget):
             if QMessageBox.question(self, "Download model", f"Download the {kind} model ({m.size / 1e6:,.0f} MB "
                                     f"from {m.source})?") != QMessageBox.StandardButton.Yes:
                 return
+            # Downloaded on a pool thread (the same job the photo view uses); the
+            # dialog's Cancel reaches it directly (see CLAUDE.md, Cancel gotcha).
+            from PySide6.QtCore import QThreadPool
+            from lunelis.ui.develop import _AiJob, _AiSignals
             dlg = QProgressDialog(f"Downloading the {kind} model…", "Cancel", 0, 100, self)
+            dlg.setWindowTitle("Download model")
             dlg.setMinimumDuration(0)
-            try:
-                ai.download(kind, lambda d, t: (dlg.setValue(int(d * 100 / max(1, t))),
-                                                QApplication.processEvents()), dlg.wasCanceled)
-            except Exception as e:
-                if str(e) != "cancelled":
-                    QMessageBox.warning(self, "Download model", f"The download didn't work: {e}")
-            dlg.close()
+            self._ai_dl = sig = _AiSignals()             # kept alive until the job reports back
+            job = _AiJob(sig, "download", kind)
+            queued = Qt.ConnectionType.QueuedConnection       # emitted on the pool thread
+            sig.progress.connect(lambda d, t: dlg.setValue(int(d * 100 / max(1, t))), queued)
+
+            def done(_kind: str, ok: bool, message: str) -> None:
+                dlg.close()
+                self._ai_dl = None
+                if not ok and message != "cancelled":
+                    QMessageBox.warning(self, "Download model", f"The download didn't work: {message}")
+                self._load_ai()
+            sig.downloaded.connect(done, queued)
+            dlg.canceled.connect(job.cancel)
+            QThreadPool.globalInstance().start(job)
+            return
         self._load_ai()
 
     def _edit_caches(self) -> QFrame:

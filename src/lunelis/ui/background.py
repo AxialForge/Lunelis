@@ -22,6 +22,7 @@ The worker connection only sees committed data: write, commit, then refresh.
 """
 from __future__ import annotations
 
+import functools
 import logging
 import time
 from typing import Callable
@@ -35,6 +36,27 @@ log = logging.getLogger(__name__)
 def db_file(conn) -> str:
     """The catalog file this connection is on ("" for an in-memory one)."""
     return conn.execute("PRAGMA database_list").fetchone()[2] or ""
+
+
+def window_closed(widget) -> bool:
+    """Has the window closed the catalog (or this widget gone)?"""
+    try:
+        win = widget.window()
+    except RuntimeError:                      # the C++ side is gone
+        return True
+    return bool(getattr(win, "_closed", False) or getattr(widget, "_closed", False))
+
+
+def unless_closed(slot):
+    """For a slot that takes a worker's result: dropped when it arrives after
+    the window closed the catalog (it would use a closed connection). The
+    worker threads were all waited for by then (MainWindow._finish_threads)."""
+    @functools.wraps(slot)
+    def run(self, *args):
+        if window_closed(self):
+            return None
+        return slot(self, *args)
+    return run
 
 
 class _Job(QObject):
@@ -127,11 +149,7 @@ class Background(QObject):
         then(result)
 
     def _closed(self) -> bool:
-        try:
-            win = self.page.window()
-        except RuntimeError:                  # the page's C++ side is gone
-            return True
-        return bool(getattr(win, "_closed", False) or getattr(self.page, "_closed", False))
+        return window_closed(self.page)
 
     def wait(self, timeout: float = 30.0) -> None:
         end = time.monotonic() + timeout

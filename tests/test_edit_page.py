@@ -86,3 +86,40 @@ def test_leaving_the_edit_page_saves_the_photo(window):
     w.edit_page.view.edit.finish = lambda: saved.append(True)
     w.open_page("Library")
     assert saved
+
+
+def test_big_paste_and_reset_save_on_a_worker(window, monkeypatch):
+    from lunelis.ui import main_window as mw
+    monkeypatch.setattr(mw, "EDITS_INLINE", 1)              # every batch here counts as big
+    w, ids = window
+    w.grid.selected = set(ids)
+    w.open_page("Edit")
+    store.save(w.conn, ids[0], Stack(adjust={"exposure": 0.5}))
+    w._copy_edit_of(ids[0])
+    w._paste_edit_to(list(ids))
+    assert w.bg.busy("edits")
+    w._reset_edits_of(list(ids))                            # refused while the first batch saves
+    assert "Still saving" in w.status.text()
+    w.bg.wait()
+    assert set(store.edited_ids(w.conn, ids)) == set(ids)
+    assert "Pasted the edit settings" in w.status.text()
+    w._reset_edits_of(list(ids))
+    w.bg.wait()
+    assert not store.edited_ids(w.conn, ids)
+
+
+def test_the_edit_page_fits_the_smallest_window(window):
+    from PySide6.QtWidgets import QApplication
+    w, ids = window
+    w.show()
+    w.open_page("Edit")
+    w.resize(900, 350)
+    for _ in range(20):
+        QApplication.processEvents()
+    assert (w.width(), w.height()) == (900, 350)
+    assert w.edit_page.bar._folded and w.edit_page.copy_b.text() == "Copy"
+    assert w.edit_page.copy_b.toolTip()                     # the full name is still there
+    w.resize(2400, 1000)
+    for _ in range(20):
+        QApplication.processEvents()
+    assert not w.edit_page.bar._folded and w.edit_page.copy_b.text() == "Copy this edit"

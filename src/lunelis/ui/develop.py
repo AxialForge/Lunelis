@@ -890,6 +890,10 @@ class EditMode(QObject):
         self._out_signals = _OutSignals()
         self._out_signals.done.connect(self._outputs_done)
         self._save_timer = QTimer(self, singleShot=True, interval=700, timeout=self.save)
+        self._overlay_timer = QTimer(self, singleShot=True, interval=60, timeout=lambda: self._update_overlay())
+        self._before_pix = None                         # (decoded image, its QPixmap): Before shows it at once
+        self._auto_signals = _AutoSignals()
+        self._auto_signals.done.connect(self._auto_done)
         panel.adjust.connect(self._adjust)
         panel.angle.connect(self._angle)
         panel.geometry_action.connect(self._geometry_action)
@@ -1107,10 +1111,18 @@ class EditMode(QObject):
         return self.stack.masks[self.mask_index] if 0 <= self.mask_index < len(self.stack.masks) else None
 
     def _replace_mask(self, m, *, record: bool = True, fast: bool = False) -> None:
+        old = self._mask()
         masks = list(self.stack.masks)
         masks[self.mask_index] = m
         self._set(replace(self.stack, masks=tuple(masks)), record=record, fast=fast)
-        self._update_overlay()
+        # The overlay shows WHERE the mask is: its adjustments don't move it.
+        if old is not None and (old.kind, old.shape, old.strokes, old.invert) == (m.kind, m.shape, m.strokes, m.invert):
+            return
+        if fast:
+            self._overlay_timer.start()                 # dragging: a 640 px rebuild per move was too much
+        else:
+            self._overlay_timer.stop()
+            self._update_overlay()
 
     def add_mask(self, kind: str) -> None:
         from lunelis.edit import masks as M
@@ -1313,16 +1325,27 @@ class EditMode(QObject):
         self._show_panel()
 
     def auto(self) -> None:
-        if self.session.disp is None:
+        if self.session.disp is None or self.info is None:
             return
-        src = pipeline.apply_geometry(self.session.disp, self.stack.geometry)
-        self._set(replace(self.stack, adjust=pipeline.auto(src)))
+        self.panel.status.setText("Working out Auto…")
+        self.panel.auto_b.setEnabled(False)
+        QThreadPool.globalInstance().start(
+            _AutoJob(self._auto_signals, self.info.file_id, self.session.disp, self.stack.geometry))
+
+    def _auto_done(self, file_id: int, adjust) -> None:
+        self.panel.auto_b.setEnabled(True)
+        if getattr(self, "closed", False) or self.info is None or file_id != self.info.file_id:
+            return                                      # moved on to another photo meanwhile
+        self.panel.status.setText("" if adjust is not None else "Auto couldn't work this photo out")
+        if adjust is not None:
+            self._set(replace(self.stack, adjust=adjust))
 
     def undo(self) -> None:
         if self.pos > 0:
             self.pos -= 1
             self._set(self.history[self.pos], record=False)
             self._show_panel()
+            self._sync_crop_frame()
             self._save_timer.start()
 
     def redo(self) -> None:
@@ -1330,6 +1353,7 @@ class EditMode(QObject):
             self.pos += 1
             self._set(self.history[self.pos], record=False)
             self._show_panel()
+            self._sync_crop_frame()
             self._save_timer.start()
 
     def set_before(self, on: bool) -> None:
@@ -1341,7 +1365,10 @@ class EditMode(QObject):
             self.panel.before_b.setChecked(on)
             self.panel.before_b.blockSignals(False)
         if on and self.session.disp is not None:
-            self.canvas.show_pixmap(QPixmap.fromImage(to_qimage(self.session.disp)), sharp=True)
+            disp = self.session.disp
+            if self._before_pix is None or self._before_pix[0] is not disp:
+                self._before_pix = (disp, QPixmap.fromImage(to_qimage(disp)))
+            self.canvas.show_pixmap(self._before_pix[1], sharp=True)
         elif not on:
             self._render()
 
@@ -1353,6 +1380,11 @@ class EditMode(QObject):
             src = pipeline.apply_geometry(self.session.fast, replace(self.stack.geometry, crop=FULL_CROP))
             return src.shape[1] / src.shape[0]
         return a if isinstance(a, float) else None
+
+    def _sync_crop_frame(self) -> None:
+        """Undo / redo while cropping: the frame follows the restored crop."""
+        if self.cropping:
+            self.canvas.set_crop(self.stack.geometry.crop, self._aspect_value())
 
     def set_crop_mode(self, on: bool) -> None:
         if on == self.cropping:
@@ -1383,6 +1415,23 @@ class EditMode(QObject):
     def _crop_moved(self, crop: tuple, final: bool) -> None:
         if final:
             self._set(replace(self.stack, geometry=replace(self.stack.geometry, crop=tuple(round(c, 5) for c in crop))))
+
+
+class _AutoSignals(QObject):
+    done = Signal(int, object)             # file id, adjust dict | None
+
+
+class _AutoJob(QRunnable):
+    def __init__(self, signals: _AutoSignals, file_id: int, disp, geometry) -> None:
+        super().__init__()
+        self.s, self.file_id, self.disp, self.geometry = signals, file_id, disp, geometry
+
+    def run(self) -> None:
+        try:
+            adjust = pipeline.auto(pipeline.apply_geometry(self.disp, self.geometry))
+        except Exception:
+            adjust = None
+        self.s.done.emit(self.file_id, adjust)
 
 
 class _OutSignals(QObject):
