@@ -55,17 +55,11 @@ SOURCES = (
 
 
 def thumb_image(conn, file_id: int, edge: int = 512) -> Image.Image:
-    """The cached thumbnail (fast) - previews only; saved files use engine.photo."""
-    row = conn.execute("SELECT thumbnail_path FROM files WHERE id = ?", (file_id,)).fetchone()
-    p = paths.THUMBNAIL_CACHE / ((row[0] if row else None) or cache_rel_path(file_id))
+    """The cached thumbnail (fast) - previews; a grey frame when there's none yet."""
     try:
-        with Image.open(p) as im:
-            img = im.convert("RGB")
+        return engine.thumb(conn, file_id, edge)
     except OSError:
         return Image.new("RGB", (edge, round(edge * 2 / 3)), (90, 90, 90))
-    if max(img.size) > edge:
-        img.thumbnail((edge, edge))
-    return img
 
 
 def to_pixmap(img: Image.Image) -> QPixmap:
@@ -763,9 +757,79 @@ class BatchTool(Tool):
                  lambda conn, prog, stop: batch.run(conn, ids, opts, folder, prog, stop), len(ids))
 
 
+# --- Contact sheet -------------------------------------------------------------------------------
+
+class ContactSheetTool(Tool):
+    title_text = "Contact sheet"
+    blurb = ("The photos in a grid on Letter or A4 pages, with their names, dates or stars underneath - to print, "
+             "or to send someone to choose from. A PDF with every page, or a PNG per page.")
+
+    def __init__(self, conn, parent=None) -> None:
+        super().__init__(conn, parent)
+        from lunelis.create import contact_sheet as cs
+        self.cs = cs
+        form = QFormLayout()
+        self.title = QLineEdit(placeholderText="Contact sheet")
+        form.addRow("Title", self.title)
+        self.page = QComboBox()
+        for key, label in (("letter", "Letter (8.5 x 11 in)"), ("a4", "A4")):
+            self.page.addItem(label, key)
+        form.addRow("Paper", self.page)
+        self.landscape = QCheckBox("Landscape")
+        form.addRow("", self.landscape)
+        self.columns = QSpinBox(minimum=2, maximum=10, value=5, suffix=" across")
+        form.addRow("Photos", self.columns)
+        self.names = QCheckBox("File names", checked=True)
+        self.dates = QCheckBox("Dates", checked=True)
+        self.stars = QCheckBox("Stars")
+        for w in (self.names, self.dates, self.stars):
+            form.addRow("" if w is not self.names else "Captions", w)
+        self.format = QComboBox()
+        self.format.addItem("PDF (all pages)", "pdf")
+        self.format.addItem("PNG (a picture per page)", "png")
+        form.addRow("Save as", self.format)
+        self.pages_note = QLabel(objectName="Help")
+        form.addRow("", self.pages_note)
+        box = QWidget()
+        box.setLayout(form)
+        box.setMaximumWidth(460)
+        self.body.addWidget(box)
+        self.body.addStretch(1)
+        for w in (self.columns,):
+            w.valueChanged.connect(self._note)
+        for w in (self.page, self.format):
+            w.currentIndexChanged.connect(self._note)
+        for w in (self.landscape, self.names, self.dates, self.stars):
+            w.toggled.connect(self._note)
+        self.picker.changed.connect(self._note)
+
+    def options(self):
+        return self.cs.SheetOptions(self.page.currentData(), self.landscape.isChecked(), self.columns.value(),
+                                    self.title.text().strip(), self.names.isChecked(), self.dates.isChecked(),
+                                    self.stars.isChecked(), self.format.currentData())
+
+    def _note(self, *_a) -> None:
+        n = len(self.picker.ids())
+        self.pages_note.setText(f"{self.cs.pages_needed(self.options(), n):,} page(s)" if n else "")
+
+    def make(self) -> None:
+        ids = self.picker.ids()
+        opts = self.options()
+        try:
+            opts.check(len(ids))
+        except ValueError as e:
+            QMessageBox.information(self, self.title_text, str(e))
+            return
+        folder, name = self.out_dir(), engine.stamp(opts.title or "Contact sheet")
+        self.result.setText("")
+        self.run("Making the contact sheet…",
+                 lambda conn, prog, stop: self.cs.make(conn, ids, opts, folder, name, prog, stop), len(ids))
+
+
 # --- the page ---------------------------------------------------------------------------------
 
-CARD_ICONS = {"animation": "status", "collage": "create", "batch": "duplicates"}
+CARD_ICONS = {"animation": "status", "collage": "create", "batch": "duplicates", "contact": "albums",
+              "timelapse": "status", "slideshow": "library", "before_after": "edit", "print": "backups"}
 
 
 class _Card(QFrame):
@@ -809,6 +873,7 @@ TOOLS = (
     ("animation", "Animation", "GIF, WebP or MP4 from a burst or a few photos.", AnimationTool),
     ("collage", "Collage", "Photos side by side on one picture, in a layout you choose.", CollageTool),
     ("batch", "Batch copies", "Resize, convert, watermark, rename or strip metadata - as new files.", BatchTool),
+    ("contact", "Contact sheet", "A grid of photos with captions on printable pages - PDF or PNG.", ContactSheetTool),
 )
 
 

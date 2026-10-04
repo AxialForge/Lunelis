@@ -144,6 +144,21 @@ def photo(conn: sqlite3.Connection, file_id: int, long_edge: int | None = None) 
     return rendered(conn, file_id, long_edge)
 
 
+def thumb(conn: sqlite3.Connection, file_id: int, edge: int = 512) -> Image.Image:
+    """The cached thumbnail (with the photo's edits), at most `edge` - quick, for
+    previews and small prints like contact sheets. OSError when there's none;
+    falls back to the photo itself only when asked for more than it holds."""
+    from lunelis import paths
+    from lunelis.raw.thumbnails import cache_rel_path
+    row = conn.execute("SELECT thumbnail_path FROM files WHERE id = ?", (file_id,)).fetchone()
+    p = paths.THUMBNAIL_CACHE / ((row[0] if row else None) or cache_rel_path(file_id))
+    with Image.open(p) as im:
+        img = im.convert("RGB")
+    if max(img.size) > edge:
+        img.thumbnail((edge, edge), Image.Resampling.LANCZOS)
+    return img
+
+
 def fit(img: Image.Image, preset: Preset) -> Image.Image:
     if preset.width is None:
         return img
