@@ -15,6 +15,16 @@ from PySide6.QtWidgets import (
 )
 
 KEYS: dict[str, list[tuple[str, str]]] = {
+    "Culling (Photo > Cull full screen, Ctrl+K)": [
+        ("← →", "Previous / next photo (in a compare, the group moves along)"),
+        ("P / X / U", "Pick / reject / unflag"),
+        ("0-5 / 6-9", "Stars / colour label"),
+        ("A", "Auto-advance on or off"),
+        ("C", "Compare: 2, 3, 4 photos side by side, then back to 1"),
+        ("Tab", "In a compare: the next photo is the one the keys act on"),
+        ("Z, wheel, drag", "Zoom and move - every photo in the compare together"),
+        ("Esc", "Back to the library"),
+    ],
     "Library": [
         ("Enter", "Open the selected photo"),
         ("Ctrl+A / Esc", "Select all / select none"),

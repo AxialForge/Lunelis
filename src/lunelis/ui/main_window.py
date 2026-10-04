@@ -621,6 +621,9 @@ class MainWindow(QMainWindow):
         self.photo_menu.insertSeparator(self.photo_menu.actions()[2])
         self.addAction(b)
         self.photo_menu.aboutToShow.connect(self._update_undo_actions)
+        a = QAction("C&ull full screen…", self, shortcut="Ctrl+K", triggered=self.cull)
+        self.photo_menu.addAction(a)
+        self.addAction(a)
         self.archive_action = QAction("Arc&hive", self, shortcut="Ctrl+Shift+H", triggered=self.toggle_archive)
         self.photo_menu.addAction(self.archive_action)
         self.addAction(self.archive_action)
@@ -1909,6 +1912,24 @@ class MainWindow(QMainWindow):
         self.status.setText(f"Added {added:,} photo{'s' if added != 1 else ''} to \"{name}\""
                             + (f" ({len(ids) - added:,} already there)" if added < len(ids) else ""))
 
+    def cull(self) -> None:
+        """Full-screen, keyboard culling of the selection (if several are
+        selected) or of everything the library shows."""
+        from lunelis.ui.cull_view import CullView
+        if len(self.grid.selected) > 1:
+            ids = [self.index.file_id(i) for i in range(len(self.index)) if self.index.file_id(i) in self.grid.selected]
+        else:
+            ids = [self.index.file_id(i) for i in range(len(self.index))]
+        if not ids:
+            self.status.setText("Nothing to cull - the library shows no photos")
+            return
+        start = self.index.file_id(self.grid.current) if 0 <= self.grid.current < len(self.index) else ids[0]
+        self.cull_view = CullView(self.conn, ids, self.rate_ids)
+        self.cull_view.pos = ids.index(start) if start in ids else 0
+        self.cull_view._show()
+        self.cull_view.closed.connect(lambda: (self.grid.viewport().update(), self.activateWindow()))
+        self.cull_view.showFullScreen()
+
     def _dropped_on_album(self, album, ids: list[int]) -> None:
         from lunelis.albums import model as albums
         both = self._with_pairs(ids)
@@ -2214,7 +2235,12 @@ class MainWindow(QMainWindow):
         return pairs.with_partners(self.conn, ids) if ids else ids
 
     def rate(self, **change) -> None:
-        ids = self._with_pairs(self._targets())
+        self.rate_ids(self._targets(), **change)
+
+    def rate_ids(self, ids: list[int], **change) -> None:
+        """Stars / label / flag on these photos (and their RAW+JPEG partners),
+        undoable, written to sidecars shortly after."""
+        ids = self._with_pairs(list(ids))
         if not ids:
             return
         if change.get("label"):
