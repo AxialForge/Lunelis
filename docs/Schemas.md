@@ -51,8 +51,8 @@ Tags are full-path names (`Places|Ohio`, shown as Places > Ohio) in `tags`;
 - Accepting a suggestion sets its confidence to NULL; rejecting deletes the row
   and remembers the rejection so it isn't suggested again.
 - Model suggestions live under a top-level `Scene` tag (`Scene|Beach`).
-- **Embeddings** (0.20): a new table `embeddings (file_id PRIMARY KEY, model TEXT,
-  dim INTEGER, vector BLOB float32, made_at TEXT)`, one row per photo per model,
+- **Embeddings** (0.20): `embeddings (file_id, model, dim, vector BLOB float32,
+  made_at)`, primary key (file_id, model) - one row per photo per model,
   made from the cached 512 px thumbnail. A different model is a different
   `model` value, never a re-interpretation of old vectors.
 

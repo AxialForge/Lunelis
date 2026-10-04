@@ -671,6 +671,27 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    30,
+    "scene tags: embeddings per photo per model; rejected suggestions remembered",
+    """
+    CREATE TABLE IF NOT EXISTS embeddings (
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        model TEXT NOT NULL,
+        dim INTEGER NOT NULL,
+        vector BLOB NOT NULL,                 -- float32 x dim, unit length
+        made_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (file_id, model)
+    );
+    CREATE TABLE IF NOT EXISTS tag_rejections (
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        PRIMARY KEY (file_id, tag_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_file_tags_suggested ON file_tags(tag_id) WHERE confidence IS NOT NULL;
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 

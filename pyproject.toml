@@ -33,7 +33,7 @@ lunelis = "lunelis.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-lunelis = ["darktable/*.lua", "importing/*.json", "create/*.json"]
+lunelis = ["darktable/*.lua", "importing/*.json", "create/*.json", "recognize/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

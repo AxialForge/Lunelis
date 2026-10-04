@@ -78,7 +78,10 @@ def add(conn: sqlite3.Connection, file_ids, names, *, commit: bool = True) -> in
         if tid is None:
             continue
         before = conn.total_changes
-        conn.executemany("INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?)", [(f, tid) for f in ids])
+        # Tagging a photo with a tag that was only suggested accepts the suggestion.
+        conn.executemany("INSERT INTO file_tags (file_id, tag_id) VALUES (?, ?)"
+                         " ON CONFLICT(file_id, tag_id) DO UPDATE SET confidence = NULL"
+                         " WHERE file_tags.confidence IS NOT NULL", [(f, tid) for f in ids])
         n = conn.total_changes - before
         if n:
             made += n
@@ -109,7 +112,7 @@ def remove(conn: sqlite3.Connection, file_ids, name: str, *, commit: bool = True
 def tags_of(conn: sqlite3.Connection, file_id: int) -> list[str]:
     return [r[0] for r in conn.execute(
         "SELECT t.name FROM file_tags ft JOIN tags t ON t.id = ft.tag_id WHERE ft.file_id = ?"
-        " ORDER BY t.name COLLATE NOCASE", (file_id,))]
+        " AND ft.confidence IS NULL ORDER BY t.name COLLATE NOCASE", (file_id,))]
 
 
 def counts_in(conn: sqlite3.Connection, file_ids) -> dict[str, int]:
@@ -120,7 +123,8 @@ def counts_in(conn: sqlite3.Connection, file_ids) -> dict[str, int]:
         chunk = ids[start:start + 900]
         for name, n in conn.execute(
                 f"SELECT t.name, COUNT(*) FROM file_tags ft JOIN tags t ON t.id = ft.tag_id"
-                f" WHERE ft.file_id IN ({','.join('?' * len(chunk))}) GROUP BY t.id", chunk):
+                f" WHERE ft.confidence IS NULL AND ft.file_id IN ({','.join('?' * len(chunk))}) GROUP BY t.id",
+                chunk):
             out[name] = out.get(name, 0) + n
     return dict(sorted(out.items(), key=lambda kv: kv[0].lower()))
 
@@ -132,8 +136,9 @@ def all_tags(conn: sqlite3.Connection) -> list[tuple[str, int]]:
     """Every tag with how many live photos carry it directly."""
     return [(n, c) for n, c in conn.execute(
         f"SELECT t.name, COUNT(f.id) FROM tags t LEFT JOIN file_tags ft ON ft.tag_id = t.id"
-        f" LEFT JOIN files f ON f.id = ft.file_id AND {LIVE}"
-        f" GROUP BY t.id ORDER BY t.name COLLATE NOCASE")]
+        f" AND ft.confidence IS NULL LEFT JOIN files f ON f.id = ft.file_id AND {LIVE}"
+        f" GROUP BY t.id HAVING COUNT(ft.tag_id) > 0 OR NOT EXISTS (SELECT 1 FROM file_tags x WHERE x.tag_id = t.id)"
+        f" ORDER BY t.name COLLATE NOCASE")]
 
 
 def names(conn: sqlite3.Connection) -> list[str]:
@@ -147,7 +152,7 @@ def _like(text: str) -> str:
 def filter_sql(name: str) -> tuple[str, list]:
     """A library WHERE clause: photos with this tag or any tag inside it."""
     return ("f.id IN (SELECT ft.file_id FROM file_tags ft JOIN tags t ON t.id = ft.tag_id"
-            " WHERE t.name = ? COLLATE NOCASE OR t.name LIKE ? ESCAPE '\\')",
+            " WHERE ft.confidence IS NULL AND (t.name = ? COLLATE NOCASE OR t.name LIKE ? ESCAPE '\\'))",
             [name, _like(name) + SEP + "%"])
 
 
