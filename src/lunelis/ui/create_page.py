@@ -28,9 +28,9 @@ from PIL import Image
 from PySide6.QtCore import QObject, QPointF, QRectF, QSize, Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QIcon, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QColorDialog, QComboBox, QFileDialog, QFormLayout, QGridLayout,
+    QAbstractItemView, QCheckBox, QColorDialog, QComboBox, QFileDialog, QFormLayout, QFrame, QGridLayout,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QProgressDialog, QPushButton,
-    QSlider, QSpinBox, QStackedWidget, QVBoxLayout, QWidget,
+    QScrollArea, QSlider, QSpinBox, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from lunelis import paths
@@ -110,7 +110,7 @@ class PhotoPicker(QWidget):
         self.strip.setFlow(QListWidget.Flow.LeftToRight)
         self.strip.setWrapping(False)
         self.strip.setIconSize(QSize(THUMB, THUMB))
-        self.strip.setFixedHeight(THUMB + 46)
+        self.strip.setFixedHeight(THUMB + 28)
         self.strip.setMovement(QListWidget.Movement.Snap)
         self.strip.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.strip.setDefaultDropAction(Qt.DropAction.MoveAction)
@@ -765,6 +765,46 @@ class BatchTool(Tool):
 
 # --- the page ---------------------------------------------------------------------------------
 
+CARD_ICONS = {"animation": "status", "collage": "create", "batch": "duplicates"}
+
+
+class _Card(QFrame):
+    """A tool on the home page: icon, name and a line about it; the whole card clicks."""
+
+    clicked = Signal()
+
+    def __init__(self, name: str, blurb: str, icon_name: str) -> None:
+        super().__init__(objectName="CreateCard")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMinimumHeight(110)
+        v = QVBoxLayout(self)
+        v.setContentsMargins(18, 16, 18, 16)
+        from lunelis.ui import icons, theme
+        head = QHBoxLayout()
+        pic = QLabel()
+        pic.setPixmap(icons.icon(icon_name, theme.current().accent).pixmap(28, 28))
+        head.addWidget(pic)
+        head.addWidget(QLabel(name, objectName="SectionTitle"), 1)
+        v.addLayout(head)
+        text = QLabel(blurb, objectName="Help")
+        text.setWordWrap(True)
+        v.addWidget(text)
+        v.addStretch(1)
+        self.setToolTip(f"Open {name}")
+
+    def mouseReleaseEvent(self, e) -> None:
+        if e.button() == Qt.MouseButton.LeftButton and self.rect().contains(e.position().toPoint()):
+            self.clicked.emit()
+
+    def keyPressEvent(self, e) -> None:
+        if e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.clicked.emit()
+        else:
+            super().keyPressEvent(e)
+
+
+
 TOOLS = (
     ("animation", "Animation", "GIF, WebP or MP4 from a burst or a few photos.", AnimationTool),
     ("collage", "Collage", "Photos side by side on one picture, in a layout you choose.", CollageTool),
@@ -802,13 +842,12 @@ class CreatePage(QWidget):
         grid = QGridLayout()
         grid.setSpacing(16)
         self.tools: dict[str, Tool] = {}
-        self.cards: dict[str, QPushButton] = {}
+        self.cards: dict[str, _Card] = {}
         for n, (key, name, blurb, cls) in enumerate(TOOLS):
-            card = QPushButton(f"{name}\n{blurb}")
-            card.setObjectName("CreateCard")
-            card.setMinimumHeight(96)
-            card.clicked.connect(lambda _=False, k=key: self.open_tool(k))
+            card = _Card(name, blurb, CARD_ICONS.get(key, "create"))
+            card.clicked.connect(lambda k=key: self.open_tool(k))
             grid.addWidget(card, n // 3, n % 3)
+            grid.setColumnStretch(n % 3, 1)
             self.cards[key] = card
             tool = cls(conn)
             tool.back.connect(lambda: self.stack.setCurrentIndex(0))
@@ -816,8 +855,16 @@ class CreatePage(QWidget):
         h.addLayout(grid)
         h.addStretch(1)
         self.stack.addWidget(home)
-        for tool in self.tools.values():
-            self.stack.addWidget(tool)
+        # Each tool scrolls up and down on a short window; its width follows
+        # the window, so its text wraps instead of pushing things off-screen.
+        self._scrolls: dict[str, QScrollArea] = {}
+        for key, tool in self.tools.items():
+            sc = QScrollArea(widgetResizable=True, frameShape=QFrame.Shape.NoFrame)
+            sc.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            tool.setMinimumHeight(560)
+            sc.setWidget(tool)
+            self._scrolls[key] = sc
+            self.stack.addWidget(sc)
 
     def set_library_context(self, selection: list[int], view_filter: Filter, sort: str | None) -> None:
         self._selection, self._view_filter, self._sort = list(selection), view_filter, sort
@@ -829,7 +876,7 @@ class CreatePage(QWidget):
         tool = self.tools[key]
         tool.picker.set_library_context(self._selection, self._view_filter, self._sort)
         tool.picker.choose_default()
-        self.stack.setCurrentWidget(tool)
+        self.stack.setCurrentWidget(self._scrolls[key])
 
     def open_folder(self) -> None:
         folder = engine.output_dir(self.conn)

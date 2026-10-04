@@ -417,7 +417,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.edit_page, scroll=False)          # fills the window
         from lunelis.ui.create_page import CreatePage
         self.create_page = CreatePage(self.conn)
-        self.pages.addWidget(self.create_page)
+        self.pages.addWidget(self.create_page, scroll=False)        # fills the window; wraps its text
         from lunelis.ui.status_view import StatusView
         self.status_page = StatusView(self.conn, SCAN_STEPS)
         self.status_page.open_page.connect(self.open_page)

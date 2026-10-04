@@ -124,3 +124,14 @@ def test_batch_makes_copies_in_a_new_folder(window):
     folders = [p for p in made.iterdir() if p.name.startswith("Batch ")]
     assert len(folders) == 1
     assert sorted(p.name for p in folders[0].iterdir()) == [f"Copy {n:03d}.jpg" for n in range(1, 6)]
+
+
+def test_the_create_page_fits_the_smallest_window(window):
+    w, ids, made = window
+    w.show()
+    w.open_page("Create")
+    w.create_page.open_tool("collage")
+    w.resize(900, 350)
+    for _ in range(20):
+        QApplication.processEvents()
+    assert (w.width(), w.height()) == (900, 350)
