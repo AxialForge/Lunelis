@@ -149,8 +149,7 @@ def test_before_and_after_side_by_side_and_slider(photos):
 def test_print_sheets_pack_real_sizes(photos):
     from lunelis.create import print_layout as pl
     assert pl.grid(pl.PrintOptions("4x6", "letter"))[:2] in ((1, 2), (2, 1))
-    assert pl.grid(pl.PrintOptions("wallet", "letter"))[:2] == (3, 2) or \
-        pl.grid(pl.PrintOptions("wallet", "letter"))[0] * pl.grid(pl.PrintOptions("wallet", "letter"))[1] >= 6
+    assert pl.grid(pl.PrintOptions("wallet", "letter")) == (2, 4, True)    # 8 wallets, turned sideways
     assert pl.grid(pl.PrintOptions("8x10", "letter"))[:2] == (1, 1)
     conn, ids, out = photos
     sheet = pl.sheets(conn, ids[:3], pl.PrintOptions("4x6", "letter"))
@@ -163,3 +162,14 @@ def test_print_sheets_pack_real_sizes(photos):
     assert pdf[0].endswith(".pdf")
     with pytest.raises(ValueError):
         pl.PrintOptions("10x15").check(1)
+
+
+def test_every_round_two_tool_is_on_the_page(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.create_page import CreatePage
+    page = CreatePage(open_catalog(tmp_path / "t.db"))
+    assert {"contact", "timelapse", "slideshow", "before_after", "print"} <= set(page.tools)
+    tool = page.tools["print"]
+    tool.size.setCurrentIndex(tool.size.findData("wallet"))
+    assert tool.options().size == "wallet"

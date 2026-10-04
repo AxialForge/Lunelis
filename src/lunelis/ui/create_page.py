@@ -1002,6 +1002,76 @@ class BeforeAfterTool(Tool):
                  lambda conn, prog, stop: self.ba.make(conn, ids, opts, folder, name, prog, stop), len(ids))
 
 
+# --- Prints --------------------------------------------------------------------------------------
+
+class PrintTool(Tool):
+    title_text = "Prints"
+    blurb = ("Photos at real print sizes: packed onto Letter or A4 sheets with cut marks to print at home, or "
+             "one file per print, at exactly its size, for a printing service.")
+
+    def __init__(self, conn, parent=None) -> None:
+        super().__init__(conn, parent)
+        from lunelis.create import print_layout
+        self.pl = print_layout
+        form = QFormLayout()
+        self.size = QComboBox()
+        for key, label in (("4x6", "4 x 6 in"), ("5x7", "5 x 7 in"), ("8x10", "8 x 10 in"),
+                           ("wallet", "Wallet 2.5 x 3.5 in")):
+            self.size.addItem(label, key)
+        form.addRow("Print size", self.size)
+        self.paper = QComboBox()
+        for key, label in (("letter", "Letter sheets (PDF)"), ("a4", "A4 sheets (PDF)"),
+                           ("lab", "One file per print (for a lab)")):
+            self.paper.addItem(label, key)
+        form.addRow("On", self.paper)
+        self.fill = QCheckBox("Fill the print (crop the edges) - off: the whole photo with white borders",
+                              checked=True)
+        form.addRow("", self.fill)
+        self.copies = QSpinBox(minimum=1, maximum=20, value=1, suffix=" of each")
+        form.addRow("Copies", self.copies)
+        self.marks = QCheckBox("Cut marks", checked=True)
+        form.addRow("", self.marks)
+        self.note = QLabel(objectName="Help")
+        form.addRow("", self.note)
+        box = QWidget()
+        box.setLayout(form)
+        box.setMaximumWidth(520)
+        self.body.addWidget(box)
+        self.body.addStretch(1)
+        for w in (self.size, self.paper):
+            w.currentIndexChanged.connect(self._note)
+        self.copies.valueChanged.connect(self._note)
+        self.picker.changed.connect(self._note)
+
+    def options(self):
+        return self.pl.PrintOptions(self.size.currentData(), self.paper.currentData(), self.fill.isChecked(),
+                                    self.copies.value(), self.marks.isChecked())
+
+    def _note(self, *_a) -> None:
+        o = self.options()
+        n = len(self.picker.ids()) * o.copies
+        if o.paper == "lab" or not n:
+            self.note.setText(f"{n:,} files at 300 dpi" if n else "")
+            return
+        cols, rows, _ = self.pl.grid(o)
+        per = cols * rows
+        self.note.setText(f"{per} a sheet - {(n + per - 1) // per:,} sheet(s)")
+
+    def make(self) -> None:
+        ids = self.picker.ids()
+        opts = self.options()
+        try:
+            opts.check(len(ids))
+        except ValueError as e:
+            QMessageBox.information(self, self.title_text, str(e))
+            return
+        folder, name = self.out_dir(), engine.stamp(f"Prints {opts.size}")
+        self.result.setText("")
+        self.run("Laying out the prints…",
+                 lambda conn, prog, stop: self.pl.make(conn, ids, opts, folder, name, prog, stop),
+                 len(ids) * opts.copies)
+
+
 # --- the page ---------------------------------------------------------------------------------
 
 CARD_ICONS = {"animation": "status", "collage": "create", "batch": "duplicates", "contact": "albums",
@@ -1054,6 +1124,7 @@ TOOLS = (
     ("slideshow", "Slideshow video", "Photos as a video with transitions, a slow zoom and music.", SlideshowTool),
     ("before_after", "Before and after", "The original next to your edit - side by side or a sweeping slider.",
      BeforeAfterTool),
+    ("print", "Prints", "4x6, 5x7, 8x10 or wallet prints on sheets with cut marks, or files for a lab.", PrintTool),
 )
 
 
