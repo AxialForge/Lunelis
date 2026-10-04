@@ -37,6 +37,7 @@ from lunelis.ui.library import LibraryIndex
 from lunelis.ui.theme import label_color, qcolor
 from lunelis.ui.thumbcache import ThumbCache
 from lunelis.xmp.sidecar import LABELS
+from lunelis.ui.background import unless_closed
 
 PREVIEW_EDGE = 2560          # plenty for a 1440p/4K window without decoding 60 MP
 PREVIEW_CACHE = 8
@@ -970,6 +971,7 @@ class DetailView(QWidget):
         self.canvas.update()
         QThreadPool.globalInstance().start(_FullLoad(self._full_signals, i.file_id, i.path, i.is_raw))
 
+    @unless_closed
     def _full_ready(self, file_id: int, img: QImage) -> None:
         if getattr(self, "_shut", False):
             return
@@ -982,12 +984,14 @@ class DetailView(QWidget):
         self._full_pix = (file_id, QPixmap.fromImage(img))
         self.canvas.show_pixmap(self._full_pix[1], sharp=True, keep_zoom=True)
 
+    @unless_closed
     def _preview_ready(self, file_id: int) -> None:
         if getattr(self, "_shut", False):
             return
         if self.info and file_id == self.info.file_id:
             self._show_image()
 
+    @unless_closed
     def _thumb_ready(self, file_id: int) -> None:
         if getattr(self, "_shut", False):
             return

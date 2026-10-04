@@ -184,7 +184,32 @@ def _check_icon(t: Theme) -> str:
     return path.as_posix()
 
 
+BASE_POINT_SIZE = 9.0          # Windows' message font at 100 % text size (Segoe UI 9 pt)
+
+
+def text_scale() -> float:
+    """Windows' "Make text bigger" (Settings > Accessibility > Text size), as a
+    factor: Qt's default font follows it, our pixel sizes didn't."""
+    app = QApplication.instance()
+    pt = app.font().pointSizeF() if app is not None else BASE_POINT_SIZE
+    return max(1.0, pt / BASE_POINT_SIZE) if pt > 0 else 1.0
+
+
+def font_pt(px: float) -> float:
+    """A size designed in pixels at 100 %, in points, grown with the text size."""
+    return round(px * 0.75 * text_scale(), 2)
+
+
+def _scale_fonts(qss: str) -> str:
+    import re
+    return re.sub(r"font-size:\s*(\d+(?:\.\d+)?)px", lambda m: f"font-size: {font_pt(float(m.group(1)))}pt", qss)
+
+
 def stylesheet(t: Theme | None = None) -> str:
+    return _scale_fonts(_stylesheet(t))
+
+
+def _stylesheet(t: Theme | None = None) -> str:
     t = t or _current
     check = _check_icon(t)
     red = dict(t.labels)["Red"]

@@ -78,13 +78,16 @@ class PhotoGrid(QAbstractScrollArea):
         self.setFrameShape(QAbstractScrollArea.Shape.NoFrame)
         self.viewport().setAutoFillBackground(False)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # In points, grown with Windows' text size (theme.font_pt); the badges
+        # were 9 px - too small to read at 100 %.
+        from lunelis.ui.theme import font_pt
         self._badge_font = QFont(self.font())
-        self._badge_font.setPixelSize(9)
+        self._badge_font.setPointSizeF(font_pt(10.5))
         self._badge_font.setBold(True)
         self._star_font = QFont(self.font())
-        self._star_font.setPixelSize(10)
+        self._star_font.setPointSizeF(font_pt(11))
         self._msg_font = QFont(self.font())
-        self._msg_font.setPixelSize(15)
+        self._msg_font.setPointSizeF(font_pt(15))
         # Hover info (set by the window: file id -> photoinfo.PhotoInfo).
         self.info_provider = None
         self.hover_enabled = True

@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
-from lunelis.ui.widgets import row_toggles
+from lunelis.ui.widgets import plain, row_toggles
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame, QHBoxLayout, QHeaderView,
@@ -421,7 +421,7 @@ class MigrateView(QWidget):
         self._thread.wait()
         self._thread = None
         if isinstance(result, Exception):
-            QMessageBox.warning(self, "Migration", str(result))
+            QMessageBox.warning(self, "Migration", plain(result))
             self._show()
             return
         then(result)

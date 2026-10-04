@@ -22,9 +22,9 @@ Status: ✅ fixed (version) · 📅 planned (version) · — open.
 | Starting an import re-read the whole card on the GUI thread | ✅ 0.16 - on the import's worker |
 | "Rebuild all thumbnails" deleted ~5 GB on the GUI thread | ✅ 0.16 - renamed aside, deleted in the background |
 | Near-duplicate search couldn't be stopped | ✅ 0.16 - Stop button |
-| Backups page: status of each set (NAS checks, counts) on the GUI thread | 📅 0.16.1 |
-| Library status page: counts on the GUI thread | 📅 0.16.1 |
-| Migrate page: plan summary (~140k items, NAS free space) on every show | 📅 0.16.1 |
+| Backups page: status of each set (NAS checks, counts) on the GUI thread | ✅ 0.16.2 - on a worker |
+| Library status page: counts on the GUI thread | ✅ 0.16.2 - on a worker |
+| Migrate page: plan summary (~140k items, NAS free space) on every show | ✅ 0.16.2 - on a worker; Start waits for it |
 
 ## Medium
 
@@ -38,34 +38,34 @@ Status: ✅ fixed (version) · 📅 planned (version) · — open.
 | Jobs panel: stray progress bars after Clear finished | ✅ 0.16 |
 | Duplicates: UNC paths wrapped at backslashes | ✅ 0.16 |
 | Error text in Export / Merge ignored the theme | ✅ 0.16 |
-| Library reload (index + stats) on every return to the page and every 15 s during scans | 📅 0.16.1 |
-| Card inserted: whole card walked on the GUI thread; pulling it mid-walk raised an error | 📅 0.16.1 |
-| Start-up `isdir` on an unfinished NAS import's folder | 📅 0.16.1 |
-| Search re-indexes without a limit on the GUI thread | 📅 0.16.1 |
-| Paste / Reset to many photos saved on the GUI thread | 📅 0.16.1 |
-| Photo view: neighbour preloads never cancelled when holding an arrow key | 📅 0.16.1 |
-| Preview thread could run the AI mask model | 📅 0.16.1 |
-| Undo of a crop while cropping didn't move the crop frame | 📅 0.16.1 |
-| Mask overlay rebuilt on every mouse move; Auto / Before on the GUI thread | 📅 0.16.1 |
-| AI model download synchronous with processEvents | 📅 0.16.1 |
-| Settings refresh walks the cache and lists snapshots after every toggle | 📅 0.16.1 |
-| Import page: drive list (network free space) on the GUI thread; Clear the card on the GUI thread | 📅 0.16.1 |
-| Duplicates / Tags pages: heavy counts on the GUI thread | 📅 0.16.1 |
-| Edit page doesn't fit at the 900 x 350 minimum | 📅 0.16.1 |
-| Import preview: a card pulled mid-preview says "No photos found" | 📅 0.16.1 |
+| Library reload (index + stats) on every return to the page and every 15 s during scans | ✅ 0.16.2 - on a worker, and skipped when nothing changed |
+| Card inserted: whole card walked on the GUI thread; pulling it mid-walk raised an error | ✅ 0.16.2 - counted on a worker; a pulled card just gets no message |
+| Start-up `isdir` on an unfinished NAS import's folder | ✅ 0.16.2 - on a worker |
+| Search re-indexes without a limit on the GUI thread | ✅ 0.16.2 - 2,000 rows, the rest on a worker |
+| Paste / Reset to many photos saved on the GUI thread | ✅ 0.16.2 - more than 20 on a worker |
+| Photo view: neighbour preloads never cancelled when holding an arrow key | ✅ 0.16.2 |
+| Preview thread could run the AI mask model | ✅ 0.16.2 - cached masks only |
+| Undo of a crop while cropping didn't move the crop frame | ✅ 0.16.2 |
+| Mask overlay rebuilt on every mouse move; Auto / Before on the GUI thread | ✅ 0.16.2 - only when the area changes, 60 ms while dragging; Auto on a pool thread; Before cached |
+| AI model download synchronous with processEvents | ✅ 0.16.2 - Settings uses the pool-thread download |
+| Settings refresh walks the cache and lists snapshots after every toggle | ✅ 0.16.2 - on a worker, at most once a minute |
+| Import page: drive list (network free space) on the GUI thread; Clear the card on the GUI thread | ✅ 0.16.2 - both on a worker |
+| Duplicates / Tags pages: heavy counts on the GUI thread | ✅ 0.16.2 - on a worker |
+| Edit page doesn't fit at the 900 x 350 minimum | ✅ 0.16.2 - the bar folds; the photo can be 100 px tall |
+| Import preview: a card pulled mid-preview says "No photos found" | ✅ 0.16.2 - says it was removed |
 | Album tiles not reachable by keyboard | 📅 0.19 (culling / keyboard work) |
-| Worker-result slots without a closed-catalog guard | 📅 0.16.1 |
+| Worker-result slots without a closed-catalog guard | ✅ 0.16.2 - `@unless_closed` |
 
 ## Low
 
 | Finding | Status |
 |---|---|
-| Fonts in px ignore Windows "Make text bigger"; 9 px grid badges | 📅 0.16.1 |
-| Thumbnails on some pages blurry above 100 % scaling (no devicePixelRatio) | 📅 0.16.1 |
-| Status bar squeezes the message near 900 px during a scan | 📅 0.16.1 |
-| Job title wrong when the picked folder is a source | 📅 0.16.1 |
-| Raw exception text in some dialogs | 📅 0.16.1 |
-| Restore catalog from a backup set / Dismiss suggestions without confirmation | 📅 0.16.1 |
+| Fonts in px ignore Windows "Make text bigger"; 9 px grid badges | ✅ 0.16.2 - points, scaled with the text size |
+| Thumbnails on some pages blurry above 100 % scaling (no devicePixelRatio) | ✅ 0.16.2 |
+| Status bar squeezes the message near 900 px during a scan | ✅ 0.16.2 - shorter bar, message cut with a tooltip |
+| Job title wrong when the picked folder is a source | ✅ 0.16.2 |
+| Raw exception text in some dialogs | ✅ 0.16.2 - system errors in words (widgets.plain) |
+| Restore catalog from a backup set / Dismiss suggestions without confirmation | ✅ 0.16.2 - both ask |
 
 ## Missing features (not bugs)
 

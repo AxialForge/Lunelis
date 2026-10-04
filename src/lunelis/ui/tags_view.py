@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from lunelis.tags import model as tags
 from lunelis.ui.background import Background
+from lunelis.ui.widgets import plain
 
 
 def _counts(conn):
@@ -127,7 +128,7 @@ class TagsView(QWidget):
         try:
             tags.rename(self.conn, name, new)
         except ValueError as e:
-            QMessageBox.warning(self, "Rename tag", str(e))
+            QMessageBox.warning(self, "Rename tag", plain(e))
         self.refresh()
 
     def merge(self, name: str) -> None:

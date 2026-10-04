@@ -26,6 +26,7 @@ from lunelis.dupes.quarantine import QUARANTINE_DIR, QuarantineRefused
 from lunelis.raw.thumbnails import cache_rel_path
 from lunelis.settings import Settings
 from lunelis.ui.background import unless_closed
+from lunelis.ui.widgets import sharp
 
 
 def _size(n: int) -> str:
@@ -186,8 +187,7 @@ class NearView(QWidget):
                 pic = QLabel()
                 pm = QPixmap(str(paths.THUMBNAIL_CACHE / (thumb or cache_rel_path(fid))))
                 if not pm.isNull():
-                    pic.setPixmap(pm.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio,
-                                            Qt.TransformationMode.SmoothTransformation))
+                    pic.setPixmap(sharp(pm, 120, pic))
                 self.detail.setCellWidget(i, 0, pic)
                 where = QTableWidgetItem(os.path.join(root, *rel.split("/")))
                 where.setToolTip(where.text())

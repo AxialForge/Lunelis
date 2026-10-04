@@ -269,7 +269,12 @@ class ScopeDialog(QDialog):
         if self.folder:
             rid, rel = self.folder
             scope.append((rid, rel or None))
-            names.append(rel.rsplit("/", 1)[-1] if rel else self.roots.item(0).text())
+            if rel:
+                names.append(rel.rsplit("/", 1)[-1])
+            else:                                       # the source itself: its own name, not the first one's
+                path = next(self.roots.item(i).data(Qt.ItemDataRole.UserRole)[1] for i in range(self.roots.count())
+                            if self.roots.item(i).data(Qt.ItemDataRole.UserRole)[0] == rid)
+                names.append(os.path.basename(path.rstrip("\\")) or path)
         for i in range(self.roots.count()):
             item = self.roots.item(i)
             if item.checkState() == Qt.CheckState.Checked:

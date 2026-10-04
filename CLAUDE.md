@@ -594,6 +594,16 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
 
 ## Gotchas / constraints
 
+- **Slow reads go through `ui/background.py` (Background).** One run per key,
+  a burst of requests coalesces into one re-run with the newest, results
+  arrive on the GUI thread and never after close (`@unless_closed` for
+  hand-written worker slots). Its worker opens its OWN connection: it only
+  sees COMMITTED data - write, commit, then refresh (tests too: a test that
+  writes without commit and then refreshes a page sees the old figures).
+  Tests wait with `page.bg.wait()`. A lambda connected to a signal emitted on
+  another thread runs THERE unless connected with QueuedConnection - connect
+  worker signals to QObject methods (Background does) or pass the type.
+
 - **Cancel must not be a slot of a worker moved to its thread.**
   `progress.canceled.connect(worker.cancel)` (worker = a QObject after
   moveToThread) is a queued call into a thread busy in run(): it arrives when

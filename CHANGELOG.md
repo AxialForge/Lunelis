@@ -6,6 +6,51 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-10-04
+
+The rest of the interface audit (docs/Interface-Audit.md): nothing slow is
+left on the interface thread, and small windows and big text work.
+
+### Changed
+
+- **Pages open at once and fill in:** Backups, Library status, Migrate,
+  Duplicates, Tags and Settings read their figures (drive checks, counts of
+  the whole library, the cache sizes) in the background instead of freezing
+  the window while they work.
+- **The library refreshes in the background** during a scan and when you
+  come back to it - and not at all when nothing changed.
+- **Memory cards:** counting the photos on a card that was just inserted,
+  listing the drives (a sleeping network drive's free space) and Clear the
+  card no longer freeze the window. A card pulled out while it's being read
+  is said, rather than shown as "No photos found".
+- **Search** brings at most 2,000 changed photos up to date before showing
+  results; a bigger backlog finishes in the background and the results
+  update.
+- **Editing:** Paste and Reset on more than 20 photos save in the
+  background; Auto works out its settings in the background; Before shows
+  at once; a mask's overlay is redrawn only when the mask's area changes;
+  holding an arrow key no longer queues up previews of every photo passed.
+- **Text follows Windows' "Make text bigger"**, and the grid's badges are
+  larger.
+- **Small windows:** the Edit page fits the 900 x 350 minimum (its bar folds
+  to short button names); the status line keeps room for the message during
+  a scan.
+- Thumbnails on the Duplicates, Similar and Quarantine pages are sharp on
+  scaled (125 %, 150 %) displays.
+- Errors from Windows ("[WinError 32] ...") are said in words.
+
+### Fixed
+
+- Undo / Redo while cropping now moves the crop frame too.
+- A job started on a whole source was named after the first source in the
+  list.
+- Restoring the catalog from a backup and dismissing event suggestions now
+  ask first.
+- Downloading an AI model from Settings no longer runs on the interface
+  thread.
+- A worker finishing just as Lunelis closes can no longer touch the closed
+  catalog.
+
 ## [0.16.1] - 2026-10-03
 
 ### Changed

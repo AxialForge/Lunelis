@@ -13,6 +13,7 @@ import os
 from PySide6.QtCore import QObject, QSize, QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
+    QSizePolicy,
     QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QScrollArea, QSlider, QStackedWidget, QToolButton,
     QVBoxLayout, QWidget,
@@ -52,6 +53,7 @@ from lunelis.ui.theme import apply_palette, stylesheet
 from lunelis.ui.thumbcache import ThumbCache
 from lunelis.xmp import sync
 from lunelis.xmp.sidecar import LABELS
+from lunelis.ui.widgets import plain
 
 # Lightroom/darktable number keys for colour labels (Purple has no key there either).
 LABEL_KEYS = {"Red": "6", "Yellow": "7", "Green": "8", "Blue": "9", "Purple": None}
@@ -243,11 +245,13 @@ class StatusLabel(QLabel):
     # the same story the user saw. A message can carry a link to a page
     # (<a href="page:Damaged files">), which opens that page when clicked.
     def setText(self, text: str) -> None:
+        import re
+        plain_text = re.sub("<[^>]+>", "", text or "")
         if text and text != self.text():
             import logging
-            import re
-            logging.getLogger("lunelis.status").info(re.sub("<[^>]+>", "", text))
+            logging.getLogger("lunelis.status").info(plain_text)
         super().setText(text)
+        self.setToolTip(plain_text)              # the whole message, when a narrow window cuts it off
 
     def set_link(self, before: str, link: str, page: str) -> None:
         from lunelis.ui import theme
@@ -452,6 +456,11 @@ class MainWindow(QMainWindow):
         for w in (self.scan_step, self.scan_bar):
             w.hide()
             self.statusBar().addWidget(w)
+        # The passing message takes what's left and is cut short rather than
+        # pushing the rest off a narrow window (its tooltip has all of it).
+        self.status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.status.setMinimumWidth(60)
+        self._scan_step_min = self.scan_step.minimumWidth()
         self.statusBar().addWidget(self.status, 1)
         # The library's state stays put on the right ("Up to date · 9:41 PM"),
         # while passing messages come and go on the left.
@@ -734,6 +743,10 @@ class MainWindow(QMainWindow):
             return
         s = Settings(self.conn)
         narrow = self.width() < AUTO_SIDEBAR_WIDTH
+        # The status strip: on a narrow window the scan bar is shorter and the
+        # step text doesn't hold room for the longest step, so the message fits.
+        self.scan_bar.setFixedWidth(90 if narrow else 180)
+        self.scan_step.setMinimumWidth(0 if narrow else getattr(self, "_scan_step_min", 0))
         if not narrow:
             self._auto_held = False
         want = bool(s.get("sidebar_compact")) or (
@@ -2211,7 +2224,7 @@ class MainWindow(QMainWindow):
         try:
             root_id = add_root(self.conn, folder)
         except (RootOverlap, RootUnavailable) as e:
-            QMessageBox.warning(self, "Can't add that folder", str(e))
+            QMessageBox.warning(self, "Can't add that folder", plain(e))
             return
         self.start([root_id])
 

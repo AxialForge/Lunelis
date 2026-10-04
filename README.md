@@ -34,7 +34,7 @@ python -m pytest        # confirms the catalog schema is sound
 python -m lunelis       # opens the app (or just `lunelis` once installed)
 ```
 
-## Status: v0.16.1 - one public repository
+## Status: v0.16.2 - interface audit complete
 
 Catalog, scanning, EXIF, thumbnails, the library grid, ratings/labels with XMP
 sync, the foundations (data folder, settings, catalog backups, central sidecar

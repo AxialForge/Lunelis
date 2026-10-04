@@ -29,6 +29,7 @@ from lunelis.raw.thumbnails import cache_rel_path
 from lunelis.settings import Settings
 from lunelis.ui.background import Background
 from lunelis.ui.near_view import NearView
+from lunelis.ui.widgets import sharp
 
 
 @dataclass
@@ -265,8 +266,7 @@ class DuplicatesView(QWidget):
             pic = QLabel()
             pm = QPixmap(str(paths.THUMBNAIL_CACHE / (thumb or cache_rel_path(fid))))
             if not pm.isNull():
-                pic.setPixmap(pm.scaled(72, 72, Qt.AspectRatioMode.KeepAspectRatio,
-                                        Qt.TransformationMode.SmoothTransformation))
+                pic.setPixmap(sharp(pm, 72, pic))
             self.detail.setCellWidget(i, 0, pic)
             full = os.path.join(root, *rel.split("/"))
             self.detail.setItem(i, 1, QTableWidgetItem(full))

@@ -11,7 +11,7 @@ import os
 import shutil
 from datetime import datetime
 
-from lunelis.ui.widgets import row_toggles
+from lunelis.ui.widgets import plain, row_toggles
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
@@ -120,7 +120,7 @@ class NewBackupDialog(QDialog):
                                           [rid for rid, _ in self._picked()],
                                           {"auto_on_connect": self.auto.isChecked()})
         except core.BackupError as e:
-            QMessageBox.warning(self, "New backup", str(e))
+            QMessageBox.warning(self, "New backup", plain(e))
             return
         self.accept()
 
@@ -325,10 +325,18 @@ class BackupsView(QWidget):
             return
         choice = group.checkedId()
         if choice == 2:
+            if QMessageBox.question(
+                    self, "Restore the catalog?",
+                    f"Put the catalog from {s.name} in place of the one you're using, and restart Lunelis?\n\n"
+                    "Ratings, albums, events and edits go back to how they were when that backup was made. "
+                    "The current catalog is kept alongside, so this can be undone by hand.",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                return
             try:
                 snap = core.restore_catalog(self.conn, s.id, paths.DATA_DIR)
             except core.BackupError as e:
-                QMessageBox.warning(self, "Restore", str(e))
+                QMessageBox.warning(self, "Restore", plain(e))
                 return
             QMessageBox.information(self, "Restore", f"Lunelis will restart and put {snap.name} in place. The "
                                     "current catalog is kept alongside.")

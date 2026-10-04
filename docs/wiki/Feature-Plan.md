@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-03 (v0.16.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.16.2), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -72,6 +72,7 @@ the data folder).
 | Sony video sidecars | A clip and its .XML / .XMP sidecar are copied, verified and filed together, with a re-check for late sidecars. SUB proxies and THMBNL thumbnails are skipped. |
 | Import history | A re-inserted card never imports twice (hash, file name and time). |
 | Clear the card | Offered only after every file is verified. |
+| Interface audit, the rest (0.16.2) | Every page reads in the background; text follows Windows' text size; the Edit page fits the smallest window. |
 
 ### 0.17 - Create tab, round one 🔨
 

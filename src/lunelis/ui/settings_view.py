@@ -29,6 +29,7 @@ from lunelis.catalog import backup
 from lunelis.importers.scan import exclude_folder, excluded_folders, include_folder
 from lunelis.importing.templates import PRESETS, Context, TemplateError, render
 from lunelis.settings import Settings
+from lunelis.ui.widgets import plain
 
 SIDECAR_CHOICES = (
     ("central", "In Lunelis's own sidecar folder",
@@ -1363,7 +1364,7 @@ class SettingsView(QWidget):
         try:
             backup.request_restore(paths.DATA_DIR, Path(picked))
         except Exception as e:        # a bad zip, unreadable file...
-            QMessageBox.warning(self, "Can't restore", str(e))
+            QMessageBox.warning(self, "Can't restore", plain(e))
             return
         self.restart.emit()
 
@@ -1384,7 +1385,7 @@ class SettingsView(QWidget):
         try:
             paths.check_new_data_dir(new)
         except ValueError as e:
-            QMessageBox.warning(self, "Can't use that folder", str(e))
+            QMessageBox.warning(self, "Can't use that folder", plain(e))
             return
         if QMessageBox.question(
                 self, "Move the data folder?",

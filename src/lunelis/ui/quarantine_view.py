@@ -21,6 +21,7 @@ from lunelis import paths
 from lunelis.dupes import manage
 from lunelis.dupes.quarantine import QuarantineRefused
 from lunelis.ui.background import unless_closed
+from lunelis.ui.widgets import plain, sharp
 
 
 def _local_date(iso: str | None) -> str:
@@ -275,8 +276,7 @@ class QuarantineView(QWidget):
             if e.thumbnail:
                 pm = QPixmap(str(paths.THUMBNAIL_CACHE / e.thumbnail))
                 if not pm.isNull():
-                    pic.setPixmap(pm.scaled(52, 52, Qt.AspectRatioMode.KeepAspectRatio,
-                                            Qt.TransformationMode.SmoothTransformation))
+                    pic.setPixmap(sharp(pm, 52, pic))
             self.table.setCellWidget(i, 0, pic)
             name = QTableWidgetItem(e.original)
             name.setData(Qt.ItemDataRole.UserRole, e.key)
@@ -336,7 +336,7 @@ class QuarantineView(QWidget):
         self._end()
         self._progress.close()
         if isinstance(result, Exception):
-            QMessageBox.warning(self, "Restore", f"Restoring stopped: {result}")
+            QMessageBox.warning(self, "Restore", f"Restoring stopped: {plain(result)}")
             self.refresh()
             return
         back, problems, originals = result
@@ -380,7 +380,7 @@ class QuarantineView(QWidget):
         self._thread = None
         self._progress.close()
         if isinstance(res, Exception):
-            QMessageBox.warning(self, "Empty quarantine", f"Emptying stopped: {res}\n\nNothing was lost: "
+            QMessageBox.warning(self, "Empty quarantine", f"Emptying stopped: {plain(res)}\n\nNothing was lost: "
                                 "what wasn't removed yet is still in quarantine.")
             self.refresh()
             return

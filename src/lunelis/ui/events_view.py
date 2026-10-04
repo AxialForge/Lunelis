@@ -288,5 +288,11 @@ class EventsView(QWidget):
         picked = self._ticked()
         if not picked:
             return
+        if QMessageBox.question(
+                self, "Dismiss suggestions?",
+                f"Stop suggesting {'these' if len(picked) != 1 else 'this'} {len(picked):,} "
+                f"event{'s' if len(picked) != 1 else ''}? They won't be suggested again; the photos aren't "
+                "touched.") != QMessageBox.StandardButton.Yes:
+            return
         suggest.dismiss(self.conn, [s.key for _, s in picked])
         self.find()
