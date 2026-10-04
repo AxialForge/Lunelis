@@ -919,7 +919,10 @@ class CreatePage(QWidget):
             self.tools[key] = tool
         h.addLayout(grid)
         h.addStretch(1)
-        self.stack.addWidget(home)
+        home_scroll = QScrollArea(widgetResizable=True, frameShape=QFrame.Shape.NoFrame)
+        home_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        home_scroll.setWidget(home)                       # more tools than the window is tall: it scrolls
+        self.stack.addWidget(home_scroll)
         # Each tool scrolls up and down on a short window; its width follows
         # the window, so its text wraps instead of pushing things off-screen.
         self._scrolls: dict[str, QScrollArea] = {}

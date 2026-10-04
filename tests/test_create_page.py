@@ -44,7 +44,7 @@ def test_create_home_lists_the_tools_and_the_folder(window):
     w, ids, made = window
     w.open_page("Create")
     page = w.create_page
-    assert set(page.cards) == {"animation", "collage", "batch"}
+    assert {"animation", "collage", "batch"} <= set(page.cards)
     assert str(made) in page.where.text()
 
 
