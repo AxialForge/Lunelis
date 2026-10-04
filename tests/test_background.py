@@ -91,3 +91,23 @@ def test_unless_closed_drops_a_result_after_the_window_closed():
     page._closed = True
     page._done(2)
     assert page.got == [1]
+
+
+def test_unless_closed_also_drops_when_the_pages_own_catalog_closed(tmp_path):
+    from lunelis.ui.background import unless_closed
+    _app()
+
+    class Page(QWidget):
+        def __init__(self, conn):
+            super().__init__()
+            self.conn, self.got = conn, []
+
+        @unless_closed
+        def _done(self, result):
+            self.got.append(result)
+
+    page = Page(open_catalog(tmp_path / "c.db"))
+    page._done(1)
+    page.conn.close()
+    page._done(2)
+    assert page.got == [1]

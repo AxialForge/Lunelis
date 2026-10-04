@@ -44,7 +44,15 @@ def window_closed(widget) -> bool:
         win = widget.window()
     except RuntimeError:                      # the C++ side is gone
         return True
-    return bool(getattr(win, "_closed", False) or getattr(widget, "_closed", False))
+    if getattr(win, "_closed", False) or getattr(widget, "_closed", False):
+        return True
+    conn = getattr(widget, "conn", None)          # a page on its own whose catalog was closed
+    if conn is not None:
+        try:
+            conn.total_changes
+        except Exception:
+            return True
+    return False
 
 
 def unless_closed(slot):
