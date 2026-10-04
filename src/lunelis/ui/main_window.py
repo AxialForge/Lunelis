@@ -159,6 +159,8 @@ class LibraryWorker(QObject):
             if not self._cancel:
                 self._say(4, "Finding burst shots…")
                 self.stacks_done.emit(stacks.rebuild_from_settings(conn))
+                from lunelis import pairs
+                pairs.rebuild_from_settings(conn)                    # RAW+JPEG shots as one photo
             # The search index, for whatever the scan and metadata changed (~1.5 s for all 159k).
             if not self._cancel:
                 from lunelis import search
@@ -971,12 +973,13 @@ class MainWindow(QMainWindow):
         from dataclasses import replace as _replace
         from lunelis.settings import Settings
         hide = not Settings(self.conn).get("show_videos")
+        pairs_on = bool(Settings(self.conn).get("pair_raw_jpeg"))
         self.index.collapse = Settings(self.conn).get("stack_bursts")
         if hasattr(self, "stack_cb") and self.stack_cb.isChecked() != self.index.collapse:
             self.stack_cb.blockSignals(True)
             self.stack_cb.setChecked(self.index.collapse)
             self.stack_cb.blockSignals(False)
-        return self.sort.currentData(), _replace(self.filter, hide_videos=hide)
+        return self.sort.currentData(), _replace(self.filter, hide_videos=hide, hide_pairs=pairs_on)
 
     def _catalog_mark(self) -> tuple[int, int]:
         """Changes since the last load: another connection's commits (the scan,
@@ -1608,7 +1611,7 @@ class MainWindow(QMainWindow):
         if self.pages.currentWidget() is self.detail and self.detail.info:
             ids = [self.detail.info.file_id]
         else:
-            ids = self._targets()
+            ids = self._with_pairs(self._targets())
         if not ids:
             QMessageBox.information(self, "Tags", "Select some photos in the library first.")
             return
@@ -1860,7 +1863,7 @@ class MainWindow(QMainWindow):
         if picked is None:
             return
         aid, name = picked
-        added = albums.add_files(self.conn, aid, ids)
+        added = albums.add_files(self.conn, aid, self._with_pairs(ids))
         self.status.setText(f"Added {added:,} photo{'s' if added != 1 else ''} to \"{name}\""
                             + (f" ({len(ids) - added:,} already there)" if added < len(ids) else ""))
 
@@ -1872,7 +1875,7 @@ class MainWindow(QMainWindow):
             return
         name, ok = QInputDialog.getText(self, "New album", f"Name for an album of {len(ids):,} photos:")
         if ok and name.strip():
-            albums.create(self.conn, name, ids)
+            albums.create(self.conn, name, self._with_pairs(ids))
             self.status.setText(f"Album \"{name.strip()}\" made from {len(ids):,} photos")
 
     def _update_archive_action(self) -> None:
@@ -1888,7 +1891,7 @@ class MainWindow(QMainWindow):
     def toggle_archive(self) -> None:
         """Archive the selection; if it's all archived already, bring it back."""
         from lunelis.albums import archive
-        ids = self._targets()
+        ids = self._with_pairs(self._targets())
         if not ids:
             return
         archived, live = archive.split(self.conn, ids)
@@ -2007,7 +2010,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_move([i for i in ids if events.events_of(self.conn, [i]).get(i) != e.id],
                                   f"\"{e.name}\""):
             return
-        events.add_files(self.conn, e.id, ids)
+        events.add_files(self.conn, e.id, self._with_pairs(ids))
         self.status.setText(f"Added {len(ids):,} photos to \"{e.name}\"")
         self.events_page.refresh()
         if self.filter.event_id is not None:
@@ -2134,8 +2137,13 @@ class MainWindow(QMainWindow):
             return [self.index.file_id(self.grid.current)]
         return []
 
+    def _with_pairs(self, ids: list[int]) -> list[int]:
+        """A RAW+JPEG pair is one photo: an action on one is on both."""
+        from lunelis import pairs
+        return pairs.with_partners(self.conn, ids) if ids else ids
+
     def rate(self, **change) -> None:
-        ids = self._targets()
+        ids = self._with_pairs(self._targets())
         if not ids:
             return
         if change.get("label"):

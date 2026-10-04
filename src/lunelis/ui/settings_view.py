@@ -242,6 +242,9 @@ class SettingsView(QWidget):
         self.sidebar_auto = QCheckBox("Fold the sidebar to icons when the window is narrow")
         self.sidebar_auto.toggled.connect(lambda on: self._set("sidebar_auto", on) and self.view_changed.emit())
         v.addWidget(self.sidebar_auto)
+        self.pair_raw = QCheckBox("Show a RAW+JPEG shot as one photo (stars, labels and albums go to both)")
+        self.pair_raw.toggled.connect(lambda on: self._set("pair_raw_jpeg", on) and self._repair())
+        v.addWidget(self.pair_raw)
         self.stack_bursts = QCheckBox("Stack burst shots into one photo with a frame count")
         self.stack_bursts.toggled.connect(lambda on: self._set("stack_bursts", on) and self._restack())
         v.addWidget(self.stack_bursts)
@@ -255,6 +258,12 @@ class SettingsView(QWidget):
         frames.valueChanged.connect(lambda _: None if self._loading else self._restack())
         self._row(v, "A burst needs", frames, help="A RAW+JPEG pair counts as one shot.")
         return card
+
+    def _repair(self) -> bool:
+        from lunelis import pairs
+        pairs.rebuild_from_settings(self.conn)
+        self.view_changed.emit()
+        return True
 
     def _restack(self) -> bool:
         from lunelis import stacks
@@ -1054,6 +1063,7 @@ class SettingsView(QWidget):
             self.hover_info.setChecked(s.get("hover_info"))
             self.sidebar_auto.setChecked(s.get("sidebar_auto"))
             self.stack_bursts.setChecked(s.get("stack_bursts"))
+            self.pair_raw.setChecked(s.get("pair_raw_jpeg"))
             self._load_thumbnails()
             self.version_label.setText(f"Lunelis {paths.version()}" + (" (from source)" if not paths.FROZEN else ""))
             self.auto_update.setChecked(s.get("update_check"))

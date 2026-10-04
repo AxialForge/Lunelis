@@ -35,7 +35,7 @@ _QUERY = """
            COALESCE(e.captured_at, CASE WHEN f.root_id IN ({untrusted}) THEN NULL ELSE f.mtime END)
                AS sort_date,
            rt.flag, rt.color_label, e.duration_s,
-           sf.stack_id, s.size, s.cover_file_id, ed.rev
+           sf.stack_id, s.size, s.cover_file_id, ed.rev, f.pair_of
     FROM files f
     JOIN roots r ON r.id = f.root_id
     -- Forced: the planner prefers the exif primary key, which reads the
@@ -54,7 +54,7 @@ VIDEO_FORMATS = {"mp4", "mov", "mpeg-ts"}
 
 # Row layout, as the query returns it.
 ID, THUMB, UNAVAILABLE, EXT, FORMAT, IS_RAW, STARS, SORT_DATE, FLAG, LABEL, DURATION, \
-    STACK, STACK_SIZE, STACK_COVER, EDIT_REV = range(15)
+    STACK, STACK_SIZE, STACK_COVER, EDIT_REV, PAIR = range(16)
 
 UNRATED = -1          # Filter.min_stars value meaning "no stars"
 
@@ -83,6 +83,7 @@ class Filter:
     folder: tuple | None = None   # (root id, folder rel path): only photos in that folder and below
     smart: str | None = None      # a smart album's rules (JSON, albums/smart.py)
     hide_videos: bool = field(default=False, compare=False)      # Settings > Appearance, not a filter chip
+    hide_pairs: bool = field(default=False, compare=False)       # a RAW+JPEG pair's JPEG (pairs.py)
 
     def active(self) -> bool:
         return self != Filter()
@@ -102,6 +103,8 @@ class Filter:
             params.append(self.label)
         if self.hide_videos:
             where.append("COALESCE(f.format, '') NOT IN ('mp4', 'mov', 'mpeg-ts')")
+        if self.hide_pairs:
+            where.append("NOT (f.pair_of IS NOT NULL AND f.is_raw = 0)")
         if self.ids is not None:
             import json
             where.append("f.id IN (SELECT value FROM json_each(?))")
@@ -289,7 +292,8 @@ class LibraryIndex:
         r = self.rows[i]
         sid = r[STACK]
         closed = sid is not None and self.collapse and sid not in self.expanded
-        return Tile(r[ID], r[THUMB], bool(r[UNAVAILABLE]), (r[EXT] or "").upper(),
+        badge = (r[EXT] or "").upper() + ("+JPG" if r[PAIR] is not None and r[IS_RAW] else "")
+        return Tile(r[ID], r[THUMB], bool(r[UNAVAILABLE]), badge,
                     r[STARS], r[FORMAT] in VIDEO_FORMATS, r[FLAG], r[LABEL], r[DURATION],
                     (r[STACK_SIZE] or 0) if closed else 0, sid is not None and sid in self.expanded,
                     r[EDIT_REV] is not None)

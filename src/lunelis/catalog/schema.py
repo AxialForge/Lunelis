@@ -662,6 +662,15 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    29,
+    "RAW+JPEG pairs: each file of a pair points at the other",
+    """
+    ALTER TABLE files ADD COLUMN pair_of INTEGER;
+    CREATE INDEX idx_files_pair ON files(pair_of) WHERE pair_of IS NOT NULL;
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 
