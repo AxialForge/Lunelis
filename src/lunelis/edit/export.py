@@ -153,20 +153,20 @@ def _srgb_icc() -> bytes:
 
 # --- one photo ----------------------------------------------------------------------------------
 
-def export_one(conn: sqlite3.Connection, file_id: int, opts: ExportOptions, n: int = 1) -> str:
-    """Export one photo; returns the new file's path."""
-    row = conn.execute("SELECT r.path, f.rel_path, f.filename, f.is_raw, e.captured_at FROM files f"
-                       " JOIN roots r ON r.id = f.root_id LEFT JOIN exif e ON e.file_id = f.id"
+def rendered(conn: sqlite3.Connection, file_id: int, long_edge: int | None = None) -> Image.Image:
+    """The photo with its edits, no bigger than `long_edge` (None: full size).
+    Export and every Create tool make their pixels here."""
+    row = conn.execute("SELECT r.path, f.rel_path, f.is_raw FROM files f JOIN roots r ON r.id = f.root_id"
                        " WHERE f.id = ?", (file_id,)).fetchone()
     if row is None:
         raise ValueError("not in the catalog")
-    root, rel, filename, is_raw, taken = row
+    root, rel, is_raw = row
     src_path = os.path.join(root, *rel.split("/"))
     stack = store.get(conn, file_id)
     g = stack.geometry
     # A crop or straighten throws pixels away: decode at full size then.
     whole = g.crop == (0.0, 0.0, 1.0, 1.0) and not g.angle
-    edge = opts.long_edge if (opts.long_edge and whole) else None
+    edge = long_edge if (long_edge and whole) else None
     src = render.load_source(src_path, bool(is_raw), edge)
     from lunelis.edit import ai, lens
     out = pipeline.apply_tiled(src, stack, store.filter_params(conn, stack.filter),
@@ -174,8 +174,19 @@ def export_one(conn: sqlite3.Connection, file_id: int, opts: ExportOptions, n: i
                                lens_info=lens.info_for(conn, file_id) if stack.lens else None)
     del src
     img = Image.fromarray(out, "RGB")
-    if opts.long_edge and max(img.size) > opts.long_edge:
-        img.thumbnail((opts.long_edge, opts.long_edge), Image.Resampling.LANCZOS)
+    if long_edge and max(img.size) > long_edge:
+        img.thumbnail((long_edge, long_edge), Image.Resampling.LANCZOS)
+    return img
+
+
+def export_one(conn: sqlite3.Connection, file_id: int, opts: ExportOptions, n: int = 1) -> str:
+    """Export one photo; returns the new file's path."""
+    row = conn.execute("SELECT f.filename, e.captured_at FROM files f LEFT JOIN exif e ON e.file_id = f.id"
+                       " WHERE f.id = ?", (file_id,)).fetchone()
+    if row is None:
+        raise ValueError("not in the catalog")
+    filename, taken = row
+    img = rendered(conn, file_id, opts.long_edge)
     os.makedirs(opts.folder, exist_ok=True)
     dest = free_path(opts.folder, file_name(opts.pattern, filename, taken, n, FORMATS[opts.format]))
     kwargs: dict = {"icc_profile": _srgb_icc()}

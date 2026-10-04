@@ -7,7 +7,8 @@
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules, copy_metadata
 
 datas = [("assets", "assets"), ("src/lunelis/darktable/lunelis.lua", "lunelis/darktable"),
-         ("src/lunelis/importing/camera_profiles.json", "lunelis/importing")] \
+         ("src/lunelis/importing/camera_profiles.json", "lunelis/importing"),
+         ("src/lunelis/create/presets.json", "lunelis/create")] \
     + copy_metadata("lunelis") + collect_data_files("lensfunpy")      # lensfun's lens database
 binaries = collect_dynamic_libs("rawpy") + collect_dynamic_libs("pillow_heif") + collect_dynamic_libs("av") \
     + collect_dynamic_libs("onnxruntime") + collect_dynamic_libs("lensfunpy")

@@ -1,0 +1,16 @@
+{
+  "_about": "Output presets for the Create tab. Copy this file to create_presets.json in the Lunelis data folder to add or change presets there; a preset with the same name replaces the built-in one. width/height: the box the picture must fit (null = the original size). fit: inside (the whole picture, smaller if needed) or fill (cropped to exactly width x height). format: jpeg, png, webp or tiff. quality: 1-100 (jpeg, webp).",
+  "presets": [
+    {"name": "Original size", "width": null, "height": null, "fit": "inside", "format": "jpeg", "quality": 92},
+    {"name": "Large (3840 px)", "width": 3840, "height": 3840, "fit": "inside", "format": "jpeg", "quality": 90},
+    {"name": "Web (2048 px)", "width": 2048, "height": 2048, "fit": "inside", "format": "jpeg", "quality": 85},
+    {"name": "Email (1280 px)", "width": 1280, "height": 1280, "fit": "inside", "format": "jpeg", "quality": 80},
+    {"name": "Instagram square (1080 x 1080)", "width": 1080, "height": 1080, "fit": "fill", "format": "jpeg", "quality": 90},
+    {"name": "Instagram portrait (1080 x 1350)", "width": 1080, "height": 1350, "fit": "fill", "format": "jpeg", "quality": 90},
+    {"name": "Story / Reel (1080 x 1920)", "width": 1080, "height": 1920, "fit": "fill", "format": "jpeg", "quality": 90},
+    {"name": "Facebook (2048 px)", "width": 2048, "height": 2048, "fit": "inside", "format": "jpeg", "quality": 88},
+    {"name": "Widescreen (1920 x 1080)", "width": 1920, "height": 1080, "fit": "fill", "format": "jpeg", "quality": 90},
+    {"name": "Lossless PNG", "width": null, "height": null, "fit": "inside", "format": "png", "quality": 100},
+    {"name": "Small WebP (2048 px)", "width": 2048, "height": 2048, "fit": "inside", "format": "webp", "quality": 82}
+  ]
+}

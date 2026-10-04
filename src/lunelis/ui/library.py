@@ -80,6 +80,7 @@ class Filter:
     tag: str | None = None        # only photos with this tag (or one inside it)
     query: str | None = None      # the search box (search.py)
     ids: tuple | None = None      # only these files (the Edit page's "Selected in the library")
+    folder: tuple | None = None   # (root id, folder rel path): only photos in that folder and below
     hide_videos: bool = field(default=False, compare=False)      # Settings > Appearance, not a filter chip
 
     def active(self) -> bool:
@@ -104,6 +105,14 @@ class Filter:
             import json
             where.append("f.id IN (SELECT value FROM json_each(?))")
             params.append(json.dumps(list(self.ids)))
+        if self.folder is not None:
+            root_id, rel = self.folder
+            where.append("f.root_id = ?")
+            params.append(root_id)
+            if rel:
+                like = rel.rstrip("/").replace("!", "!!").replace("%", "!%").replace("_", "!_") + "/%"
+                where.append("f.rel_path LIKE ? ESCAPE '!'")
+                params.append(like)
         if self.event_id is not None:
             where.append("f.id IN (SELECT file_id FROM event_files WHERE event_id = ?)")
             params.append(self.event_id)

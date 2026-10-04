@@ -64,6 +64,7 @@ DEFAULTS: dict[str, Any] = {
     "sidebar_compact": False,            # True = the sidebar shows icons only (Ctrl+B)
     "sidebar_auto": True,                # fold to icons by itself on narrow windows
     "grid_default_sort": "date_desc",
+    "create_output_dir": None,           # where the Create tab writes (None: Pictures\Lunelis creations)
     "window_geometry": None,             # the window's size, place and monitor (Qt saveGeometry, hex)
     "grid_default_size": 180,            # tile edge in px (the Grid size slider starts here)
     "show_videos": True,                 # videos in the library grid
