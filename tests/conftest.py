@@ -118,3 +118,37 @@ def _hang_watchdog(request):
     faulthandler.dump_traceback_later(270, exit=True)
     yield
     faulthandler.cancel_dump_traceback_later()
+
+
+@pytest.fixture(autouse=True)
+def _no_leftover_windows():
+    """Delete the windows and pages a test leaves behind. Each new MainWindow
+    applies the app stylesheet, which re-styles EVERY live widget: hundreds of
+    leftovers made each test slower than the last (a full run went from 17
+    minutes to hours). Only windows made DURING the test: a module-scoped
+    fixture's window lives on for the next test."""
+    try:
+        from PySide6.QtCore import QCoreApplication, QEvent
+        from PySide6.QtWidgets import QApplication
+    except Exception:
+        yield
+        return
+    app = QApplication.instance()
+    before = {id(w) for w in app.topLevelWidgets()} if app is not None else set()
+    yield
+    app = QApplication.instance()
+    if app is None:
+        return
+    for w in app.topLevelWidgets():
+        if id(w) in before:
+            continue
+        if getattr(w, "_closed", False) is False and hasattr(w, "_quitting"):
+            w._quitting = True                      # a MainWindow a test didn't close
+            try:
+                w.close()
+            except Exception:
+                pass
+        w.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    import gc
+    gc.collect()
