@@ -54,3 +54,32 @@ def test_tools_are_on_the_create_page(tmp_path):
     tool = page.tools["contact"]
     tool.columns.setValue(3)
     assert tool.options().columns == 3 and tool.options().format == "pdf"
+
+
+def test_deflicker_evens_brightness_but_follows_a_trend():
+    from lunelis.create.timelapse import gains
+    flicker = [100, 140, 100, 140, 100, 140, 100, 140]
+    out = np.array(flicker) * gains(flicker, 5)
+    assert np.std(out[2:-2]) < np.std(flicker) / 4
+    fade = list(np.linspace(200, 50, 30))                         # a sunset getting darker: kept
+    kept = np.array(fade) * gains(fade, 5)
+    assert kept[0] > kept[-1] + 100
+
+
+def test_stabilise_measures_a_known_drift():
+    from lunelis.create.timelapse import shifts
+    rng = np.random.default_rng(1)
+    base = (rng.random((288, 512)) * 255).astype(np.uint8)
+    frames = [Image.fromarray(np.roll(base, (0, 3 * i), axis=(0, 1))).convert("RGB") for i in range(5)]
+    got = shifts(frames)
+    assert np.allclose(got[:, 0], [0, 3, 6, 9, 12], atol=0.6) and np.allclose(got[:, 1], 0, atol=0.6)
+
+
+def test_a_timelapse_is_an_mp4_of_every_frame(photos):
+    from lunelis.create.timelapse import TimelapseOptions, make
+    conn, ids, out = photos
+    path = make(conn, ids[:8], TimelapseOptions(fps=12, size="720p", stabilize=True), out, "Lapse")
+    with av.open(path) as c:
+        v = c.streams.video[0]
+        assert (v.width, v.height) == (1280, 720) and sum(1 for _ in c.decode(v)) == 8
+        assert abs(float(v.average_rate) - 12) < 0.01

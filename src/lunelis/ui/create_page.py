@@ -826,6 +826,62 @@ class ContactSheetTool(Tool):
                  lambda conn, prog, stop: self.cs.make(conn, ids, opts, folder, name, prog, stop), len(ids))
 
 
+# --- Timelapse -----------------------------------------------------------------------------------
+
+class TimelapseTool(Tool):
+    title_text = "Timelapse"
+    blurb = ("A sequence of photos (an interval shoot) as a smooth video. Deflicker evens out exposure jumps "
+             "between frames; stabilise takes out drift and knocks. The photos go in the order of the strip.")
+    minimum = 2
+
+    def __init__(self, conn, parent=None) -> None:
+        super().__init__(conn, parent)
+        from lunelis.create import timelapse
+        self.tl = timelapse
+        form = QFormLayout()
+        self.fps = QSpinBox(minimum=1, maximum=60, value=24, suffix=" frames a second")
+        form.addRow("Speed", self.fps)
+        self.size = QComboBox()
+        for key, label in (("720p", "720p (1280 x 720)"), ("1080p", "1080p (1920 x 1080)"), ("4k", "4K (3840 x 2160)")):
+            self.size.addItem(label, key)
+        self.size.setCurrentIndex(1)
+        form.addRow("Size", self.size)
+        self.deflicker = QCheckBox("Deflicker", checked=True)
+        form.addRow("", self.deflicker)
+        self.window = QSpinBox(minimum=3, maximum=99, value=15, suffix=" frames")
+        form.addRow("Even out over", self.window)
+        self.stabilize = QCheckBox("Stabilise")
+        form.addRow("", self.stabilize)
+        self.length = QLabel(objectName="Help")
+        form.addRow("", self.length)
+        box = QWidget()
+        box.setLayout(form)
+        box.setMaximumWidth(460)
+        self.body.addWidget(box)
+        self.body.addStretch(1)
+        self.fps.valueChanged.connect(self._length)
+        self.picker.changed.connect(self._length)
+        self.deflicker.toggled.connect(self.window.setEnabled)
+
+    def _length(self, *_a) -> None:
+        n = len(self.picker.ids())
+        self.length.setText(f"{n:,} frames = {n / max(1, self.fps.value()):.1f} s of video" if n else "")
+
+    def make(self) -> None:
+        ids = self.picker.ids()
+        opts = self.tl.TimelapseOptions(self.fps.value(), self.size.currentData(), self.deflicker.isChecked(),
+                                        self.window.value(), self.stabilize.isChecked())
+        try:
+            opts.check(len(ids))
+        except ValueError as e:
+            QMessageBox.information(self, self.title_text, str(e))
+            return
+        folder, name = self.out_dir(), engine.stamp("Timelapse")
+        self.result.setText("")
+        self.run("Making the timelapse…",
+                 lambda conn, prog, stop: self.tl.make(conn, ids, opts, folder, name, prog, stop), 2 * len(ids))
+
+
 # --- the page ---------------------------------------------------------------------------------
 
 CARD_ICONS = {"animation": "status", "collage": "create", "batch": "duplicates", "contact": "albums",
@@ -874,6 +930,7 @@ TOOLS = (
     ("collage", "Collage", "Photos side by side on one picture, in a layout you choose.", CollageTool),
     ("batch", "Batch copies", "Resize, convert, watermark, rename or strip metadata - as new files.", BatchTool),
     ("contact", "Contact sheet", "A grid of photos with captions on printable pages - PDF or PNG.", ContactSheetTool),
+    ("timelapse", "Timelapse", "An interval shoot as a smooth video, deflickered and stabilised.", TimelapseTool),
 )
 
 
