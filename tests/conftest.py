@@ -139,9 +139,16 @@ def _no_leftover_windows():
     app = QApplication.instance()
     if app is None:
         return
+    # Pool work still running (a page's drive checks, previews) reports to its
+    # page: let it finish before the page goes, or it signals into a deleted one.
+    from PySide6.QtCore import QThread, QThreadPool
+    QThreadPool.globalInstance().waitForDone(10_000)
+    QCoreApplication.processEvents()
     for w in app.topLevelWidgets():
         if id(w) in before:
             continue
+        if any(t.isRunning() for t in w.findChildren(QThread)):
+            continue                                # still working: leave it rather than kill a thread
         if getattr(w, "_closed", False) is False and hasattr(w, "_quitting"):
             w._quitting = True                      # a MainWindow a test didn't close
             try:
