@@ -61,3 +61,52 @@ def pytest_unconfigure(config):
     sys.stdout.flush()
     sys.stderr.flush()
     os._exit(code)
+
+
+@pytest.fixture(autouse=True)
+def _no_modal_dialogs(monkeypatch):
+    """A modal dialog nobody answers hangs the whole run (and blocks the
+    per-test timeout). Any dialog a test didn't expect answers No / Cancel
+    and fails that test, naming the dialog. Tests that expect one patch it
+    themselves (their monkeypatch wins: it's applied after this)."""
+    try:
+        from PySide6.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
+    except Exception:
+        yield
+        return
+    shown: list[str] = []
+
+    def box(kind, answer):
+        def show(*a, **k):
+            texts = [str(x) for x in a[1:3] if isinstance(x, str)]
+            shown.append(f"{kind}: " + " / ".join(texts))
+            return answer
+        return staticmethod(show)
+    no = QMessageBox.StandardButton.No
+    for kind in ("question", "warning", "information", "critical"):
+        monkeypatch.setattr(QMessageBox, kind, box(kind, no if kind == "question" else QMessageBox.StandardButton.Ok))
+    monkeypatch.setattr(QInputDialog, "getText", box("getText", ("", False)))
+    monkeypatch.setattr(QInputDialog, "getItem", box("getItem", ("", False)))
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", box("getExistingDirectory", ""))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", box("getOpenFileName", ("", "")))
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", box("getSaveFileName", ("", "")))
+
+    def dialog_exec(self, *a, **k):
+        shown.append(f"dialog: {self.windowTitle() or type(self).__name__}")
+        return 0
+    monkeypatch.setattr(QDialog, "exec", dialog_exec)
+    yield
+    assert not shown, f"a dialog opened that the test didn't expect: {shown}"
+
+
+@pytest.fixture(autouse=True)
+def _hang_watchdog(request):
+    """A test stuck in native code (a Qt wait holding the GIL) stops even
+    pytest-timeout. faulthandler's own C thread still fires: it prints every
+    thread's stack - naming the test - and ends the run."""
+    import faulthandler
+    import sys
+    sys.stderr.write("")
+    faulthandler.dump_traceback_later(270, exit=True)
+    yield
+    faulthandler.cancel_dump_traceback_later()
