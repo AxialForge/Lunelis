@@ -173,3 +173,59 @@ def test_every_round_two_tool_is_on_the_page(tmp_path):
     tool = page.tools["print"]
     tool.size.setCurrentIndex(tool.size.findData("wallet"))
     assert tool.options().size == "wallet"
+
+
+def test_free_collage_frames_move_resize_add_and_remove(photos):
+    from PySide6.QtCore import QPointF
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from lunelis.create import collage
+    from lunelis.ui.create_page import CollageTool
+    conn, ids, out = photos
+    tool = CollageTool(conn)
+    tool.resize(1100, 800)
+    tool.show()
+    tool.picker._selection = ids[:6]
+    tool.picker.choose_default()
+    tool.canvas.resize(600, 600)
+    tool.canvas.rebuild()
+    before = list(tool.canvas._boxes)
+    tool.free_cb.setChecked(True)
+    tool.canvas.rebuild()
+    assert all(c.rect for c in tool.opts.cells)
+    assert [b.toRect() for b in tool.canvas._boxes] == [b.toRect() for b in before]   # same frames, now free
+
+    class Ev:
+        def __init__(self, p, shift=False):
+            self.p, self.shift = QPointF(p), shift
+
+        def position(self):
+            return self.p
+
+        def modifiers(self):
+            from PySide6.QtCore import Qt
+            return Qt.KeyboardModifier.ShiftModifier if self.shift else Qt.KeyboardModifier.NoModifier
+    c = tool.canvas
+    first = c._boxes[0]
+    c.mousePressEvent(Ev(first.center()))                       # select it
+    w0 = tool.opts.cells[0].rect[2]
+    br = c._handles(0)["br"].center()
+    c.mousePressEvent(Ev(br))
+    c.mouseMoveEvent(Ev(br + QPointF(-40, -40)))
+    c.mouseReleaseEvent(Ev(br + QPointF(-40, -40)))
+    assert tool.opts.cells[0].rect[2] < w0                      # smaller
+    x0 = tool.opts.cells[0].rect[0]
+    centre = c._boxes[0].center()
+    c.mousePressEvent(Ev(centre, shift=True))
+    c.mouseMoveEvent(Ev(centre + QPointF(60, 0)))
+    c.mouseReleaseEvent(Ev(centre + QPointF(60, 0)))
+    assert tool.opts.cells[0].rect[0] > x0                      # moved right
+    n = len(tool.opts.cells)
+    tool.add_frame()
+    assert len(tool.opts.cells) == n + 1 and tool.opts.cells[-1].file_id in ids
+    tool.remove_frame()
+    assert len(tool.opts.cells) == n
+    tool.opts.check()
+    img = collage.render(tool.opts, lambda fid, e: Image.new("RGB", (40, 30)), long_edge=200)
+    assert img.size == (200, 200)
+    assert collage.clamp_rect(0.9, -0.2, 0.5, 0.01) == (0.5, 0.0, 0.5, 0.05)

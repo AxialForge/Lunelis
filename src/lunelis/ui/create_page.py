@@ -473,8 +473,18 @@ class CollageCanvas(QWidget):
         self._pix: QPixmap | None = None
         self._boxes: list[QRectF] = []
         self._drag: tuple[int, QPointF, tuple[float, float]] | None = None
+        self._frame_drag: tuple | None = None     # free layout: (cell, mode, start pos, start rect, px per fraction)
         self._hover = -1
+        self.selected = -1
         self._redraw = QTimer(self, singleShot=True, interval=30, timeout=self.rebuild)
+
+    HANDLE = 9
+
+    def _handles(self, i: int) -> dict[str, QRectF]:
+        r = self._boxes[i]
+        h = self.HANDLE
+        return {k: QRectF(pt.x() - h / 2, pt.y() - h / 2, h, h)
+                for k, pt in (("tl", r.topLeft()), ("tr", r.topRight()), ("bl", r.bottomLeft()), ("br", r.bottomRight()))}
 
     def _area(self) -> tuple[QRectF, tuple[int, int]]:
         opts = self.tool.opts
@@ -508,19 +518,72 @@ class CollageCanvas(QWidget):
             pen = QPen(QColor("#4c8dff"), 3)
             p.setPen(pen)
             p.drawRect(self._boxes[self._hover].adjusted(1, 1, -1, -1))
+        if self.tool.free and 0 <= self.selected < len(self._boxes):
+            p.setPen(QPen(QColor("#4c8dff"), 2, Qt.PenStyle.DashLine))
+            p.drawRect(self._boxes[self.selected])
+            p.setPen(QPen(QColor("#4c8dff"), 1))
+            p.setBrush(QColor("white"))
+            for hr in self._handles(self.selected).values():
+                p.drawRect(hr)
         p.end()
 
     def _cell_at(self, pos: QPointF) -> int:
         return next((i for i, r in enumerate(self._boxes) if r.contains(pos)), -1)
 
     def mousePressEvent(self, e) -> None:
-        i = self._cell_at(e.position())
+        pos = e.position()
+        if self.tool.free:
+            # A corner handle of the selected frame resizes it; Shift+drag moves a frame.
+            if 0 <= self.selected < len(self._boxes):
+                corner = next((k for k, hr in self._handles(self.selected).items() if hr.contains(pos)), None)
+                if corner:
+                    self._start_frame(self.selected, corner, pos)
+                    return
+            i = self._cell_at(pos)
+            if i >= 0:
+                self.selected = i
+                self.tool.frame_selected(i)
+                if e.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    self._start_frame(i, "move", pos)
+                    return
+            self.update()
+        i = self._cell_at(pos)
         cells = collage.fit_cells(self.tool.opts)
         if i >= 0 and cells[i].file_id:
             self._drag = (i, e.position(), cells[i].pan)
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
 
+    def _start_frame(self, i: int, mode: str, pos: QPointF) -> None:
+        rect = self.tool.opts.cells[i].rect
+        box = self._boxes[i]
+        scale = (box.width() / max(rect[2], 1e-6), box.height() / max(rect[3], 1e-6))
+        self._frame_drag = (i, mode, pos, rect, scale)
+
+    def _frame_move(self, pos: QPointF) -> None:
+        i, mode, start, (x, y, w, h), (sx, sy) = self._frame_drag
+        dx, dy = (pos.x() - start.x()) / sx, (pos.y() - start.y()) / sy
+        if mode == "move":
+            x, y = x + dx, y + dy
+        else:
+            if "l" in mode:
+                x, w = x + dx, w - dx
+            if "r" in mode:
+                w = w + dx
+            if "t" in mode:
+                y, h = y + dy, h - dy
+            if "b" in mode:
+                h = h + dy
+        self.tool.set_cell(i, rect=collage.clamp_rect(x, y, w, h))
+
     def mouseMoveEvent(self, e) -> None:
+        if self._frame_drag is not None:
+            self._frame_move(e.position())
+            return
+        if self.tool.free and 0 <= self.selected < len(self._boxes) and self._drag is None:
+            corner = next((k for k, hr in self._handles(self.selected).items() if hr.contains(e.position())), None)
+            if corner:
+                self.setCursor(Qt.CursorShape.SizeFDiagCursor if corner in ("tl", "br") else Qt.CursorShape.SizeBDiagCursor)
+                return
         if self._drag is None:
             self.setCursor(Qt.CursorShape.OpenHandCursor if self._cell_at(e.position()) >= 0
                            else Qt.CursorShape.ArrowCursor)
@@ -539,6 +602,9 @@ class CollageCanvas(QWidget):
             self.update()
 
     def mouseReleaseEvent(self, e) -> None:
+        if self._frame_drag is not None:
+            self._frame_drag = None
+            return
         if self._drag is None:
             return
         i = self._drag[0]
@@ -561,7 +627,9 @@ class CollageCanvas(QWidget):
 class CollageTool(Tool):
     title_text = "Collage"
     blurb = ("Photos side by side on one picture. Choose a layout and shape; drag a photo onto another cell to "
-             "swap them, drag inside a cell to move the photo, and use the mouse wheel to zoom it.")
+             "swap them, drag inside a cell to move the photo, and use the mouse wheel to zoom it. With 'Place "
+             "the photos yourself', Shift+drag moves a frame and its corners resize it.")
+    free = False
 
     def __init__(self, conn, parent=None) -> None:
         super().__init__(conn, parent)
@@ -573,6 +641,16 @@ class CollageTool(Tool):
             self.layout_box.addItem(f"{name}  ({collage.cell_count(name)} photos)", name)
         self.layout_box.setCurrentIndex(self.layout_box.findData("2 x 2"))
         form.addRow("Layout", self.layout_box)
+        self.free_cb = QCheckBox("Place the photos yourself")
+        self.free_cb.toggled.connect(self.set_free)
+        form.addRow("", self.free_cb)
+        frames = QHBoxLayout()
+        self.add_frame_b = QPushButton("Add a frame", clicked=self.add_frame)
+        self.remove_frame_b = QPushButton("Remove frame", clicked=self.remove_frame)
+        for b in (self.add_frame_b, self.remove_frame_b):
+            b.setEnabled(False)
+            frames.addWidget(b)
+        form.addRow("", frames)
         self.aspect = QComboBox()
         for a, label in (("1:1", "Square 1:1"), ("4:5", "Portrait 4:5"), ("9:16", "Story 9:16"),
                          ("16:9", "Wide 16:9"), ("3:2", "Landscape 3:2"), ("2:3", "Tall 2:3")):
@@ -619,15 +697,55 @@ class CollageTool(Tool):
 
     def _photos_changed(self) -> None:
         old = {c.file_id: c for c in self.opts.cells if c.file_id}
-        cells = [old.get(f, collage.Cell(f)) for f in self.picker.ids()[:9]]
+        ids = self.picker.ids()
+        if self.free:
+            # Your frames stay where you put them: photos taken out of the strip leave theirs empty.
+            keep = set(ids)
+            cells = [c if c.file_id in keep else replace(c, file_id=None) for c in self.opts.cells]
+        else:
+            cells = [old.get(f, collage.Cell(f)) for f in ids[:9]]
         self.opts = replace(self.opts, cells=cells)
         self._apply()
 
     def _options_changed(self) -> None:
-        self.opts = replace(self.opts, template=self.layout_box.currentData(), aspect=self.aspect.currentData(),
+        template = "free" if self.free else self.layout_box.currentData()
+        self.opts = replace(self.opts, template=template, aspect=self.aspect.currentData(),
                             spacing=self.spacing.value() / 10, border=self.border.value() / 10,
                             radius=self.radius.value() / 10)
         self._apply()
+
+    def set_free(self, on: bool) -> None:
+        self.free = on
+        self.opts = collage.to_free(self.opts) if on else collage.to_template(self.opts, self.layout_box.currentData())
+        self.layout_box.setEnabled(not on)
+        self.add_frame_b.setEnabled(on)
+        self.remove_frame_b.setEnabled(False)
+        self.canvas.selected = -1
+        self._apply()
+
+    def frame_selected(self, i: int) -> None:
+        self.remove_frame_b.setEnabled(self.free and i >= 0)
+
+    def add_frame(self) -> None:
+        """A new frame in the middle, with the next photo of the strip not placed yet."""
+        placed = {c.file_id for c in self.opts.cells}
+        nxt = next((f for f in self.picker.ids() if f not in placed), None)
+        n = len(self.opts.cells)
+        rect = collage.clamp_rect(0.3 + 0.03 * (n % 5), 0.3 + 0.03 * (n % 5), 0.4, 0.4)
+        self.opts = replace(self.opts, cells=list(self.opts.cells) + [collage.Cell(nxt, rect=rect)])
+        self.canvas.selected = len(self.opts.cells) - 1
+        self.frame_selected(self.canvas.selected)
+        self.canvas.rebuild()
+
+    def remove_frame(self) -> None:
+        i = self.canvas.selected
+        if self.free and 0 <= i < len(self.opts.cells) and len(self.opts.cells) > 1:
+            cells = list(self.opts.cells)
+            del cells[i]
+            self.opts = replace(self.opts, cells=cells)
+            self.canvas.selected = -1
+            self.frame_selected(-1)
+            self.canvas.rebuild()
 
     def _apply(self) -> None:
         self.canvas._redraw.start()

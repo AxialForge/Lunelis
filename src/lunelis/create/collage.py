@@ -150,6 +150,25 @@ def render(opts: CollageOptions, source: Callable[[int, int], Image.Image], long
     return canvas
 
 
+def to_free(opts: CollageOptions) -> CollageOptions:
+    """The current layout as frames you can move and resize (Cell.rect)."""
+    if opts.cells and all(c.rect for c in opts.cells):
+        return replace(opts, template="free")
+    cells = fit_cells(opts)
+    rects = TEMPLATES[opts.template]
+    return replace(opts, template="free", cells=[replace(c, rect=r) for c, r in zip(cells, rects)])
+
+
+def to_template(opts: CollageOptions, template: str) -> CollageOptions:
+    return replace(opts, template=template, cells=[replace(c, rect=None) for c in opts.cells])
+
+
+def clamp_rect(x: float, y: float, w: float, h: float, smallest: float = 0.05) -> tuple[float, float, float, float]:
+    """A frame kept on the canvas and no smaller than `smallest` of it."""
+    w, h = min(1.0, max(smallest, w)), min(1.0, max(smallest, h))
+    return (round(min(max(0.0, x), 1 - w), 4), round(min(max(0.0, y), 1 - h), 4), round(w, 4), round(h, 4))
+
+
 def swap(opts: CollageOptions, a: int, b: int) -> CollageOptions:
     """Swap the photos (with their zoom and pan) of cells a and b; the cells stay."""
     cells = fit_cells(opts) if opts.template in TEMPLATES else list(opts.cells)
