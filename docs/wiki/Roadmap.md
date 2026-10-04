@@ -75,7 +75,7 @@ In short:
 | 0.18 | Phone and USB-stick import (HEIC, Live Photos, motion photos) - done in v0.18.0 |
 | 0.19 | Culling mode, smart albums, RAW+JPG pairing - done in v0.19.0 |
 | 0.20 | Scene-aware tagging with a review queue - done in v0.20.0 |
-| 0.21 | Ask your library; your shooting stats |
+| 0.21 | Ask your library; your shooting stats - done in v0.21.0 |
 | 0.22 | Create tab round two |
 | 0.23 / 0.24 | Video and GIF playback; S-Log previews |
 | 0.25 | Lunelis noticed |

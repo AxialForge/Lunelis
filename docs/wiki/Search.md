@@ -34,3 +34,29 @@ photos takes about 1.5 seconds, and it's updated in the background after
 each scan. Anything you change (a tag, an album, a rename) is indexed the
 moment you search again. A search takes a few milliseconds to find the
 photos; showing the matches takes up to about a quarter of a second.
+
+## Ask your library
+
+**Library > Ask your library (Ctrl+Shift+F)** takes a plain sentence:
+
+> sunset on a beach, A7R V, 2024
+
+Lunelis reads it in parts and shows each as a chip:
+*2024 · Camera: ILCE-7RM5 · Looks like: sunset on a beach*.
+
+- **Exact parts** become rules: cameras as you'd say them ("A7R V", "a7iv"),
+  lenses ("24-70"), years and months ("June 2024"), stars ("4 stars"),
+  "picks", "rejects", "raw", "videos", ISO ("iso 6400", "high iso"), focal
+  lengths ("85mm") and apertures ("f/1.4").
+- **The rest** - "sunset on a beach" - is matched against what the photos
+  *look like*, using the scene model (Settings > Library > Scene tags), so it
+  finds photos nobody tagged. The best matches come first. Without the scene
+  model, the words are looked for in names, folders and tags instead.
+
+Click a chip's ✕ to ask again without that part.
+
+## Find similar
+
+Select a photo and choose **Photo > Find similar photos (Ctrl+Alt+F)** - or
+select several for **More like these**. The library shows the photos that
+look most alike, best first. It needs scene tags turned on.

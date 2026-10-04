@@ -22,6 +22,7 @@ Nothing leaves your computer, and Lunelis never modifies your photos.
 | [Backups](Backups.md) | USB drive, stick or network folder: incremental, verified, restore |
 | [darktable](darktable.md) | The darktable plugin: ratings, labels and rejects both ways |
 | [Browsing the library](Browsing.md) | The grid, sorting, filters, selection, keyboard shortcuts |
+| [Stats](Stats.md) | Your keeper rate by lens, focal length, aperture, ISO and shutter; habits; a yearly recap |
 | [Create](Create.md) | Animations (MP4 / WebP / GIF), collages and batch copies - new files, never overwriting |
 | [Editing](Editing.md) | Light, colour, crop, filters, copy/paste edits, export - the originals never change |
 | [Ratings, labels and sidecars](Ratings-Labels-and-Sidecars.md) | Stars, colour labels, picks/rejects, XMP sidecars, darktable |

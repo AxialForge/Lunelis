@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.20.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.21.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -111,7 +111,7 @@ the data folder).
 | Review queue | Accept, reject, or bulk-accept above a threshold. Only accepted (manual) tags reach XMP sidecars. |
 | Tagging job | Resumable, pausable, idle-only, incremental after the first pass. |
 
-### 0.21 - ask your library, shooting stats
+### 0.21 - ask your library, shooting stats ✅ 0.21.0
 
 | Feature | What it does |
 |---|---|

@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-04
+
+### Added
+
+- **Ask your library** (Library > Ask, Ctrl+Shift+F): a plain sentence -
+  "sunset on a beach, A7R V, 2024" - read into chips (camera, lens, dates,
+  stars, picks, ISO, focal length, aperture) and a "looks like" part matched
+  against what the photos look like (the scene model). Best matches first;
+  click a chip's x to ask again without it.
+- **Find similar** (Ctrl+Alt+F) and **More like these** for a selection.
+- **Stats** (sidebar > Photos): keeper rate (Picks) by lens, camera, focal
+  length, aperture, ISO and shutter speed; focal lengths per lens; photos and
+  shoot days per month; your habits; a yearly recap picture to share.
+
+### Changed
+
+- The library can show photos in a given order (best match first), and a
+  smart album or folder now shows as a filter chip.
+
 ## [0.20.0] - 2026-10-04
 
 ### Added
