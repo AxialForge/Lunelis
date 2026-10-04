@@ -66,7 +66,7 @@ RATE_CONFIRM = 500                         # ask before rating / labelling / fla
 # Sidebar sections (collapsible). Pages appear here once they're built -
 # no greyed-out placeholders.
 NAV = [
-    ("Photos", ["Library", "Albums", "Tags", "Edit"]),
+    ("Photos", ["Library", "Albums", "Tags", "Edit", "Stats"]),
     ("Create", ["Create"]),
     ("Bring in & organize", ["Import", "Migrate", "Duplicates", "Damaged files"]),
     ("Keep safe", ["Library status", "Backups", "Quarantine"]),
@@ -475,6 +475,9 @@ class MainWindow(QMainWindow):
         self.edit_page.reset_all.connect(self._reset_edits_of)
         self.edit_page.export_all.connect(self.export_photos)
         self.pages.addWidget(self.edit_page, scroll=False)          # fills the window
+        from lunelis.ui.stats_view import StatsView
+        self.stats_page = StatsView(self.conn)
+        self.pages.addWidget(self.stats_page, scroll=False)          # scrolls itself
         from lunelis.ui.create_page import CreatePage
         self.create_page = CreatePage(self.conn)
         self.pages.addWidget(self.create_page, scroll=False)        # fills the window; wraps its text
@@ -1868,6 +1871,9 @@ class MainWindow(QMainWindow):
                 self.edit_page.choose_default()
             self.pages.setCurrentWidget(self.edit_page)
             self.edit_page.load()
+        elif name == "Stats":
+            self.pages.setCurrentWidget(self.stats_page)
+            self.stats_page.refresh()
         elif name == "Create":
             self.create_page.set_library_context(list(self.grid.selected), self.filter, self.sort.currentData())
             self.pages.setCurrentWidget(self.create_page)

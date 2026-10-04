@@ -34,6 +34,7 @@ _PATHS = {
     "settings": '<path d="M4 6h9M17 6h3M4 12h2.5M10.5 12h9.5M4 18h7M15 18h5"/>'
                 '<circle cx="15" cy="6" r="2"/><circle cx="8.5" cy="12" r="2"/><circle cx="13" cy="18" r="2"/>',
     "edit": '<path d="M4 20l4.4-1L19 8.4a2.1 2.1 0 0 0 0-3l-.4-.4a2.1 2.1 0 0 0-3 0L5 15.6z"/><path d="M14 6.5l3.5 3.5"/>',
+    "stats": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     "create": '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/>'
               '<rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
     "status": '<path d="M3 12h4.2l2.6-6.5 4.4 13 2.6-6.5H21"/>',
@@ -44,7 +45,7 @@ _PATHS = {
 NAV_ICONS = {"Library": "library", "Albums": "albums", "Tags": "tags", "Import": "import", "Migrate": "migrate",
              "Duplicates": "duplicates", "Damaged files": "damaged", "Backups": "backups",
              "Quarantine": "quarantine", "Settings": "settings", "Library status": "status",
-             "Edit": "edit", "Create": "create"}
+             "Edit": "edit", "Create": "create", "Stats": "stats"}
 
 
 def _pixmap(name: str, color: str, size: int) -> QPixmap:
