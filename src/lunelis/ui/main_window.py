@@ -1826,7 +1826,11 @@ class MainWindow(QMainWindow):
             self.show_event(int(album.key), album.name)
             return
         self.open_page("Library")
-        if album.kind == "album":
+        if album.kind == "smart":
+            import json
+            from lunelis.albums import smart
+            self.set_filter(Filter(smart=json.dumps(smart.get(self.conn, int(album.key))), scope_name=album.name))
+        elif album.kind == "album":
             self.set_filter(Filter(album_id=int(album.key), scope_name=album.name))
         else:
             self.set_filter(Filter(auto=album.key, scope_name=album.name))

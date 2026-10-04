@@ -81,6 +81,7 @@ class Filter:
     query: str | None = None      # the search box (search.py)
     ids: tuple | None = None      # only these files (the Edit page's "Selected in the library")
     folder: tuple | None = None   # (root id, folder rel path): only photos in that folder and below
+    smart: str | None = None      # a smart album's rules (JSON, albums/smart.py)
     hide_videos: bool = field(default=False, compare=False)      # Settings > Appearance, not a filter chip
 
     def active(self) -> bool:
@@ -127,6 +128,12 @@ class Filter:
         if self.tag:
             from lunelis.tags.model import filter_sql
             cond, extra = filter_sql(self.tag)
+            where.append(cond)
+            params.extend(extra)
+        if self.smart:
+            import json
+            from lunelis.albums.smart import condition as smart_condition
+            cond, extra = smart_condition(json.loads(self.smart))
             where.append(cond)
             params.extend(extra)
         if self.auto:

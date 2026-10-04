@@ -238,6 +238,17 @@ class AlbumsView(QWidget):
         self.events = TileFlow()
         v.addWidget(self.events)
         v.addSpacing(16)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Smart albums", objectName="SectionTitle"))
+        row.addStretch(1)
+        row.addWidget(QPushButton("New smart album…", clicked=self._new_smart))
+        v.addLayout(row)
+        self.smart_help = QLabel(objectName="Help")
+        self.smart_help.setWordWrap(True)
+        v.addWidget(self.smart_help)
+        self.smart = TileFlow()
+        v.addWidget(self.smart)
+        v.addSpacing(16)
         v.addWidget(QLabel("Automatic", objectName="SectionTitle"))
         self.auto_help = QLabel("Kept up to date by Lunelis.", objectName="Help")
         v.addWidget(self.auto_help)
@@ -260,6 +271,11 @@ class AlbumsView(QWidget):
                                  "in your folder names and capture times." if evs else
                                  "No events yet. Event suggestions finds them in your folder names and capture "
                                  "times, or select photos in the library and use Photo > Event.")
+        from lunelis.albums import smart
+        smarts = smart.smart_albums(self.conn)
+        self.smart.set_widgets([self._tile(a) for a in smarts])
+        self.smart_help.setText("Saved rules that keep themselves up to date - e.g. ISO above 3200, 5 stars and "
+                                "one lens." if not smarts else "Kept up to date by their rules.")
         self.count.setText(f"{len(mine):,} albums · {len(evs):,} events")
         if self._auto is not None:
             self.auto.set_widgets([self._tile(a) for a in self._auto])
@@ -295,7 +311,7 @@ class AlbumsView(QWidget):
         return t
 
     def _repaint_tiles(self) -> None:
-        for flow in (self.yours, self.events, self.auto):
+        for flow in (self.yours, self.events, self.smart, self.auto):
             for w in flow.widgets:
                 w.update()
 
@@ -309,11 +325,31 @@ class AlbumsView(QWidget):
             QMessageBox.information(self, "New album", f"\"{name.strip()}\" is ready. In the library, select "
                                     "photos and choose Photo > Album > Add to album (Ctrl+Shift+A).")
 
+    def _new_smart(self) -> None:
+        from lunelis.albums import smart
+        from lunelis.ui.smart_dialog import SmartAlbumDialog
+        dlg = SmartAlbumDialog(parent=self)
+        if dlg.exec() and dlg.result_value:
+            name, rules = dlg.result_value
+            smart.create(self.conn, name, rules)
+            self.refresh()
+
+    def _edit_smart(self, a: albums.Album) -> None:
+        from lunelis.albums import smart
+        from lunelis.ui.smart_dialog import SmartAlbumDialog
+        dlg = SmartAlbumDialog(a.name, smart.get(self.conn, int(a.key)), self)
+        if dlg.exec() and dlg.result_value:
+            name, rules = dlg.result_value
+            smart.update(self.conn, int(a.key), rules, name)
+            self.refresh()
+
     def _menu(self, a: albums.Album, pos) -> None:
         if a.kind == "auto":
             return
         m = QMenu(self)
         m.addAction("Open", lambda: self.open_album.emit(a))
+        if a.kind == "smart":
+            m.addAction("Edit the rules…", lambda: self._edit_smart(a))
         m.addAction("Rename…", lambda: self._rename(a))
         m.addSeparator()
         m.addAction("Remove album" if a.kind == "album" else "Remove event", lambda: self._remove(a))
@@ -323,7 +359,7 @@ class AlbumsView(QWidget):
         name, ok = QInputDialog.getText(self, "Rename", "Name:", text=a.name)
         if not ok or not name.strip():
             return
-        if a.kind == "album":
+        if a.kind in ("album", "smart"):
             albums.rename(self.conn, int(a.key), name)
         else:
             from lunelis.events import model as events
@@ -331,12 +367,12 @@ class AlbumsView(QWidget):
         self.refresh()
 
     def _remove(self, a: albums.Album) -> None:
-        what = "album" if a.kind == "album" else "event"
+        what = {"album": "album", "smart": "smart album"}.get(a.kind, "event")
         if QMessageBox.question(self, f"Remove {what}?",
                                 f"Remove the {what} \"{a.name}\"?\n\nIts {a.count:,} photos stay exactly where and "
                                 f"as they are - only the {what} goes.") != QMessageBox.StandardButton.Yes:
             return
-        if a.kind == "album":
+        if a.kind in ("album", "smart"):
             albums.delete(self.conn, int(a.key))
         else:
             from lunelis.events import model as events
