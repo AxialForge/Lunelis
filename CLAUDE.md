@@ -594,6 +594,13 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
 
 ## Gotchas / constraints
 
+- **CI: all tests pass, then `exit code 1`.** (0.15.0, 0.16.2.) Interpreter
+  shutdown with hundreds of leftover Qt widgets / pool threads failed on the
+  GitHub runner only - never locally. tests/conftest.py now drains the global
+  QThreadPool at session end and leaves via `os._exit(pytest's status)`
+  (set LUNELIS_TEST_NORMAL_EXIT=1 to debug a real shutdown); CI runs pytest
+  with `-X faulthandler`. A failing test still exits 1.
+
 - **Slow reads go through `ui/background.py` (Background).** One run per key,
   a burst of requests coalesces into one re-run with the newest, results
   arrive on the GUI thread and never after close (`@unless_closed` for

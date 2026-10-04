@@ -30,7 +30,7 @@ jobs:
           pip install -e . pytest==9.1.1 lupa==2.8
 
       - name: Run tests
-        run: pytest -q
+        run: python -X faulthandler -m pytest -q
 
   build-win:
     # Only on a tag, and only if the tests passed.

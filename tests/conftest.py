@@ -30,3 +30,34 @@ def _no_crash_dialogs(monkeypatch):
     monkeypatch.setattr(mw.MainWindow, "_crashed", record)
     yield
     assert not errors, f"unexpected error(s) in the app: {errors}"
+
+
+_exit_status = {"code": None}
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Let image loads and other pool work still running from the last tests
+    finish while everything they use is still alive."""
+    _exit_status["code"] = int(exitstatus)
+    try:
+        from PySide6.QtCore import QThreadPool
+        from PySide6.QtWidgets import QApplication
+        QThreadPool.globalInstance().waitForDone(30_000)
+        if QApplication.instance() is not None:
+            QApplication.processEvents()
+    except Exception:
+        pass
+
+
+def pytest_unconfigure(config):
+    """Leave with pytest's own verdict. Tearing down hundreds of leftover Qt
+    widgets and threads at interpreter exit sometimes failed on the CI runner
+    (all tests passed, exit code 1: 0.15.0, 0.16.2) - it says nothing about
+    the app, which closes through MainWindow._finish_threads."""
+    code = _exit_status["code"]
+    if code is None or os.environ.get("LUNELIS_TEST_NORMAL_EXIT"):
+        return
+    import sys
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
