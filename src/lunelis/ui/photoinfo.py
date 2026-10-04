@@ -40,7 +40,7 @@ SELECT f.id, f.filename, r.path, f.rel_path, f.size_bytes, f.format, f.is_raw, f
        e.gps_lat, e.gps_lon, e.width_px, e.height_px, e.orientation, e.duration_s,
        COALESCE(rt.stars, 0), rt.flag, rt.color_label,
        ev.id, ev.name,
-       d.problem, f.mtime
+       d.problem, f.mtime, f.motion_video
 FROM files f JOIN roots r ON r.id = f.root_id
 LEFT JOIN exif e ON e.file_id = f.id
 LEFT JOIN ratings rt ON rt.file_id = f.id
@@ -110,6 +110,7 @@ class PhotoInfo:
     event: str | None
     damaged: str | None
     mtime: str | None
+    motion_video: int | None = None    # an Android motion photo's embedded video, in bytes
 
     @property
     def path(self) -> str:

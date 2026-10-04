@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.17.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.18.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -84,7 +84,7 @@ the data folder).
 | Collage | Grid templates, spacing, border, rounded corners, background, aspect presets (1:1, 4:5, 9:16, 16:9, 3:2, 2:3), drag-swap cells, pan and zoom per cell. Free placement is in the engine; drawing your own cells on the page comes with round two (0.22). |
 | Batch tools | Watermark, resize, convert, rename and strip EXIF - always to new files. |
 
-### 0.18 - phone and USB-stick import
+### 0.18 - phone and USB-stick import ✅ 0.18.0
 
 | Feature | What it does |
 |---|---|

@@ -60,6 +60,14 @@ def pytest_unconfigure(config):
     import sys
     sys.stdout.flush()
     sys.stderr.flush()
+    import faulthandler
+    faulthandler.disable()                     # Qt's threads dying with the process aren't news
+    if sys.platform == "win32":
+        # os._exit still lets Windows unload every DLL, and Qt's teardown there
+        # crashed (access violation) after a clean run. TerminateProcess skips it.
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        k32.TerminateProcess(k32.GetCurrentProcess(), code)
     os._exit(code)
 
 

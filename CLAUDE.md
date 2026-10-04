@@ -616,6 +616,19 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
 
 ## Gotchas / constraints
 
+- **The test process ends with TerminateProcess** (tests/conftest.py,
+  pytest_unconfigure): os._exit still unloads every DLL on Windows, and Qt's
+  teardown there hit an access violation after clean runs - the source of the
+  "all passed, exit code 1" CI failures. faulthandler is disabled first so the
+  dying Qt threads print nothing. Unexpected dialogs fail the test
+  (_no_modal_dialogs) and a native hang dumps every stack (_hang_watchdog).
+- **Companions vs sidecars** (importing/ingest): a companion is cataloged
+  media filed with its photo (Live Photo .MOV); a sidecar isn't media. A
+  sidecar can belong to the photo AND its companion (IMG_0001.AAE): it is
+  added once. A clashing companion is 'failed' (stays on the card), never
+  "kept" like a stale sidecar - Clear the card would otherwise delete a
+  video that isn't in the library.
+
 - **CI: all tests pass, then `exit code 1`.** (0.15.0, 0.16.2.) Interpreter
   shutdown with hundreds of leftover Qt widgets / pool threads failed on the
   GitHub runner only - never locally. tests/conftest.py now drains the global

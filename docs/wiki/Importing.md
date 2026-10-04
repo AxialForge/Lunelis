@@ -50,7 +50,12 @@ camera writes it:
 | Sony | DCIM (every 100MSDCF, 101MSDCF... folder), XAVC clips in PRIVATE/M4ROOT/CLIP, AVCHD | SUB proxies, THMBNL thumbnails |
 | Canon, Nikon, Fujifilm | DCIM | Canon's CANONMSC and MISC folders |
 | GoPro | DCIM | LRV proxies and THM thumbnails |
+| iPhone / iPad | DCIM (100APPLE, 101APPLE...) | - |
+| Android phone | DCIM and Pictures | .thumbnails folders |
 | Anything else | DCIM, or the whole folder | - |
+
+A folder copied off a phone (no DCIM above it) is recognised from its
+photos' camera maker instead.
 
 **Sidecars travel with their file.** A Sony clip's metadata file
 (`C0001M01.XML` beside `C0001.MP4`) and any `.XMP` beside a photo are
@@ -58,6 +63,31 @@ copied, verified and filed into the same folder as their photo or clip -
 never on their own, never renamed, and a different file already there is
 kept. Lunelis looks once more for sidecars a camera writes a moment late
 before it says the card can be removed.
+
+## Phones
+
+- **Live Photos:** an iPhone Live Photo is a photo (`IMG_0001.HEIC` or `.JPG`)
+  and a short video (`IMG_0001.MOV`). They're always filed into the same
+  folder - if either name is taken there, both go to the sibling folder
+  together - and both appear in your library.
+- **Edits made on the iPhone** (`IMG_0001.AAE`) travel with their photo.
+- **Android motion photos** keep their video inside the JPEG: they import as
+  one file, and the photo's Info panel says *Motion photo*.
+- **Dates come from the photos**, not from the files - copying off a phone
+  gives every file today's date, so that would file everything under today.
+
+## USB sticks and drives
+
+A USB stick or drive that's plugged in while Lunelis runs gets the same offer
+as a memory card - *"USB drive inserted: 240 photos and videos. Click to
+import."* - when it has photos on it. It's also listed under **Drives** on the
+Import page.
+
+## Already in your library
+
+Before copying anything, each file is checked against your library: a photo
+you already have - even under another name - is recognised (same size, same
+capture time, then byte for byte) and isn't copied again.
 
 **A card you insert again** isn't copied again: files that card already gave
 Lunelis are recognised and skipped.

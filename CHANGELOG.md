@@ -6,6 +6,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-04
+
+### Added
+
+- **Phones:** iPhone / iPad and Android layouts are recognised; a folder
+  copied off a phone is recognised from its photos' camera maker.
+- **Live Photos stay together:** the photo and its video are always filed
+  into the same folder - a name taken there sends both to the sibling
+  folder. A different video already beside the photo keeps the card's on
+  the card (and the card isn't called safe to format).
+- **iPhone edits (.AAE)** travel with their photo.
+- **Android motion photos** are recognised; the Info panel says so.
+- **USB sticks and drives** with photos get a one-click import offer, like
+  memory cards.
+- **Already in your library:** a photo you already have - under any name - is
+  recognised before anything is copied (size, capture time, then byte for
+  byte), so it isn't copied off the card again.
+
+### Changed
+
+- Catalog schema 28: import items record whether they're a sidecar or a
+  companion; files record an embedded motion-photo video.
+- The camera-profile format has an optional `companions` list
+  (docs/Schemas.md).
+
 ## [0.17.0] - 2026-10-04
 
 ### Added

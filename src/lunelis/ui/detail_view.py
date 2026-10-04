@@ -671,7 +671,7 @@ class InfoPanel(QScrollArea):
         put("camera", info.camera())
         put("lens", info.lens or "")
         put("exposure", info.exposure())
-        put("dimensions", info.dimensions())
+        put("dimensions", info.dimensions() + (" · Motion photo (a short video is inside)" if info.motion_video else ""))
         put("event", f'<a href="event:{info.event_id}:{info.event}">{info.event}</a>' if info.event else "")
         url = info.map_url()
         put("location", f'{info.lat:.5f}, {info.lon:.5f}  ·  <a href="{url}">Open map</a>' if url else "")
