@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-04
+
+### Added (Create tab, round two)
+
+- **Contact sheets:** a grid of photos with names, dates or stars on Letter
+  or A4 pages - PDF or PNG.
+- **Timelapses:** an interval shoot as 720p / 1080p / 4K video, with
+  deflicker and stabilisation.
+- **Slideshow videos:** crossfade, fade through black or cut, a slow zoom,
+  widescreen / square / vertical, and your own music.
+- **Before and after:** side by side, stacked, or a sweeping slider video or
+  GIF.
+- **Prints:** wallet, 4x6, 5x7 and 8x10 on Letter or A4 sheets with cut
+  marks, or one file per print at its exact size for a lab.
+- **Free collage layout:** move, resize, add and remove frames yourself.
+
+### Changed
+
+- The Create home scrolls, so more tools still fit the smallest window.
+
 ## [0.21.0] - 2026-10-04
 
 ### Added

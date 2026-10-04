@@ -65,6 +65,10 @@ Several photos on one picture.
   photo under the pointer (up to 4x). Photos always fill their cell -
   cropped, never stretched.
 - **Save as** JPEG, PNG or WebP.
+- **Place the photos yourself:** tick it and the frames are yours to arrange -
+  click a frame to select it, **Shift+drag** to move it, drag a **corner**
+  to resize it, **Add a frame** for the next photo of the strip, **Remove
+  frame** for the selected one. Frames may overlap; later ones sit on top.
 
 The preview uses the thumbnails; the saved collage uses the full photos.
 
@@ -94,6 +98,49 @@ are still made and the message says which ones failed.
 `fill`), `format` (`jpeg`, `png`, `webp` or `tiff`) and `quality` (1-100).
 A preset with the same name as a built-in one replaces it. Save the file and
 reopen Batch copies to use it.
+
+## Contact sheet
+
+The photos in a grid on Letter or A4 pages (portrait or landscape), 2-10
+across, with any of their file name, date and stars underneath, a title and
+page numbers. A **PDF** with every page, or a **PNG** per page. Made from
+the thumbnails (with your edits), so even a thousand photos are quick.
+
+## Timelapse
+
+An interval shoot as a video: the photos in strip order, at 1-60 frames a
+second, 720p, 1080p or 4K.
+
+- **Deflicker** evens out the exposure jumps between frames over a window
+  of frames you choose - a sunset still gets darker, the flicker goes.
+- **Stabilise** takes out drift and knocks; the picture is enlarged just
+  enough that the moved edges never show.
+
+## Slideshow video
+
+Photos one after another: 1-30 seconds each, with a **crossfade**, a **fade
+through black** or a **cut**, an optional **slow zoom**, the whole photo on
+black or cropped to fill, widescreen, square or vertical (for phones), and
+**music** from any audio file (cut to the video's length and faded out).
+
+## Before and after
+
+Each photo as shot next to how you edited it: **side by side**, **one above
+the other**, or a **slider** video or GIF where a line sweeps across. The
+"before" keeps the photo's crop, so the two line up.
+
+## Prints
+
+Photos at real print sizes - wallet, 4 x 6, 5 x 7, 8 x 10 - at 300 dots per
+inch:
+
+- **On Letter or A4 sheets** (a PDF): as many as fit (two 4 x 6 a sheet, eight
+  wallets), each turned to suit its photo, with cut marks.
+- **One file per print** for a printing service: a JPEG at exactly the print
+  size (4 x 6 = 1800 x 1200).
+
+**Fill** crops the photo to the print's shape (like a lab does); untick it
+for the whole photo with white borders.
 
 ## Stopping
 

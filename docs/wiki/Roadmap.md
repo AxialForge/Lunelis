@@ -76,7 +76,7 @@ In short:
 | 0.19 | Culling mode, smart albums, RAW+JPG pairing - done in v0.19.0 |
 | 0.20 | Scene-aware tagging with a review queue - done in v0.20.0 |
 | 0.21 | Ask your library; your shooting stats - done in v0.21.0 |
-| 0.22 | Create tab round two |
+| 0.22 | Create tab round two - done in v0.22.0 |
 | 0.23 / 0.24 | Video and GIF playback; S-Log previews |
 | 0.25 | Lunelis noticed |
 | 0.26 | Offline-NAS view, protection indicator, map and calendar |

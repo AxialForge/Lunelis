@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.21.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.22.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -118,7 +118,7 @@ the data folder).
 | Ask your library | Natural-language search ("sunset on a beach, A7R V, 2024"), "find similar" and "more like these", with chips showing how the sentence was understood. |
 | Your shooting stats | Keeper rate (Picks) by lens, focal length, aperture, ISO and shutter speed; focal-length use per lens; shoots per month; habits; a yearly recap image. |
 
-### 0.22 - Create tab, round two
+### 0.22 - Create tab, round two ✅ 0.22.0
 
 Contact sheet (PDF / PNG with captions), timelapse builder (deflicker,
 stabilization), slideshow video (music, transitions), before and after

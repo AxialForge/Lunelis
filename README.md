@@ -34,7 +34,7 @@ python -m pytest        # confirms the catalog schema is sound
 python -m lunelis       # opens the app (or just `lunelis` once installed)
 ```
 
-## Status: v0.21.0 - ask your library, stats
+## Status: v0.22.0 - Create round two
 
 Catalog, scanning, EXIF, thumbnails, the library grid, ratings/labels with XMP
 sync, the foundations (data folder, settings, catalog backups, central sidecar
