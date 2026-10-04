@@ -24,6 +24,7 @@ from lunelis.catalog.schema import open_catalog
 from lunelis.importing import ingest
 from lunelis.importing.templates import PRESETS, Context, TemplateError, render
 from lunelis.settings import Settings
+from lunelis.ui.background import Background
 
 
 def _gb(n: int) -> str:
@@ -51,8 +52,12 @@ class PreviewWorker(QObject):
                 except Exception:
                     pass
                 out.append((rel, size, taken))
-        except OSError:
-            pass
+        except OSError as e:
+            self.done.emit(OSError(f"Couldn't read {self.source} - {e.strerror or e}"))
+            return
+        if not os.path.isdir(self.source):          # pulled mid-read (the walk skips what it can't list)
+            self.done.emit(OSError(f"{self.source} isn't there any more - was the card removed?"))
+            return
         self.done.emit(out)
 
 
@@ -93,6 +98,7 @@ class ImportView(QWidget):
         self._thread = None
         self._worker = None
         self._import_id: int | None = None
+        self.bg = Background(self, conn)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -244,24 +250,36 @@ class ImportView(QWidget):
     # --- sources ---------------------------------------------------------------------
 
     def update_cards(self) -> None:
-        drives = ingest.removable_drives_with_media()
+        # Labels and every drive's free space (a sleeping network drive can take
+        # seconds to answer): read on a worker, shown when they arrive.
+        def look():
+            cards = ingest.removable_drives_with_media()
+            return [(d, ingest.volume_info(d)[1]) for d in cards], ingest.all_drives()
+        if not self.cards.count():
+            self.cards.addItem("Looking for memory cards…")
+        self.bg.run("drives", look, self._show_drives, db=False,
+                    error=lambda e: self.message.setText(f"Couldn't list the drives: {e}"))
+
+    def _show_drives(self, found) -> None:
+        cards, drives = found
+        self._drives = drives
         self.cards.clear()
-        for d in drives:
-            serial, label = ingest.volume_info(d)
+        for d, label in cards:
             item = QListWidgetItem(f"{label or 'Memory card'} ({d.rstrip(chr(92))})")
             item.setData(Qt.ItemDataRole.UserRole, d)
             self.cards.addItem(item)
-        if not drives:
+        if not cards:
             self.cards.addItem("No memory card detected")
+        self._card_roots = {d for d, _ in cards}
         self._fill_drives()
 
     def _fill_drives(self) -> None:
         # Every other drive: USB drives import whole; internal and network
         # drives open a folder picker on them (all of C:\ is never a photo import).
         self.drives.clear()
-        cards = set(ingest.removable_drives_with_media())
+        cards = getattr(self, "_card_roots", set())
         names = {"removable": "USB drive", "fixed": "Drive", "network": "Network drive"}
-        for root, kind, label, free, total in ingest.all_drives():
+        for root, kind, label, free, total in getattr(self, "_drives", []):
             if root in cards or kind == "card":
                 continue
             letter = root.rstrip(chr(92))
@@ -312,8 +330,13 @@ class ImportView(QWidget):
         if picked:
             self.choose(os.path.normpath(picked))
 
-    def _preview_ready(self, items: list) -> None:
+    def _preview_ready(self, items) -> None:
         self._end_thread()
+        if isinstance(items, Exception):
+            self.preview = []
+            self.message.setText(str(items))
+            self._update_preview()
+            return
         self.preview = items
         try:
             prof = ingest._profile(self.source)
@@ -458,12 +481,24 @@ class ImportView(QWidget):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
-        deleted, skipped = ingest.clear_card(self.conn, self._clear_id)
-        self.clear_b.hide()
-        self._clear_id = None
-        self.message.setText(f"Cleared {deleted:,} files from the card."
-                             + (f" {len(skipped):,} changed on the card since the import, so they were left."
-                                if skipped else ""))
+        import_id = self._clear_id
+        self.clear_b.setEnabled(False)
+        self.message.setText(f"Clearing {n:,} files from the card…")
+
+        def cleared(res) -> None:
+            deleted, skipped = res
+            self.clear_b.hide()
+            self.clear_b.setEnabled(True)
+            self._clear_id = None
+            self.message.setText(f"Cleared {deleted:,} files from the card."
+                                 + (f" {len(skipped):,} changed on the card since the import, so they were left."
+                                    if skipped else ""))
+
+        def failed(e) -> None:
+            self.clear_b.setEnabled(True)
+            self.message.setText(f"Clearing the card stopped: {e}. Nothing that wasn't verified was touched.")
+
+        self.bg.run("clear", lambda c: ingest.clear_card(c, import_id), cleared, error=failed)
 
     # --- thread plumbing -----------------------------------------------------------------
 

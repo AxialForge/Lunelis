@@ -7,6 +7,7 @@ menu is still the dev trigger for them until the Import screen (Step 9).
 """
 from __future__ import annotations
 
+import logging
 import os
 
 from PySide6.QtCore import QObject, QSize, QThread, QTimer, Qt, Signal
@@ -1196,12 +1197,25 @@ class MainWindow(QMainWindow):
                 self.conn.commit()
                 self.importer.resume(imp)
                 return
-        n = len(ingest.discover(drive))
         self._tray_card = drive
-        if self.tray is not None:
-            self.tray.showMessage("Memory card inserted",
-                                  f"{label or 'Card'} ({drive.rstrip(chr(92))}): {n:,} photos and videos. "
-                                  "Click to import.")
+        if self.tray is None:
+            return
+
+        # Counting walks the whole card: on a worker. A card pulled meanwhile
+        # just gets no message.
+        def say(n: int) -> None:
+            if drive in ingest.removable_drives_with_media():
+                self.tray.showMessage("Memory card inserted",
+                                      f"{label or 'Card'} ({drive.rstrip(chr(92))}): {n:,} photos and videos. "
+                                      "Click to import.")
+        self._bg().run(f"card {drive}", lambda: len(ingest.discover(drive)), say, db=False,
+                       error=lambda e: logging.getLogger(__name__).info("card %s couldn't be read: %s", drive, e))
+
+    def _bg(self):
+        if not hasattr(self, "bg"):
+            from lunelis.ui.background import Background
+            self.bg = Background(self, self.conn)
+        return self.bg
 
     def _tray_message_clicked(self) -> None:
         if self._tray_card:
@@ -1212,13 +1226,21 @@ class MainWindow(QMainWindow):
         """At start-up: filing into the library needs no card, so an import that
         was interrupted after staging carries on; one still copying waits for
         its card."""
-        for imp, state, _ in ingest.unfinished(self.conn):
-            pending = self.conn.execute("SELECT 1 FROM import_items WHERE import_id = ? AND state = 'pending'"
-                                        " LIMIT 1", (imp,)).fetchone()
-            source = self.conn.execute("SELECT source FROM imports WHERE id = ?", (imp,)).fetchone()[0]
-            if (not pending or os.path.isdir(source)) and not self.importer.busy():
+        # Whether a folder import's source is there can take seconds on a
+        # sleeping NAS: decided on a worker, resumed here.
+        def pick(conn):
+            for imp, state, _ in ingest.unfinished(conn):
+                pending = conn.execute("SELECT 1 FROM import_items WHERE import_id = ? AND state = 'pending'"
+                                       " LIMIT 1", (imp,)).fetchone()
+                source = conn.execute("SELECT source FROM imports WHERE id = ?", (imp,)).fetchone()[0]
+                if not pending or os.path.isdir(source):
+                    return imp
+            return None
+
+        def resume(imp) -> None:
+            if imp is not None and not self.importer.busy():
                 self.importer.resume(imp)
-                return
+        self._bg().run("resume imports", pick, resume)
 
     def _after_import(self, destination: str) -> None:
         """Make sure the photos just filed show up: rescan the source that holds

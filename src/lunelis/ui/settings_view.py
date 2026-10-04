@@ -385,12 +385,43 @@ class SettingsView(QWidget):
     def _cache_dir(self, key: str):
         return paths.DATA_DIR / "cache" / key
 
-    def _load_caches(self) -> None:
-        for key, info in self.cache_info.items():
-            d = self._cache_dir(key)
-            files = [p for p in d.rglob("*") if p.is_file()] if d.exists() else []
-            info.setText(f"{len(files):,} file{'s' if len(files) != 1 else ''} · "
-                         f"{sum(p.stat().st_size for p in files) / 1e6:,.1f} MB")
+    def _load_caches(self, stale_after: float = 0) -> None:
+        import time
+        if stale_after and time.monotonic() - getattr(self, "_caches_at", -1e9) < stale_after:
+            return                                       # a toggle's refresh: the sizes haven't changed
+        self._caches_at = time.monotonic()
+        # The thumbnail cache alone is ~160k files: walked on a worker, once per
+        # refresh burst (Background coalesces), never on the GUI thread.
+        dirs = {key: self._cache_dir(key) for key in self.cache_info}
+
+        def walk():
+            out = {}
+            for key, d in dirs.items():
+                n = size = 0
+                for root, _dirs, files in os.walk(d):
+                    for f in files:
+                        try:
+                            size += os.stat(os.path.join(root, f)).st_size
+                            n += 1
+                        except OSError:
+                            pass
+                out[key] = (n, size)
+            return out
+
+        def show(sizes):
+            for key, (n, size) in sizes.items():
+                self.cache_info[key].setText(f"{n:,} file{'s' if n != 1 else ''} · {size / 1e6:,.1f} MB")
+
+        for info in self.cache_info.values():
+            if not info.text():
+                info.setText("Counting…")
+        self._bg().run("caches", walk, show, db=False)
+
+    def _bg(self):
+        if not hasattr(self, "bg"):
+            from lunelis.ui.background import Background
+            self.bg = Background(self, self.conn)
+        return self.bg
 
     def _clear_cache(self, key: str) -> None:
         import shutil
@@ -978,7 +1009,7 @@ class SettingsView(QWidget):
             self._load_startup(s)
             self._load_thumb_preset(s)
             self._load_ai()
-            self._load_caches()
+            self._load_caches(stale_after=60)
             self._show_example(s.get("import_template"))
             self.staging_local.setText(s.get("import_staging_local") or "")
             self.staging_local.setPlaceholderText(f"Default: {paths.DATA_DIR / 'staging'}")
@@ -1016,9 +1047,7 @@ class SettingsView(QWidget):
             self._loading = False
 
     def _load_sources(self, s: Settings) -> None:
-        counts = dict(self.conn.execute(
-            "SELECT root_id, COUNT(*) FROM files WHERE missing_since IS NULL AND excluded = 0"
-            " GROUP BY root_id").fetchall())
+        counts = getattr(self, "_root_counts", {})         # filled in by _count_sources (a worker)
         rows = self.conn.execute("SELECT id, path, enabled, last_scanned_at FROM roots ORDER BY id").fetchall()
         self.roots.blockSignals(True)
         self.roots.clearContents()
@@ -1030,7 +1059,7 @@ class SettingsView(QWidget):
             on.setData(Qt.ItemDataRole.UserRole, rid)
             self.roots.setItem(i, 0, on)
             self.roots.setItem(i, 1, QTableWidgetItem(path))
-            n = QTableWidgetItem(f"{counts.get(rid, 0):,}")
+            n = QTableWidgetItem(f"{counts[rid]:,}" if rid in counts else "…")
             n.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.roots.setItem(i, 2, n)
             self.roots.setItem(i, 3, QTableWidgetItem(_when(scanned)))
@@ -1038,6 +1067,7 @@ class SettingsView(QWidget):
                                       + sum(self.roots.rowHeight(r) for r in range(len(rows)))
                                       + (0 if rows else 30)))
         self.roots.blockSignals(False)
+        self._count_sources()
 
         names = {rid: path for rid, path, *_ in rows}
         self.skipped.clear()
@@ -1060,19 +1090,36 @@ class SettingsView(QWidget):
                     self.prefer.setCurrentIndex(self.prefer.count() - 1)
         self.prefer.blockSignals(False)
 
+    def _count_sources(self) -> None:
+        def show(counts):
+            self._root_counts = counts
+            self.roots.blockSignals(True)
+            for i in range(self.roots.rowCount()):
+                rid = self.roots.item(i, 0).data(Qt.ItemDataRole.UserRole) if self.roots.item(i, 0) else None
+                if rid is not None and self.roots.item(i, 2) is not None:
+                    self.roots.item(i, 2).setText(f"{counts.get(rid, 0):,}")
+            self.roots.blockSignals(False)
+        self._bg().run("counts", lambda c: dict(c.execute(
+            "SELECT root_id, COUNT(*) FROM files WHERE missing_since IS NULL AND excluded = 0"
+            " GROUP BY root_id").fetchall()), show)
+
     def _backup_dir(self) -> Path:
         return backup.backup_dir(Settings(self.conn), paths.DATA_DIR)
 
     def _load_backup_status(self) -> None:
+        # The backup folder can be on a network drive: listed on a worker.
         folder = self._backup_dir()
-        snaps = backup.list_snapshots(folder)
-        if not snaps:
-            self.backup_status.setText("No backups yet.")
-            return
-        last = backup.last_snapshot_time(folder)
-        total = sum(p.stat().st_size for p in snaps)
-        self.backup_status.setText(f"Last backup {last:%b %d, %Y %H:%M} · {len(snaps)} kept · "
-                                   f"{total / 1e6:,.0f} MB")
+
+        def look():
+            snaps = backup.list_snapshots(folder)
+            if not snaps:
+                return "No backups yet."
+            last = backup.last_snapshot_time(folder)
+            total = sum(p.stat().st_size for p in snaps)
+            return f"Last backup {last:%b %d, %Y %H:%M} · {len(snaps)} kept · {total / 1e6:,.0f} MB"
+
+        self._bg().run("backups", look, self.backup_status.setText,
+                       error=lambda e: self.backup_status.setText(f"Can't read the backup folder: {e}"), db=False)
 
     def _load_data_status(self) -> None:
         cat = paths.DEFAULT_CATALOG_PATH

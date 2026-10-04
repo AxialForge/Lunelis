@@ -144,3 +144,12 @@ def test_clearing_the_card_only_after_everything_is_verified(env):
     assert not (card / "PRIVATE/M4ROOT/CLIP/C0001.MP4").exists()
     assert (card / "PRIVATE/M4ROOT/SUB/C0001S03.MP4").exists()                    # never imported: kept
     assert all(os.path.exists(d) for (_, d, _) in _items(conn, imp).values())   # the library copies remain
+
+
+def test_a_card_pulled_mid_preview_is_said_not_shown_as_empty(tmp_path):
+    from lunelis.ui.import_view import PreviewWorker
+    got = []
+    w = PreviewWorker(str(tmp_path / "gone"))
+    w.done.connect(got.append)
+    w.run()
+    assert isinstance(got[0], OSError) and "removed" in str(got[0])
