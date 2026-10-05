@@ -295,7 +295,11 @@ def apply(a: np.ndarray, stack: Stack, filter_params: dict | None = None,
     p, p_nr = split_noise(effective(stack, filter_params))
     if not prepared:
         a = prepare_source(a, stack, p_nr, lens_info)
-    x = apply_adjustments(apply_geometry(a, stack.geometry), p)
+    x = apply_geometry(a, stack.geometry)
+    if stack.retouch:
+        from lunelis.edit import retouch
+        x = retouch.apply(x, stack.retouch, stack.geometry.crop)
+    x = apply_adjustments(x, p)
     if stack.masks:
         x = apply_masks(x, stack.masks, stack.geometry.crop, ai_maps=ai_in_frame(ai_maps, stack.geometry))
     return x
@@ -352,6 +356,9 @@ def apply_tiled(a: np.ndarray, stack: Stack, filter_params: dict | None = None,
     p, p_nr = split_noise(effective(stack, filter_params))
     a = prepare_source(a, stack, p_nr, lens_info, strips=True)
     a = apply_geometry(a, stack.geometry)
+    if stack.retouch:
+        from lunelis.edit import retouch
+        a = retouch.apply(a, stack.retouch, stack.geometry.crop, copy=False)
     H, W = a.shape[:2]
     out = np.empty((H, W, 3), dtype=np.uint8)
     if not p and not stack.masks:

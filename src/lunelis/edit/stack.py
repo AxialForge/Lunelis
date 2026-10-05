@@ -13,6 +13,10 @@ A stack has three parts, all optional:
 - lens:     lens corrections (edit/lens.py): profile on/off + manual sliders;
 - curves:   tone curves - "rgb" (all channels) and "r"/"g"/"b" - as control
             points (x, y) in 0..1, through a monotone spline.
+- retouch:  heal / clone / red-eye spots (edit/retouch.py), in order.
+
+Version 2 (0.29) added `spot=`; a version-1 stack reads the same (it just has
+no spots), and catalog migration 34 rewrote stored ones as version 2.
 
 Every adjustment is 0 when untouched, so scaling and adding stacks is plain
 arithmetic and an empty stack means "the original".
@@ -24,7 +28,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-VERSION = 1
+VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -101,10 +105,12 @@ class Stack:
     curves: dict = field(default_factory=dict)       # channel -> points, only non-linear ones
     masks: tuple = ()                                # edit/masks.Mask, applied in order
     lens: dict = field(default_factory=dict)         # edit/lens.py settings, only non-default ones
+    retouch: tuple = ()                              # edit/retouch.Spot, applied in order
 
     def is_identity(self) -> bool:
         return ((self.filter is None or self.amount == 0) and not self.adjust
-                and self.geometry.is_identity() and not self.curves and not self.masks and not self.lens)
+                and self.geometry.is_identity() and not self.curves and not self.masks and not self.lens
+                and not self.retouch)
 
     def with_lens(self, key: str, value) -> "Stack":
         lens = dict(self.lens)
@@ -196,9 +202,11 @@ def dumps(stack: Stack) -> str:
     for k in ("distortion", "vignette", "ca_red", "ca_blue"):
         if stack.lens.get(k):
             parts.append(f"lens_{k}={_num(stack.lens[k])}")
-    from lunelis.edit import masks
+    from lunelis.edit import masks, retouch
     for m in stack.masks:
         parts.append("mask=" + masks.dumps(m))
+    for s in stack.retouch:
+        parts.append("spot=" + retouch.dumps(s))
     return ";".join(parts)
 
 
@@ -259,7 +267,9 @@ def loads(text: str | None) -> Stack:
             v = 0.0
         if v:
             lens[k] = v
-    return Stack(filt, amount, adjust, geo, curves, mask_list, lens)
+    from lunelis.edit import retouch
+    spots = tuple(s for k, v in pairs if k == "spot" for s in [retouch.loads(v)] if s is not None)
+    return Stack(filt, amount, adjust, geo, curves, mask_list, lens, spots)
 
 
 def _crop(text: str | None) -> tuple[float, float, float, float]:

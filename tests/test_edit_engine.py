@@ -198,7 +198,7 @@ def test_export_writes_the_stack(lib, tmp_path):
     export_pending(conn, mode="central", update_existing=False, store_dir=store_dir)
     rid, rpath = conn.execute("SELECT id, path FROM roots").fetchone()
     xmp = central_path(store_dir, rid, rpath, "b.jpg", "b.jpg")
-    assert "lunelis:EditStack=\"v=1;contrast=30\"" in open(xmp, encoding="utf-8").read()
+    assert "lunelis:EditStack=\"v=2;contrast=30\"" in open(xmp, encoding="utf-8").read()
 
 
 # --- tone curve (Phase B) ---------------------------------------------------------------------

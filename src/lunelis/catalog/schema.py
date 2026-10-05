@@ -735,6 +735,30 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    34,
+    "edit stack version 2 (retouch spots): stored stacks rewritten as v=2 - the same edit, read the same way",
+    """
+    UPDATE edits SET stack = 'v=2' || substr(stack, 4) WHERE stack LIKE 'v=1%';
+    """,
+))
+
+MIGRATIONS.append((
+    35,
+    "virtual copies: more edits of one photo, each its own stack",
+    """
+    CREATE TABLE IF NOT EXISTS copies (
+        id INTEGER PRIMARY KEY,
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        stack TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_copies_file ON copies(file_id);
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 
