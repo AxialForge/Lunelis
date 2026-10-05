@@ -138,3 +138,82 @@ def flatten(conn: sqlite3.Connection, stack: Stack) -> dict:
     saving it as a new filter)."""
     from lunelis.edit.stack import effective
     return effective(stack, filter_params(conn, stack.filter))
+
+
+# --- virtual copies -------------------------------------------------------------------------------
+# More than one edit of the same photo without copying the file: each copy is
+# its own stack in `copies`. The photo's own edit (above) stays "the original".
+
+def copies_of(conn: sqlite3.Connection, file_id: int) -> list[tuple[int, str]]:
+    return [tuple(r) for r in conn.execute(
+        "SELECT id, name FROM copies WHERE file_id = ? ORDER BY id", (file_id,))]
+
+
+def add_copy(conn: sqlite3.Connection, file_id: int, stack: Stack, name: str | None = None) -> int:
+    n = conn.execute("SELECT COUNT(*) FROM copies WHERE file_id = ?", (file_id,)).fetchone()[0]
+    cid = conn.execute("INSERT INTO copies (file_id, name, stack) VALUES (?, ?, ?)",
+                       (file_id, (name or f"Copy {n + 1}").strip(), dumps(stack))).lastrowid
+    conn.commit()
+    return cid
+
+
+def get_copy(conn: sqlite3.Connection, copy_id: int) -> Stack:
+    row = conn.execute("SELECT stack FROM copies WHERE id = ?", (copy_id,)).fetchone()
+    return loads(row[0]) if row else Stack()
+
+
+def save_copy(conn: sqlite3.Connection, copy_id: int, stack: Stack) -> bool:
+    text = dumps(stack)
+    cur = conn.execute("UPDATE copies SET stack = ?, updated_at = datetime('now') WHERE id = ? AND stack != ?",
+                       (text, copy_id, text))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def rename_copy(conn: sqlite3.Connection, copy_id: int, name: str) -> None:
+    conn.execute("UPDATE copies SET name = ? WHERE id = ?", (name.strip() or "Copy", copy_id))
+    conn.commit()
+
+
+def delete_copy(conn: sqlite3.Connection, copy_id: int) -> None:
+    conn.execute("DELETE FROM copies WHERE id = ?", (copy_id,))
+    conn.commit()
+
+
+# --- presets as files -----------------------------------------------------------------------------
+
+PRESET_FORMAT = "lunelis-presets/1"
+
+
+def export_filters(conn: sqlite3.Connection, names: list[str] | None = None) -> dict:
+    """Your own filters as a shareable document (adjustments by slider key)."""
+    import json
+    out = []
+    for name, params, built_in in filters(conn):
+        if built_in or (names is not None and name not in names):
+            continue
+        out.append({"name": name, "adjust": params if isinstance(params, dict) else json.loads(params)})
+    return {"format": PRESET_FORMAT, "presets": out}
+
+
+def import_filters(conn: sqlite3.Connection, doc: dict, replace_existing: bool = False) -> tuple[int, list[str]]:
+    """Add the presets from an exported document; (added, skipped names - already there)."""
+    if not isinstance(doc, dict) or doc.get("format") != PRESET_FORMAT:
+        raise ValueError("That isn't a Lunelis presets file.")
+    have = {n.lower() for n, _p, _b in filters(conn)}
+    added, skipped = 0, []
+    for p in doc.get("presets", []):
+        name = str(p.get("name", "")).strip()
+        adjust = {k: float(v) for k, v in (p.get("adjust") or {}).items() if k in BY_KEY}
+        if not name or not adjust:
+            continue
+        if name.lower() in have and not replace_existing:
+            skipped.append(name)
+            continue
+        try:
+            save_filter(conn, name, adjust)
+        except ValueError:                       # a built-in's name
+            skipped.append(name)
+            continue
+        added += 1
+    return added, skipped

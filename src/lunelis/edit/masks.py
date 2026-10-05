@@ -34,7 +34,7 @@ from PIL import Image, ImageDraw, ImageFilter
 KINDS = ("linear", "radial", "brush", "subject", "sky")
 # What a mask can adjust (the global-only ones - hue, fade, vignette - aren't here).
 LOCAL_KEYS = ("exposure", "contrast", "highlights", "shadows", "whites", "blacks",
-              "temp", "tint", "vibrance", "saturation", "sharpen", "denoise")
+              "temp", "tint", "vibrance", "saturation", "hue", "fade", "sharpen", "denoise")
 
 
 @dataclass(frozen=True)
