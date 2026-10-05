@@ -849,7 +849,12 @@ class DetailView(QWidget):
         self.next_b.setEnabled(pos < n - 1)
         self._show_image()
         if self.editing:
-            self.edit.start(self.info)
+            # A video or animated GIF can't be edited: its Info shows meanwhile, and
+            # editing picks up again on the next photo.
+            can_edit = not self.info.is_video and self._movie is None
+            self.side.setCurrentWidget(self.develop if can_edit else self.panel)
+            if can_edit:
+                self.edit.start(self.info)
         self.edit_b.setEnabled(not self.info.is_video and self._movie is None)
         # Decode the neighbours ahead of time - and drop what's still queued
         # for photos already passed.

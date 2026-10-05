@@ -228,3 +228,21 @@ def test_the_self_test_checks_video_playback(tmp_path, app):
     text = report.read_text(encoding="utf-8")
     line = next(l for l in text.splitlines() if "Video playback" in l)
     assert "formats" in line, line
+
+
+def test_stepping_onto_a_video_while_editing_shows_its_info(app, lib):
+    from lunelis.ui.detail_view import DetailView
+    conn, idx = lib
+    view = DetailView(conn)
+    try:
+        view.open(idx, 0)                                  # a photo
+        view.set_editing(True)
+        assert view.side.currentWidget() is view.develop
+        view.go(1)                                         # the clip
+        assert view.side.currentWidget() is view.panel and view.editing
+        view.go(0)
+        assert view.side.currentWidget() is view.develop  # editing again on the photo
+    finally:
+        view.set_editing(False)
+        view.shut()
+        view.deleteLater()
