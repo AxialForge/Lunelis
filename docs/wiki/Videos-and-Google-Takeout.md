@@ -11,8 +11,40 @@ MP4, MOV and AVCHD videos are cataloged like photos:
   sort among the photos from the same shoot.
 - **Size and GPS** where the camera or phone records them.
 
-Videos can be rated and labelled like photos. Playback and editing aren't
-part of Lunelis yet.
+Videos can be rated and labelled like photos.
+
+### Playing a video
+
+Open a video like a photo (double-click it). It plays in the photo view,
+with a bar underneath:
+
+| Control | Key | What it does |
+|---|---|---|
+| ▶ / ❚❚ | K | Play or pause |
+| Slider | J / L | Move through the clip; J and L jump 5 seconds back or on |
+| Sound on / Muted | | Turn the sound off and on |
+
+Left / Right still go to the previous or next photo. A video stops when you
+leave it, and pauses when you go back to the library.
+
+### Trimming
+
+1. Move to where the copy should start and click **Start here** (or press **I**).
+2. Move to where it should end and click **End here** (or press **O**).
+   Mark only one of them and the copy runs from the start or to the end.
+3. Click **Save trimmed copy**.
+
+The copy is a **new file** in the Create folder (see [Create](Create)),
+named like `C0042 trim 0m12s-0m31s.mp4`; the original is never changed and a
+second copy gets " (2)". The picture and sound are copied, not re-encoded, so
+it's quick and nothing is lost - which means the copy starts on the
+**keyframe** just before your start mark (usually within a second).
+
+### Animated GIFs
+
+GIFs are in the library too. An animated one plays when you open it, and
+plays in its tile when you hold the pointer over it in the grid. A still GIF
+is shown like any photo.
 
 ## Google Takeout exports
 

@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-04
+
+### Added (video and GIF playback)
+
+- **Videos play in the photo view:** play / pause (K), a position slider,
+  5-second jumps (J / L) and mute.
+- **Trim to a new file:** mark a start (I) and an end (O) and save a trimmed
+  copy to the Create folder. Streams are copied, so it's quick and lossless;
+  the original is never changed.
+- **Animated GIFs:** GIFs are now catalogued. Animated ones play in the photo
+  view and in their grid tile when you hover over them.
+
+### Changed
+
+- The Windows build now includes Qt Multimedia for playback, and its
+  self-test checks that playback works.
+
 ## [0.22.0] - 2026-10-04
 
 ### Added (Create tab, round two)

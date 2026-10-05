@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.22.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.23.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -125,7 +125,7 @@ stabilization), slideshow video (music, transitions), before and after
 (slider or side by side), print layout (4x6, 5x7, 8x10 sheets), and free collage
 layout (draw, move and resize your own cells - the engine already lays them out).
 
-### 0.23 - video and GIF playback · 0.24 - S-Log previews
+### 0.23 - video and GIF playback ✅ 0.23.0 · 0.24 - S-Log previews
 
 Videos and animated GIFs play in the library and the photo view, with
 trim. Then Sony S-Log3 footage shown through a LUT (to Rec.709) so it looks

@@ -78,8 +78,9 @@ Double-click a photo, or select it and press Enter, to open it large:
   stabilization, DRO/HDR, 35 mm focal length, time zone, serial number,
   firmware, artist and copyright. **All metadata** unfolds every tag in
   the file.
-  Below that are **Show in folder** and **Open with default app** (use the
-  latter to play a video).
+  Below that are **Show in folder** and **Open with default app**.
+- **Videos and animated GIFs play** in the photo view - see
+  [Videos](Videos-and-Google-Takeout) for the player keys and trimming.
 - **Previous / next:** Left/Right, the filmstrip, or tilt the mouse wheel
   left/right (on mice that have a tilting wheel).
 - **Keys:** Home/End,
