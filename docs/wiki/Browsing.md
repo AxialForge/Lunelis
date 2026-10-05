@@ -88,6 +88,19 @@ Double-click a photo, or select it and press Enter, to open it large:
 
 Stepping follows the library exactly: the same order and the same filters.
 
+## Map and On this day
+
+- **Map** (sidebar > Photos) places every photo with a location. Crowded
+  places become numbered circles; click one to see those photos in the
+  library. Drag to move, mouse wheel or + / - to zoom, **Fit** shows
+  everything. Without the internet the dots sit on a plain grid of latitude
+  and longitude; **Show map tiles (online)** brings in OpenStreetMap's map
+  pictures (only tile numbers are asked for - nothing about your photos is
+  sent - and they're kept in the data folder after the first time).
+- **On this day** shows what you shot on today's date in other years, one row
+  per year with a strip of photos and **Show all**. Step a day with ‹ / ›,
+  pick any date, or tick **Within 3 days** for the week around it.
+
 ## Sorting
 
 | Sort | Order |

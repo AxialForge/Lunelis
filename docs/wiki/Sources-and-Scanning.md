@@ -28,6 +28,19 @@ If a source can't be reached (NAS asleep, drive unplugged), Lunelis says so
 and **does not** treat it as empty - nothing is marked missing because a share
 was offline.
 
+### While a source is offline
+
+Lunelis checks every source about once a minute. While one isn't answering:
+
+- Its photos **stay in the library** - the thumbnails are kept on this PC -
+  with an **OFFLINE** mark in the top-left corner of each tile.
+- Opening one shows its thumbnail and says the folder isn't answering; the
+  photo is safe where it is.
+- The status bar says when a source goes offline and when it's back.
+- If a drive or NAS stops answering in the middle of an export, merge, trim
+  or Create tool, the message says so in words (and that nothing was changed)
+  instead of a Windows error number.
+
 ## Rescanning
 
 `F5` (**Library > Rescan all folders**) checks every source for new, changed

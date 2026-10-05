@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-04
+
+### Added (resilience and views)
+
+- **Offline sources stay browsable:** while a NAS or drive isn't answering,
+  its photos stay in the library from their thumbnails, marked OFFLINE, and
+  the photo view says why. Sources are checked about once a minute.
+- **A vanished drive is explained:** exports, merges, trims and Create tools
+  say in words when a drive or NAS stopped answering, and that nothing changed.
+- **Backed up or not, per photo:** a Backup line in the Info panel, a
+  Backup filter (Not backed up), and a count on the Library status page.
+- **Regular file checks:** a little of the library is re-read each week in
+  idle time, oldest-checked first, to catch silent damage while a backup
+  still has a good copy.
+- **Map:** photos by GPS, grouped where they crowd; online map tiles only when
+  you turn them on.
+- **On this day:** what you shot on this date in other years.
+
 ## [0.25.0] - 2026-10-04
 
 ### Added (Lunelis noticed)

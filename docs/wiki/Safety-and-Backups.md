@@ -68,6 +68,25 @@ Catalog backups protect your ratings and events, not your photos. To back up
 the photos too, onto a USB drive, stick or network folder, see
 [Backups](Backups.md).
 
+### Is this photo backed up?
+
+The photo view's Info panel has a **Backup** line: *Backed up · 2 copies
+(NAS backup, USB) · checked Oct 3, 2026*, or *Not backed up*. It also says
+when the photo changed since its last backup, or when a backup check found a
+copy damaged. In the library, **Filters: Backup > Not backed up** shows every
+photo without a good copy, and the Library status page counts them.
+
+## Regular file checks
+
+Files can go bad without anyone touching them - a failing disk sector, a bit
+flipped on a NAS. Every week (Settings > Duplicates and background jobs >
+**Regular file checks**) Lunelis re-reads a little of the library in idle
+time - 20 GB by default, the files checked longest ago first - and compares
+each with the fingerprint it took the first time. A file whose bytes changed
+while its date didn't is listed under **Damaged files**, while a backup still
+has a good copy. Choose every week, every month or off, and how much is read
+each time; the setting shows how much of the library has been checked so far.
+
 ## What to back up yourself
 
 Your photos are your existing backup system's job. For Lunelis, back up

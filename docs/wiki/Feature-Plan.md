@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.25.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.26.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -138,7 +138,7 @@ focus stacks, timelapses, star trails - checks they really overlap, and
 offers to build them ("14 frames look like a panorama. Build it?"). Never
 automatic; dismissals are remembered.
 
-### 0.26 - resilience and views
+### 0.26 - resilience and views ✅ 0.26.0
 
 | Feature | What it does |
 |---|---|
