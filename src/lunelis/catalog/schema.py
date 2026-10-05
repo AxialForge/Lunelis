@@ -793,36 +793,45 @@ MIGRATIONS.append((
     """,
 ))
 
+def _faces_v38(conn: sqlite3.Connection) -> None:
+    """Faces: suggestions, unnamed groups, ignored / stranger faces, hand-drawn
+    boxes, scans and "not this person". Adds only what's missing, so running
+    it again (a test, a half-restored catalog) is harmless."""
+    def add(table: str, column: str, decl: str) -> None:
+        if column not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+    add("faces", "suggested_person_id", "INTEGER REFERENCES people(id) ON DELETE SET NULL")
+    add("faces", "suggestion", "REAL")                     # how alike the suggested person is (cosine)
+    add("faces", "cluster", "INTEGER")                     # an unnamed group of alike faces
+    add("faces", "ignored", "INTEGER NOT NULL DEFAULT 0")  # 1 = not a face, 2 = a stranger
+    add("faces", "source", "TEXT NOT NULL DEFAULT 'auto'") # auto | user (drawn by hand)
+    add("faces", "model", "TEXT")
+    add("faces", "created_at", "TEXT")
+    add("people", "cover_face_id", "INTEGER")
+    add("people", "hidden", "INTEGER NOT NULL DEFAULT 0")
+    for stmt in (
+        "CREATE INDEX IF NOT EXISTS faces_by_file ON faces(file_id)",
+        "CREATE INDEX IF NOT EXISTS faces_by_person ON faces(person_id)",
+        "CREATE INDEX IF NOT EXISTS faces_by_suggestion ON faces(suggested_person_id)",
+        "CREATE INDEX IF NOT EXISTS faces_by_cluster ON faces(cluster)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS people_by_name ON people(name COLLATE NOCASE) WHERE name IS NOT NULL",
+        """CREATE TABLE IF NOT EXISTS face_scans (
+            file_id INTEGER PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+            model TEXT NOT NULL,
+            faces INTEGER NOT NULL,
+            scanned_at TEXT NOT NULL DEFAULT (datetime('now')))""",
+        """CREATE TABLE IF NOT EXISTS face_rejections (     -- "not this person": never suggested again
+            face_id INTEGER NOT NULL REFERENCES faces(id) ON DELETE CASCADE,
+            person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+            PRIMARY KEY (face_id, person_id))""",
+    ):
+        conn.execute(stmt)
+
+
 MIGRATIONS.append((
     38,
-    "faces: suggestions, unnamed groups, ignored faces, hand-drawn boxes, scans and \"not this person\"",
-    """
-    ALTER TABLE faces ADD COLUMN suggested_person_id INTEGER REFERENCES people(id) ON DELETE SET NULL;
-    ALTER TABLE faces ADD COLUMN suggestion REAL;          -- how alike the suggested person is (cosine)
-    ALTER TABLE faces ADD COLUMN cluster INTEGER;          -- an unnamed group of alike faces
-    ALTER TABLE faces ADD COLUMN ignored INTEGER NOT NULL DEFAULT 0;   -- "not a face" / a stranger
-    ALTER TABLE faces ADD COLUMN source TEXT NOT NULL DEFAULT 'auto'; -- auto | user (drawn by hand)
-    ALTER TABLE faces ADD COLUMN model TEXT;
-    ALTER TABLE faces ADD COLUMN created_at TEXT;
-    CREATE INDEX IF NOT EXISTS faces_by_file ON faces(file_id);
-    CREATE INDEX IF NOT EXISTS faces_by_person ON faces(person_id);
-    CREATE INDEX IF NOT EXISTS faces_by_suggestion ON faces(suggested_person_id);
-    CREATE INDEX IF NOT EXISTS faces_by_cluster ON faces(cluster);
-    ALTER TABLE people ADD COLUMN cover_face_id INTEGER;
-    ALTER TABLE people ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
-    CREATE UNIQUE INDEX IF NOT EXISTS people_by_name ON people(name COLLATE NOCASE) WHERE name IS NOT NULL;
-    CREATE TABLE IF NOT EXISTS face_scans (
-        file_id INTEGER PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
-        model TEXT NOT NULL,
-        faces INTEGER NOT NULL,
-        scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS face_rejections (     -- "not this person": never suggested again
-        face_id INTEGER NOT NULL REFERENCES faces(id) ON DELETE CASCADE,
-        person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
-        PRIMARY KEY (face_id, person_id)
-    );
-    """,
+    "faces: suggestions, unnamed groups, ignored faces and strangers, hand-drawn boxes, scans and \"not this person\"",
+    _faces_v38,
 ))
 
 VACUUM_AFTER = {8}
