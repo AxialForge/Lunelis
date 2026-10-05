@@ -34,7 +34,7 @@ python -m pytest        # confirms the catalog schema is sound
 python -m lunelis       # opens the app (or just `lunelis` once installed)
 ```
 
-## Status: v0.30.0 - sensor dust map
+## Status: v0.31.0 - family gallery
 
 Catalog, scanning, EXIF, thumbnails, the library grid, ratings/labels with XMP
 sync, the foundations (data folder, settings, catalog backups, central sidecar

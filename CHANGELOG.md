@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-04
+
+### Added (family gallery)
+
+- **Share an album on the home network:** a link and a QR code for phones and
+  TVs at home - a photo grid and a full-screen slideshow.
+- **Private by design:** home addresses only, a long random key per album, an
+  optional PIN (stored only as a salted hash, with a lockout after five wrong
+  tries), a rate limit, resized copies without location, originals only when
+  allowed, and nothing listening when nothing is shared.
+
 ## [0.30.0] - 2026-10-04
 
 ### Added (sensor dust map)

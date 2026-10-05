@@ -30,6 +30,7 @@ Nothing leaves your computer, and Lunelis never modifies your photos.
 | [Ratings, labels and sidecars](Ratings-Labels-and-Sidecars.md) | Stars, colour labels, picks/rejects, XMP sidecars, darktable |
 | [Background jobs](Jobs.md) | Long work you can pause, schedule and resume after a restart |
 | [Duplicates](Duplicates.md) | Identical copies and near-duplicates (resized, re-encoded, exported), set aside to quarantine |
+| [Family gallery](Family-Gallery.md) | Albums for the family's phones and TV, on the home network only |
 | [Sensor dust](Sensor-Dust.md) | Dust on the sensor found across a camera's photos, and healed out as edits |
 | [Quarantine](Quarantine.md) | Everything set aside: why, whether the kept copy is there, restore or empty |
 | [Damaged files](Damaged-Files.md) | Zero-filled, corrupt and cut-short files, and where good copies survive |

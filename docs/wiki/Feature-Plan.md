@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.30.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.31.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -170,7 +170,7 @@ Finds dust spots shared across one camera's photos (strongest at f/8 and
 narrower, in smooth bright areas), shows a map with a confidence per spot,
 and batch-heals them after a preview. Notices sensor cleanings and new dust.
 
-### 0.31 - family gallery (LAN)
+### 0.31 - family gallery (LAN) ✅ 0.31.0
 
 A read-only web gallery of chosen albums on the home network only: QR code
 and link per album, optional PIN, no accounts, resized copies (originals

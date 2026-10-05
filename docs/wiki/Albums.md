@@ -25,6 +25,12 @@ Collections you make yourself. A photo can be in as many albums as you like.
 Removing an album, or a photo from an album, never touches the photo itself.
 The photo view's Info panel lists the albums a photo is in.
 
+## Sharing an album at home
+
+Right-click an album > **Share on the home network...** shows a link and a QR
+code that phones and TVs on your home network can open - see
+[Family gallery](Family-Gallery.md).
+
 ## Events
 
 Your [events](Events.md) (trips, shoots, days out), each with its dates and
