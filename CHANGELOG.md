@@ -6,6 +6,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-05
+
+### Added (installer and first-run setup)
+
+- **An installer:** `Lunelis-vX.Y.Z-setup.exe` next to the zip on every
+  release. It installs for your Windows account only - no administrator
+  rights - into `%LOCALAPPDATA%\Programs\Lunelis`, with a Start menu entry,
+  an optional desktop shortcut, and an entry in Settings > Apps like any
+  other program.
+- **Setup pages:** your photo folders (Pictures, OneDrive's Pictures and
+  Google Takeout exports it finds are ticked; add any folder, drive or
+  network path), where the catalog lives (or an existing library to carry
+  on with), the tray and Start with Windows, and the optional AI models.
+  Lunelis applies the answers at its first start: it reads the folders and
+  downloads the chosen models in the background.
+- **Welcome window** for the zip: the same questions at the first start
+  with an empty library; Help > Welcome... opens it again.
+- **Install once:** Lunelis keeps updating itself from Settings > Updates;
+  the update keeps the uninstaller and the version shown in Settings > Apps
+  current. A newer setup.exe over an existing install only replaces the
+  program files and asks nothing.
+- **Uninstall** removes the program and the Start-with-Windows entry, and
+  asks whether your library data should go to the Recycle Bin too (No keeps
+  it for a later install). Photos are never touched.
+- CI builds the installer, installs it on a clean Windows runner, self-tests
+  the installed copy and uninstalls it before attaching it to the release.
+
+### Changed
+
+- The README describes the app as it is now, with the installer.
+
 ## [0.33.1] - 2026-10-05
 
 ### Fixed

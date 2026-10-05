@@ -40,6 +40,7 @@ DEFAULTS: dict[str, Any] = {
     # Tray: keep running in the notification area and watch for memory cards.
     "tray_enabled": True,
     "start_with_windows": False,
+    "welcome_done": False,               # the first-run setup (installer or Welcome window) has been applied
     # Defaults offered when starting a background job (each job keeps its own).
     "job_default_when": "now",           # now | idle | window
     "job_idle_minutes": 5,

@@ -66,6 +66,12 @@ def main() -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("Lunelis")
+    # The installer's answers (setup.json): a chosen data folder is settled
+    # before anything opens the catalog; the rest is applied once the window is up.
+    from lunelis import firstrun
+    setup = firstrun.read()
+    if setup is not None:
+        firstrun.early(setup)
     _finish_data_move()
     paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
     from lunelis import log
@@ -86,6 +92,7 @@ def main() -> int:
     if "--updated" in sys.argv:
         from lunelis import updater
         updater.cleanup()
+        updater.record_installed_version(paths.version())
         log.LOG.info("updated to %s", paths.version())
         QTimer.singleShot(1500, lambda: window.status.setText(f"Updated to Lunelis {paths.version()}"))
     if "--update-failed" in sys.argv:
@@ -96,6 +103,10 @@ def main() -> int:
     # Started at sign-in (--tray): stay in the tray - if the tray is on.
     if "--tray" not in sys.argv or window.tray is None:
         window.show()
+        if setup is not None:
+            QTimer.singleShot(400, lambda: window.apply_setup(setup))
+        else:
+            QTimer.singleShot(600, window.maybe_welcome)
     return app.exec()
 
 

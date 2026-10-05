@@ -190,7 +190,7 @@ def check_install_folder(target: Path, staged: Path) -> None:
     if paths._inside(paths.DATA_DIR, target):
         raise UpdateError(f"Lunelis's data folder is inside its program folder ({target}). Move the data folder "
                           "(Settings > Advanced > Data folder) before updating, so the update can't touch it.")
-    ours = {p.name.lower() for p in Path(staged).iterdir()}
+    ours = {p.name.lower() for p in Path(staged).iterdir()} | {UNINSTALL_DIR}
     extra = sorted(p.name for p in Path(target).iterdir()
                    if p.name.lower() not in ours and not p.name.lower().endswith((".log", ".tmp")))
     if extra:
@@ -199,12 +199,42 @@ def check_install_folder(target: Path, staged: Path) -> None:
                           "so put Lunelis in a folder of its own first (unzip it into an empty folder).")
 
 
+# The installer (packaging/installer/lunelis.iss) keeps its uninstaller in
+# <program>\uninstall and registers Lunelis under this key. An update swaps the
+# whole program folder, so the uninstaller is carried across and the version
+# Windows shows in Settings > Apps is brought up to date.
+UNINSTALL_DIR = "uninstall"
+UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E0C9C1B-2F4A-4C7E-9D52-1A7B3E5F8C21}_is1"
+
+
+def carry_uninstaller(target: Path, staged: Path) -> None:
+    """Copy the installer's uninstaller into the new version, so it survives the swap."""
+    src = Path(target) / UNINSTALL_DIR
+    dst = Path(staged) / UNINSTALL_DIR
+    if src.is_dir() and not dst.exists():
+        shutil.copytree(src, dst)
+
+
+def record_installed_version(version: str) -> bool:
+    """After an update: the version in Settings > Apps (only when the installer registered Lunelis)."""
+    if sys.platform != "win32":
+        return False
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY, 0, winreg.KEY_SET_VALUE) as k:
+            winreg.SetValueEx(k, "DisplayVersion", 0, winreg.REG_SZ, version)
+        return True
+    except OSError:
+        return False
+
+
 def apply(staged: Path) -> None:
     """Start the swap script; the caller then quits Lunelis."""
     target = install_dir()
     if target is None:
         raise UpdateError("running from source - update with git pull instead")
     check_install_folder(target, staged)
+    carry_uninstaller(target, staged)
     # Move-Item can't move a folder to another drive: put the new version next
     # to the install folder first (same drive), then the swap is two renames.
     if os.path.splitdrive(str(staged))[0].lower() != os.path.splitdrive(str(target))[0].lower():

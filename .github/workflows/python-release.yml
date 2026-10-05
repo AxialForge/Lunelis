@@ -1,7 +1,8 @@
 name: Test & Release (Python)
 
 # Tests on every push; on a version tag (vX.Y.Z) also a PyInstaller build
-# (Lunelis.spec, one-folder), self-tested, zipped and attached to the release.
+# (Lunelis.spec, one-folder), self-tested, then zipped and made into a setup.exe
+# (installed, self-tested and uninstalled on the runner), both attached to the release.
 
 on:
   push:
@@ -75,6 +76,49 @@ jobs:
           $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
           "$hash  $zip" | Set-Content -NoNewline -Encoding ascii "$zip.sha256"
 
+      - name: Installer (Inno Setup)
+        # packaging/installer/lunelis.iss: a per-user setup.exe from the same
+        # dist\Lunelis folder. Inno Setup ships on the runner image; installed
+        # from Chocolatey if a future image drops it.
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          & $iscc /Q "/DAppVersion=$v" packaging\installer\lunelis.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $exe = "Lunelis-${{ github.ref_name }}-setup.exe"
+          Move-Item "dist\$exe" $exe
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  $exe" | Set-Content -NoNewline -Encoding ascii "$exe.sha256"
+
+      - name: Test the installer (install, self-test, uninstall)
+        # A fresh runner profile is a first install: the setup pages' default
+        # answers must land in %APPDATA%\Lunelis\setup.json as valid JSON.
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "Lunelis install"
+          $p = Start-Process ".\Lunelis-${{ github.ref_name }}-setup.exe" -Wait -PassThru -ArgumentList `
+            '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$dir`"",'/LOG=install.log'
+          if ($p.ExitCode -ne 0) { Get-Content install.log; exit 1 }
+          foreach ($f in 'Lunelis.exe', 'uninstall\unins000.exe') {
+            if (-not (Test-Path (Join-Path $dir $f))) { Write-Error "missing $f"; exit 1 }
+          }
+          $setup = Get-Content "$env:APPDATA\Lunelis\setup.json" -Raw | ConvertFrom-Json
+          if ($setup.version -ne 1) { Write-Error "setup.json: bad version"; exit 1 }
+          $setup | ConvertTo-Json
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E0C9C1B-2F4A-4C7E-9D52-1A7B3E5F8C21}_is1'
+          (Get-ItemProperty $key).DisplayVersion
+          $t = Start-Process (Join-Path $dir 'Lunelis.exe') -ArgumentList '--self-test','installed-selftest.txt' -Wait -PassThru
+          Get-Content installed-selftest.txt
+          if ($t.ExitCode -ne 0) { exit 1 }
+          $u = Start-Process (Join-Path $dir 'uninstall\unins000.exe') -Wait -PassThru -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES'
+          # The uninstaller hands over to a copy of itself in TEMP: wait for the folder to go.
+          for ($i = 0; $i -lt 60 -and (Test-Path (Join-Path $dir 'Lunelis.exe')); $i++) { Start-Sleep -Seconds 1 }
+          if ($u.ExitCode -ne 0 -or (Test-Path (Join-Path $dir 'Lunelis.exe')) -or (Test-Path $key)) {
+            Write-Error "uninstall left Lunelis behind"; exit 1
+          }
+
       - name: Release notes from CHANGELOG.md
         shell: pwsh
         run: python packaging/release_notes.py "${{ github.ref_name }}" release-notes.md
@@ -83,10 +127,14 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Lunelis-windows
-          path: Lunelis-*-windows.zip*
+          path: |
+            Lunelis-*-windows.zip*
+            Lunelis-*-setup.exe*
 
       - name: Attach to release
         uses: softprops/action-gh-release@v3
         with:
-          files: Lunelis-*-windows.zip*
+          files: |
+            Lunelis-*-windows.zip*
+            Lunelis-*-setup.exe*
           body_path: release-notes.md

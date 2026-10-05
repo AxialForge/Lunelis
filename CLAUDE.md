@@ -943,8 +943,41 @@ pairing); each lands as a new migration when its step arrives.
   passed locally, incl. a real A7R V ARW, an iPhone HEIC and a GoPro MP4.
 - Release: bump pyproject version + CHANGELOG in one commit, tag vX.Y.Z,
   push the tag; CI (python-release.yml) tests, builds, self-tests, zips
-  `Lunelis-vX.Y.Z-windows.zip` onto the GitHub Release. Unsigned (no paid
+  `Lunelis-vX.Y.Z-windows.zip` and `Lunelis-vX.Y.Z-setup.exe` onto the
+  GitHub Release. Unsigned (no paid
   code signing): SmartScreen "More info > Run anyway" once per version.
+
+## Installer and first-run setup (0.34)
+
+- `packaging/installer/lunelis.iss` (Inno Setup 6, free): a PER-USER install
+  (`PrivilegesRequired=lowest`, no UAC) into `%LOCALAPPDATA%\Programs\Lunelis`,
+  Start menu entry, Settings > Apps entry. CI builds it from `dist\Lunelis`
+  with `/DAppVersion=`, installs it silently on the runner, self-tests the
+  installed exe, uninstalls, and attaches `Lunelis-vX.Y.Z-setup.exe` + `.sha256`.
+  Locally ISCC is at `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`; run it
+  from PowerShell - Git Bash rewrites `/D...` arguments into paths.
+- **The installer asks, the program applies.** The setup pages write
+  `%APPDATA%\Lunelis\setup.json`; `firstrun.read()/early()/apply()` apply it
+  once at the next start and rename it `setup.applied.json`. `early()` runs
+  BEFORE the catalog opens (a chosen data folder: set_data_dir, or
+  request_move when a library already exists, or adopt a copied library).
+  The installer never opens the catalog or writes settings itself, so there's
+  one code path (the Welcome window, `ui/welcome.py`, produces the same dict
+  for zip installs).
+- **Install once.** Updates stay in the app: the updater swaps the whole
+  program folder, so `carry_uninstaller()` copies `<program>\uninstall` (the
+  installer's UninstallFilesDir) into the new version and `--updated` writes
+  the new DisplayVersion under the Uninstall key. The AppId GUID in the .iss
+  and `updater.UNINSTALL_KEY` must match - never change the AppId.
+- A setup.exe over an existing install (install record, a catalog, a
+  location.json or a setup.applied.json) skips the setup pages: nothing is
+  asked twice and no setup.json is written.
+- The program folder must hold only Lunelis: the installer refuses a
+  non-empty folder because `[UninstallDelete]` removes `{app}` whole (updates
+  add files the installer never listed). The uninstaller deletes the Run
+  value and offers to send the data folder to the Recycle Bin (default No).
+- Testing the installer on the dev PC would touch the real install, the real
+  Run key and the real `%APPDATA%\Lunelis`: test in CI or a throwaway account.
 
 ## Updater
 

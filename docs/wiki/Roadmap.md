@@ -82,6 +82,8 @@ In short:
 | 0.26 | Offline-NAS view, protection indicator, map and calendar - done in v0.26.0 |
 | 0.27 / 0.28 | Learn My Look (done in v0.27.0); Autopilot Import (done in v0.28.0) |
 | 0.29 - 0.32 | Editing suite (done in v0.29.0), sensor dust map (done in v0.30.0), family gallery (done in v0.31.0), Create round three (done in v0.32.0) |
+| 0.33 | Hardening after the October audit - done in v0.33.0 |
+| 0.34 | Installer and first-run setup - done in v0.34.0 |
 
 ## Later
 

@@ -626,6 +626,12 @@
    }
   },
   "menu_help": {
+   "Welcome…": {
+    "does": "Opens the Welcome window again: the first-run questions about your photo folders, the tray, starting with Windows and the optional AI models.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Folders you tick are added and read; folders already in the library are left as they are. Everything it sets can also be changed in Settings."
+   },
    "About Lunelis": {
     "does": "Shows the Lunelis version number and where its data folder is.",
     "inputs": "-",

@@ -766,6 +766,7 @@ class MainWindow(QMainWindow):
         a = QAction("&Keyboard shortcuts", self, shortcut="?", triggered=self.show_shortcuts)
         help_menu.addAction(a)
         self.addAction(a)
+        help_menu.addAction(QAction("&Welcome…", self, triggered=self.show_welcome))
         help_menu.addAction(QAction("&About Lunelis", self, triggered=self.about))
         help_menu.addAction(QAction("&Open the data folder", self,
                                     triggered=lambda: os.startfile(str(paths.DATA_DIR))))
@@ -1350,6 +1351,80 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app is not None:
             app.setQuitOnLastWindowClosed(self.tray is None)
+
+    # --- first-run setup (installer or Welcome window) -------------------------------
+
+    def maybe_welcome(self) -> None:
+        """At the first start with an empty library and no installer setup: the Welcome window."""
+        if Settings(self.conn).get("welcome_done"):
+            return
+        if self.conn.execute("SELECT 1 FROM roots LIMIT 1").fetchone():
+            Settings(self.conn).set("welcome_done", True)     # a library from before the Welcome window
+            return
+        self.show_welcome()
+
+    def show_welcome(self) -> None:
+        from PySide6.QtWidgets import QDialog
+        from lunelis.ui.tray import autostart_enabled
+        from lunelis.ui.welcome import WelcomeDialog
+        s = Settings(self.conn)
+        roots = [r[0] for r in self.conn.execute("SELECT path FROM roots")]
+        dlg = WelcomeDialog(self, tray_on=bool(s.get("tray_enabled")), autostart_on=autostart_enabled(),
+                            existing=roots)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.apply_setup(dlg.result_setup())
+        else:
+            s.set("welcome_done", True)               # skipped: Help > Welcome… brings it back
+
+    def apply_setup(self, setup: dict) -> None:
+        """Apply first-run answers: settings, start-up entry, folders to scan, models to fetch."""
+        from lunelis import firstrun
+        plan = firstrun.apply(self.conn, setup)
+        s = Settings(self.conn)
+        self.set_tray_enabled(bool(s.get("tray_enabled")))
+        self._autostart_changed(bool(s.get("start_with_windows")))
+        self.settings_page.refresh()
+        if plan.root_ids:
+            self.reload()
+            if self._thread is None:
+                self.start(plan.root_ids)
+            else:
+                self._pending_setup_roots = plan.root_ids
+        if plan.models:
+            self._download_models(plan.models)
+        if plan.problems:
+            QMessageBox.warning(self, "Setup", "Most of the setup is done, but not all of it:\n\n"
+                                + "\n".join(plan.problems[:10]))
+
+    def _download_models(self, kinds: list[str]) -> None:
+        """Fetch the chosen optional models one after another, in the background."""
+        from PySide6.QtCore import QRunnable, QThreadPool
+        from lunelis import firstrun
+        names = {"scene": "scene model", "subject": "subject-mask model", "sky": "sky-mask model"}
+        sig = _ModelSignals(self)
+        self._model_sig = sig
+
+        class Job(QRunnable):
+            def run(self_job):
+                for kind in kinds:
+                    try:
+                        firstrun.download_model(kind, lambda d, t, k=kind: sig.progress.emit(k, d, t))
+                        sig.done.emit(kind, True, "")
+                    except Exception as e:              # no network, checksum mismatch: say so, carry on
+                        sig.done.emit(kind, False, str(e))
+                sig.finished.emit()
+        queued = Qt.ConnectionType.QueuedConnection
+        sig.progress.connect(lambda k, d, t: self.status.setText(
+            f"Downloading the {names[k]}… {d * 100 // max(1, t)} %"), queued)
+
+        def one_done(kind: str, ok: bool, message: str) -> None:
+            if ok and kind == "scene":
+                Settings(self.conn).set("scene_tags_auto", True)
+            self.status.setText(f"The {names[kind]} is ready" if ok else
+                                f"The {names[kind]} didn't download: {message} (Settings can try again)")
+        sig.done.connect(one_done, queued)
+        sig.finished.connect(lambda: setattr(self, "_model_sig", None), queued)
+        QThreadPool.globalInstance().start(Job())
 
     def _autostart_changed(self, on: bool) -> None:
         if self._auto_action is not None:
@@ -2944,6 +3019,10 @@ class MainWindow(QMainWindow):
         self._worker.deleteLater()
         self._thread = self._worker = None
         self._set_busy(False)
+        pending = getattr(self, "_pending_setup_roots", None)
+        if pending:                                    # folders from the first-run setup, added mid-scan
+            self._pending_setup_roots = None
+            QTimer.singleShot(0, lambda: self.start(pending))
         # Newly imported photos get the Settings > Import filter.
         from lunelis.edit import store as edit_store
         self.render_edits(edit_store.apply_import_filter(self.conn))
@@ -3088,3 +3167,9 @@ class MainWindow(QMainWindow):
         self._closed = True
         self.conn.close()
         super().closeEvent(event)
+
+
+class _ModelSignals(QObject):
+    progress = Signal(str, int, int)      # kind, bytes done, total
+    done = Signal(str, bool, str)         # kind, ok, message
+    finished = Signal()

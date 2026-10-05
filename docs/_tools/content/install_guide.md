@@ -1,4 +1,4 @@
-# Lunelis 0.33 - Install Guide
+# Lunelis 0.34 - Install Guide
 
 How to install Lunelis on a Windows PC, set it up the first time, keep it updated, move it and remove it.
 
@@ -19,23 +19,44 @@ Your photos can be anywhere: a folder on this PC, an external drive, a USB stick
 
 ## Install
 
-Lunelis comes as a zip file. Unpacking it is the whole install.
+There are two ways to install Lunelis. Use the installer unless you have a reason not to.
+
+### With the installer (recommended)
 
 1. Open the releases page at `https://github.com/AxialForge/Lunelis/releases`.
-2. Under the newest release, download `Lunelis-v0.33.0-windows.zip` (about 184 MB).
-3. **Optional, recommended:** check the download. Download the matching `.sha256` file too, then in PowerShell run `Get-FileHash Lunelis-v0.33.0-windows.zip`. The hash it prints must match the one in the `.sha256` file.
-4. Right-click the zip, choose **Extract All...**, and extract it to a folder of your own. A good place is `%LOCALAPPDATA%\Programs`, which gives `%LOCALAPPDATA%\Programs\Lunelis\Lunelis.exe`.
-5. Double-click `Lunelis.exe`.
-6. **Optional:** right-click `Lunelis.exe` and choose **Pin to Start**, or **Show more options > Send to > Desktop (create shortcut)**.
+2. Under the newest release, download `Lunelis-vX.Y.Z-setup.exe`.
+3. **Optional, recommended:** check the download. Download the matching `.sha256` file too, then in PowerShell run `Get-FileHash Lunelis-vX.Y.Z-setup.exe`. The hash it prints must match the one in the `.sha256` file.
+4. Run the setup. It installs for your Windows account only, so there is no administrator prompt.
+5. Work through the pages:
+
+| Page | What to choose |
+|---|---|
+| License | The MIT license. |
+| Destination | `%LOCALAPPDATA%\Programs\Lunelis` is the usual place for programs installed per user. The folder must be empty or already hold Lunelis: updates replace it and uninstalling removes it. |
+| Your photos | Folders Lunelis found on this PC are ticked: Pictures, OneDrive's Pictures, and Google Takeout exports in Downloads. **Add a folder...** adds any folder, drive or network folder (such as `\\nas\photos`). |
+| Where Lunelis keeps its catalog | `%LOCALAPPDATA%\Lunelis`, or a folder on another drive in this PC. It cannot be a network folder. Choose a folder that holds a catalog from another PC to carry on with that library. |
+| Start-up and the tray | Keep Lunelis in the tray (it offers to import when a card, phone or stick goes in), and start it with Windows. |
+| Optional downloads | The scene model (155 MB), and the subject (44 MB) and sky (176 MB) mask models. |
+| Ready to install | A summary of your answers, and the optional desktop shortcut. |
+
+6. Leave **Start Lunelis now** ticked and click **Finish**.
+
+Lunelis applies your answers at its first start. It reads your folders and downloads the chosen models in the background, so you can browse straight away. Each answer can be changed later in Settings.
+
+### With the zip
+
+1. Download `Lunelis-vX.Y.Z-windows.zip` from the same page, and check it the same way.
+2. Right-click the zip, choose **Extract All...**, and extract it to a folder of its own, such as `%LOCALAPPDATA%\Programs`.
+3. Double-click `Lunelis.exe`. A **Welcome** window asks the same questions as the installer, except the data folder (Settings > Advanced > Data folder moves it).
 
 **Where not to unpack it:**
 
 - **Not in `C:\Program Files`.** The built-in updater could not replace the files there without administrator rights.
-- **Not in a folder that holds other things.** An update replaces the whole program folder, so keep Lunelis in a folder of its own. Since 0.33, an update refuses to run if the folder also holds the data folder or other programs.
+- **Not in a folder that holds other things.** An update replaces the whole program folder, so keep Lunelis in a folder of its own.
 
 ### The SmartScreen message
 
-The first time, Windows may show *"Windows protected your PC"*. Lunelis is not code-signed, because signing certificates cost money every year, so Windows does not know the publisher. Click **More info**, then **Run anyway**. Windows asks once for each new version.
+The first time, Windows may show *"Windows protected your PC"* for the setup or for `Lunelis.exe`. Lunelis is not code-signed, because signing certificates cost money every year, so Windows does not know the publisher. Click **More info**, then **Run anyway**. Windows asks once for each new version.
 
 ### The firewall message
 
@@ -43,42 +64,23 @@ Windows Defender Firewall may ask whether Lunelis can use the network the first 
 
 ## First run
 
-The window opens on an empty library.
+If the installer or the Welcome window added your folders, the scan has already started. Otherwise:
 
-1. **Add your photos.** Click **Add a folder** (or **Library > Add folder...**, `Ctrl+O`) and pick a folder of photos. Add as many folders as you like, one at a time.
+1. **Add your photos.** Click **Add a folder** (or **Library > Add folder...**, `Ctrl+O`) and pick a folder of photos. Add as many folders as you like, one at a time. **Help > Welcome...** opens the setup questions again.
 2. **Let the scan run.** Lunelis works through the folders in nine steps: scan, sidecars, metadata, Takeout dates, bursts, search index, thumbnails, comparing photos and the damage check. The status bar shows the step and its progress. You can browse while it runs. A large library on a NAS can take hours the first time; later scans only look at what changed.
 3. **Choose where imports go.** Before the first memory-card import, Lunelis asks for a destination folder. You can also set it in **Settings > Import**.
 4. **Set a photo backup.** Go to **Backups** (sidebar > Keep safe) and add a backup to a USB drive or network folder. Catalog backups are already automatic.
 
-### Settings worth a look on the first day
-
-| Setting | Where | What it does |
-|---|---|---|
-| Keep Lunelis in the tray | Settings > General > Tray and start-up | When the window closes, Lunelis stays in the tray and offers imports when a card, phone or stick is plugged in. |
-| Start Lunelis with Windows | Settings > General > Tray and start-up | Starts Lunelis in the tray when you sign in. Off unless you tick it. |
-| Theme | Settings > Appearance | Graphite (light), Midnight (dark), High contrast, or Follow Windows. |
-| When background jobs run | Settings > Duplicates & jobs | Any time, only while the PC is idle, or only at night; plus a read-speed limit for NAS-friendly work. |
-| Sidecar mode | Settings > Ratings & sidecars | Keep XMP sidecars in one central folder (the default) or next to the photos for darktable and Lightroom. |
-| Autopilot | Settings > Library > Shoots, videos and the autopilot | Which steps run after an import. Everything stays reviewable and undoable. |
-
-### Optional downloads
-
-Lunelis works fully without these. Each one is downloaded only when you ask for it, checked against a fixed SHA-256 fingerprint, and stored in the data folder's `models` folder.
-
-| Download | Size | Turn on in | Used for |
-|---|---|---|---|
-| Subject mask model | 44 MB | Settings > Edit > AI models, or the first Subject mask | One-click subject masks. |
-| Sky mask model | 176 MB | Settings > Edit > AI models, or the first Sky mask | One-click sky masks. |
-| Scene model (CLIP) | about 155 MB | Settings > Library > Scene tags > Download and turn on | Scene tag suggestions, Find similar, and the picture part of Ask your library. |
-| Map pictures | small, as you browse | The Map page | OpenStreetMap tiles. Only tile numbers are sent; nothing is fetched until you turn the map on. |
+If part of the setup could not be done (a folder that was not reachable, a model that did not download), Lunelis says so once and carries on with the rest.
 
 ## Where Lunelis keeps things
 
 | What | Where | Notes |
 |---|---|---|
-| The program | The folder you unpacked, such as `%LOCALAPPDATA%\Programs\Lunelis` | Replaced by each update. Holds nothing of yours. |
+| The program | `%LOCALAPPDATA%\Programs\Lunelis`, or the folder you chose or unpacked | Replaced by each update. Holds nothing of yours. The installer's uninstaller is in its `uninstall` folder. |
 | The data folder | `%LOCALAPPDATA%\Lunelis` | The catalog, thumbnails, catalog backups, central sidecars, logs, models. |
-| Moved data folder | Recorded in `%APPDATA%\Lunelis\location.json` | Set with Settings > Advanced > Data folder > Move.... |
+| Moved data folder | Recorded in `%APPDATA%\Lunelis\location.json` | Set by the installer, or with Settings > Advanced > Data folder > Move.... |
+| Setup answers | `%APPDATA%\Lunelis\setup.applied.json` | What the installer asked, kept as a record once applied. |
 | Set-aside files | `_Lunelis Quarantine` at the top of each photo source | Restored or emptied from the Quarantine page. |
 | Your creations | `Pictures\Lunelis creations` by default | Exports and Create tools write here; nothing is overwritten. |
 | Start-with-Windows entry | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | Only when you tick the setting. |
@@ -93,22 +95,28 @@ You install Lunelis once. After that it updates itself.
 2. Click **Download and install**. The download is checked against its SHA-256 before anything is unpacked.
 3. Lunelis restarts in the new version. The previous version is kept until the new one has started.
 
+An installed Lunelis keeps its uninstaller through updates, and Settings > Apps shows the new version. Running a newer setup over an existing install also works: it only replaces the program files and asks nothing.
+
 Your catalog, settings and thumbnails are in the data folder, so they carry over. If a new version changes the catalog's layout, a catalog backup is made first. An older version cannot open a catalog that a newer one has upgraded; to go back, restore that backup from **Settings > Backups**.
 
 ## Moving to a new PC
 
 1. On the old PC, make sure a catalog backup is recent (**Settings > Backups > Back up now**), then close Lunelis and also quit it from the tray.
-2. Copy the whole data folder (`%LOCALAPPDATA%\Lunelis`) to the new PC, to the same place.
-3. Install Lunelis on the new PC as above and start it.
+2. Copy the whole data folder (`%LOCALAPPDATA%\Lunelis`, or the folder you chose) to a drive in the new PC.
+3. Run the setup on the new PC. On the **Where Lunelis keeps its catalog** page, choose the copied folder: Lunelis carries on with that library.
 4. Keep the same drive letters and network paths for your photos as on the old PC. Lunelis can't yet point an existing source at a new path: a source added again at a new path is scanned as new photos, without the old ratings and edits. Ratings in XMP sidecars next to the photos are read back.
 
 ## Uninstalling
 
-1. In Lunelis, untick **Start Lunelis with Windows** (Settings > General), then quit from the tray icon.
-2. Delete the program folder, such as `%LOCALAPPDATA%\Programs\Lunelis`.
-3. **Only if you want to remove your catalog too:** delete `%LOCALAPPDATA%\Lunelis` and `%APPDATA%\Lunelis`. This removes ratings that live only in the catalog. Ratings, labels and tags in XMP sidecars next to your photos stay.
+**Installed with the setup:** open **Settings > Apps > Installed apps**, find **Lunelis**, and choose **Uninstall**.
 
-Your photos are never touched by uninstalling. Check each source for a `_Lunelis Quarantine` folder and empty or restore it from the Quarantine page before you uninstall.
+1. Quit Lunelis from its tray icon first.
+2. The uninstaller removes the program folder and the Start-with-Windows entry.
+3. It then asks whether to remove your library data too: the catalog (ratings, edits, albums, tags), thumbnails and catalog backups. **Yes** sends the data folder to the Recycle Bin; **No** keeps it, so a later install picks up where you left off.
+
+**Unpacked from the zip:** untick **Start Lunelis with Windows** (Settings > General), quit from the tray icon, and delete the program folder. Delete `%LOCALAPPDATA%\Lunelis` and `%APPDATA%\Lunelis` only if you want your library data gone too.
+
+Your photos are never touched by uninstalling. Ratings, labels and tags in XMP sidecars next to your photos stay. Check each source for a `_Lunelis Quarantine` folder and empty or restore it from the Quarantine page before you uninstall.
 
 ## Troubleshooting the install
 

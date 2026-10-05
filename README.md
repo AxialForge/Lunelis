@@ -1,105 +1,71 @@
 # Lunelis
 
-Local, Windows-first photo library app. RAW (Sony/Canon/Nikon/Fuji + others) and
-standard formats, full EXIF, ratings, albums, face/content recognition, non-destructive
-editing. Fully local for now - no server dependency; recognition is architected to be
-swappable onto a network service (e.g. Immich's ML microservice) later if a GPU server
-gets built, without a data-model change.
+A photo library for Windows that runs entirely on your own PC. Lunelis
+catalogues the photos and videos you already have - on local drives, USB drives
+and network storage - without moving, renaming or changing them, and gives you
+what you need to look after a large collection for the long term.
 
-Full feature set, architecture, and build order:
-https://claude.ai/code/artifact/ac290a70-ec83-42a3-abf5-c4d47ce373d2
+No accounts, no cloud, no subscriptions. Originals are never touched, and
+nothing is deleted behind your back.
 
-UI mockups:
-https://claude.ai/artifact/Y46mTotG3zBoRZzodt56Mt
+## Install
 
-## Stack
+1. Open [Releases](https://github.com/AxialForge/Lunelis/releases) and download
+   `Lunelis-vX.Y.Z-setup.exe` from the newest release.
+2. Run it. It installs for your Windows account only (no administrator rights)
+   into `%LOCALAPPDATA%\Programs\Lunelis`, adds Lunelis to the Start menu and to
+   Settings > Apps, and asks a few setup questions: your photo folders, where
+   the catalog lives, the tray and start-with-Windows, and optional AI models.
+3. Lunelis keeps itself up to date from **Settings > Updates**. You never run the
+   installer again.
 
-Python 3.13 + PySide6 (Qt), SQLite catalog, XMP sidecars as the source of truth for
-edits/ratings/tags/faces. `rawpy` (LibRaw) for RAW decode, `piexif` for standard-format
-EXIF. Chosen over Electron because recognition runs in-process (InsightFace/ONNX,
-Phase 2) and Python's ML ecosystem is native here, not bridged.
+Prefer no installer? Download `Lunelis-vX.Y.Z-windows.zip` instead, unzip it into
+a folder of its own and run `Lunelis.exe`; a Welcome window asks the same
+questions. Lunelis isn't code-signed, so Windows SmartScreen asks once per
+version: **More info > Run anyway**.
 
-## Requirements
+Requirements: Windows 10 or 11, 64-bit. The full walkthrough is in
+[Getting started](docs/wiki/Getting-Started.md).
 
-- Windows 10/11, Python 3.13 (`py -3.13`). The pinned PySide6/rawpy builds have
-  no wheels for older interpreters in this pin set.
+## What it does
 
-## Setup
+| Area | |
+|---|---|
+| Browse and find | A fast grid with a timeline, filters, full-text search, smart albums, a map, On this day, and Ask your library ("sunset on a beach, 2024"). |
+| Rate, cull, organise | Stars, labels, flags, full-screen culling with compare, albums, events, nested tags, scene tag suggestions from a model on this PC. Everything is written to standard XMP sidecars. |
+| Edit | Non-destructive: light, colour, tone curve, crop, lens corrections, noise reduction, masks (including AI subject and sky), retouch, virtual copies, My look, colour-managed export with presets. |
+| Create | 13 tools: animations, collages, batch copies, contact sheets, timelapses, slideshow videos, before-and-after, prints, focus stacks, star trails, median stacks, panoramas, HDR. |
+| Videos | Playback with trim to a new file; Sony S-Log3 clips shown with a built-in look or your own LUTs. |
+| Bring photos in | Memory-card, phone and USB-stick import, verified twice, with Autopilot (burst covers, scene tags, event name, draft album) and Review your shoot to undo any step. |
+| Clean up | Exact and near-duplicates with keeper rules, damaged-file checks, migration of a scattered library onto one drive. |
+| Keep safe | Catalog backups, verified photo backups, quarantine instead of deletion, rolling integrity checks, a sensor dust map per camera. |
+| Share at home | A family gallery: an album on phones and TVs on your home network, never the internet. |
+
+How to use each part is in the [wiki](docs/wiki/Home.md).
+
+## Run from source
 
 ```bash
 py -3.13 -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt -e .
-python -m pytest        # confirms the catalog schema is sound
-python -m lunelis       # opens the app (or just `lunelis` once installed)
+python -m pytest
+python -m lunelis
 ```
 
-## Status: v0.33.0 - hardening after the October audit
+Python 3.13 and PySide6 (Qt 6), a SQLite catalog, rawpy (LibRaw), PyAV,
+OpenCV and onnxruntime. Tests never touch real data. Building `Lunelis.exe` and
+the installer, the repository layout and the extension points are in
+[For developers](docs/wiki/For-Developers.md); the engineering notes and the
+gotchas are in [CLAUDE.md](CLAUDE.md).
 
-Catalog, scanning, EXIF, thumbnails, the library grid, ratings/labels with XMP
-sync, the foundations (data folder, settings, catalog backups, central sidecar
-store), the jobs engine with duplicate detection + quarantine, moved-file
-re-linking, the damaged-file check, video metadata/thumbnails, Google Takeout
-dates, memory-card import (storage templates, verified staging, tray) and the
-Settings screen are done and tested against a real ~159k-file library. Phase 2
-has begun: events (from a selection, a named import, or suggested from folder
-names and capture-time gaps) and migration / consolidation (dry-run preview,
-verified copy, catalog repointed, originals to quarantine or kept for review)
-are built, and so are backups (incremental, verified, restore). v0.2.0 is the
-first Windows build: download `Lunelis-v0.2.0-windows.zip` from Releases, unzip,
-run `Lunelis.exe`. The darktable plugin is done (unreleased); next: smarter
-duplicates.
+## Where things live
 
-Lunelis keeps its own data in `%LOCALAPPDATA%\Lunelis` - never in your photo
-folders. Ratings go to a central sidecar store there by default.
-
-Keys in the grid: `0`-`5` stars · `6`-`9` red/yellow/green/blue label ·
-`P` pick · `X` reject · `U` unflag.
-
-Current layout:
-```
-src/lunelis/
-  catalog/schema.py   - SQLite schema + migration runner (Step 1, done)
-  main.py             - app entry point / window shell (Step 0, done)
-  __main__.py         - `python -m lunelis`
-  paths.py            - the data folder (catalog, cache, backups, sidecars)
-  settings.py         - library settings
-  catalog/backup.py   - automatic catalog snapshots + restore
-  jobs/engine.py      - pausable, resumable background jobs
-  dupes/              - duplicate detection, verification, quarantine
-  importers/video.py  - video dates, length and poster frames (PyAV)
-  importers/takeout.py - Google Takeout JSON dates and locations
-  importing/          - card import: storage templates, staging, placing
-  importers/relink.py - moved/renamed files keep their ratings
-  damage/check.py     - damaged-file check + surviving copies
-  importers/formats.py - which extensions are cataloged / RAW
-  importers/scan.py   - folder roots + incremental scan (Step 2, done)
-  importers/metadata.py - EXIF extraction into the catalog (Step 3, done)
-  catalog/ratings.py  - stars / flags / colour labels in the catalog (Step 6)
-  xmp/sidecar.py      - find, read and surgically edit XMP sidecars
-  xmp/sync.py         - sidecar <-> catalog import/export
-  ui/main_window.py   - sidebar, toolbar, filter bar, background workers
-  ui/grid.py          - the virtualized library grid (Step 5, done)
-  ui/library.py       - the ordered photo list the grid shows
-  ui/thumbcache.py    - async thumbnail loading + memory cache
-  ui/theme.py         - colour tokens and the stylesheet
-  raw/previews.py     - finds the embedded JPEG previews inside RAW files
-  raw/thumbnails.py   - 512px thumbnail cache for every file (Step 4, done)
-assets/
-  icons/, logo/       - brand assets
-tests/
-```
-
-## Wiki
-
-How to use Lunelis - sources, browsing, ratings and sidecars, jobs, duplicates,
-damaged files, backups - is in the [wiki](docs/wiki/Home.md).
-
-## Development
-
-Architecture, non-negotiables and the accumulated gotchas are in
-[CLAUDE.md](CLAUDE.md). Read it before changing anything structural.
+- The program: `%LOCALAPPDATA%\Programs\Lunelis` (or wherever you unzipped it).
+- Your library data (catalog, thumbnails, backups, central sidecars):
+  `%LOCALAPPDATA%\Lunelis`, or the folder you chose. Never inside your photo
+  folders and never inside the program folder.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

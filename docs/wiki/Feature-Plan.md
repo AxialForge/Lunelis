@@ -187,6 +187,18 @@ Create tools.
 The October 2026 audit's fixes: security, reachability and ease of use, and
 the guide brought back in line with the app (docs/Audit-2026-10.md).
 
+### 0.34 - installer and first-run setup ✅ 0.34.0
+
+A per-user Windows installer (`Lunelis-vX.Y.Z-setup.exe`, Inno Setup, no
+administrator rights) that installs into `%LOCALAPPDATA%\Programs\Lunelis`
+with a Start menu entry and a Settings > Apps entry, and asks the first-run
+questions: photo folders (found ones ticked), the data folder, tray and
+start-with-Windows, and the optional AI models (fetched in the background
+after the first start). A Welcome window asks the same for zip installs.
+Installed once: updates stay in the app and keep the uninstaller; the
+uninstaller removes the start-up entry and offers to put the library data in
+the Recycle Bin.
+
 ## Someday 💤
 
 | Feature | Notes |

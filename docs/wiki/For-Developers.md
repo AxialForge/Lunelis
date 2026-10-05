@@ -31,6 +31,33 @@ python -m lunelis       # the app
 Tests always run against a throwaway data folder (`tests/conftest.py` sets
 `LUNELIS_DATA_DIR`), so they can never touch a real catalog.
 
+## Building the program and the installer
+
+```bash
+python packaging\make_version_info.py
+pyinstaller --noconfirm Lunelis.spec              # dist\Lunelis\Lunelis.exe
+dist\Lunelis\Lunelis.exe --self-test selftest.txt
+iscc /DAppVersion=X.Y.Z packaging\installer\lunelis.iss   # dist\Lunelis-vX.Y.Z-setup.exe
+```
+
+CI does all of this on a version tag, then installs the setup.exe silently on
+the runner, self-tests the installed copy and uninstalls it, before attaching
+the zip and the setup.exe to the release. Inno Setup 6 is free; nothing is
+code-signed.
+
+How the installer and the program share the work:
+
+- **The installer asks, the program applies.** The setup pages write
+  `%APPDATA%\Lunelis\setup.json`; the next start applies it once
+  (`firstrun.py`) and renames it `setup.applied.json`. The installer never
+  opens the catalog.
+- **Installed once.** Updates come from inside the program (`updater.py`
+  swaps the whole program folder), carrying the uninstaller in
+  `<program>\uninstall` across and updating the version in Settings > Apps.
+  A setup.exe run over an existing install skips the setup pages.
+- **The program folder holds only Lunelis.** The installer refuses a
+  non-empty folder: updates replace that folder and uninstalling removes it.
+
 ## How a photo gets into the grid
 
 ```

@@ -2,24 +2,54 @@
 
 ## Install
 
-### The app (recommended)
+### The installer (recommended)
 
 1. Open the public [Lunelis releases](https://github.com/AxialForge/Lunelis/releases)
-   page and download `Lunelis-v<version>-windows.zip` from the newest release.
-2. Unzip it into a folder of your own, e.g. `%LOCALAPPDATA%\Programs` or your
-   Documents. Avoid `C:\Program Files`: the built-in updater can't replace
-   files there without administrator rights.
-3. Run `Lunelis\Lunelis.exe`.
+   page and download `Lunelis-v<version>-setup.exe` from the newest release.
+2. Run it. It needs no administrator rights: Lunelis installs for your Windows
+   account into `%LOCALAPPDATA%\Programs\Lunelis`, with a Start menu entry and
+   an entry in Settings > Apps (where you can also uninstall it).
+3. Answer the setup pages - each can be changed later in Settings:
+   - **Your photos:** folders Lunelis found on this PC (Pictures, OneDrive's
+     Pictures, Google Takeout exports in Downloads) are ticked; add any other
+     folder, drive or network path (`\\nas\photos`).
+   - **Where Lunelis keeps its catalog:** `%LOCALAPPDATA%\Lunelis` unless you
+     pick another drive in this PC. Pick a folder holding a catalog from another
+     PC to carry on with that library.
+   - **Start-up and the tray:** keep Lunelis in the tray (it offers to import
+     when a card, phone or stick goes in) and start it with Windows.
+   - **Optional downloads:** the scene model and the subject and sky mask
+     models. Lunelis fetches the ones you tick in the background after it
+     starts, each checked against its fingerprint.
+4. Finish with **Start Lunelis now**. It reads your folders in the background
+   and downloads the chosen models; you can browse straight away.
+
+**Updating:** Lunelis updates itself (Settings > Updates) - you never run the
+installer again. Running a newer installer over an existing install only
+replaces the program files; nothing is asked twice and your library stays.
+
+**Uninstalling:** Settings > Apps > Lunelis > Uninstall. It removes the
+program and the Start-with-Windows entry, then asks whether to remove your
+library data too (it goes to the Recycle Bin; *No* keeps it for a later
+install). Your photos are never touched.
+
+### The zip (no installer)
+
+1. Download `Lunelis-v<version>-windows.zip` from the same page.
+2. Unzip it into a folder of its own, e.g. `%LOCALAPPDATA%\Programs`. Avoid
+   `C:\Program Files`: the built-in updater can't replace files there
+   without administrator rights.
+3. Run `Lunelis\Lunelis.exe`. A **Welcome** window asks the same questions
+   as the installer (Help > Welcome... opens it again).
 
 The first time, Windows SmartScreen may say *"Windows protected your PC"*.
 Lunelis isn't code-signed (signing certificates cost money every year), so
 Windows doesn't know the publisher yet. Click **More info > Run anyway**.
 You only need to do this once per version.
 
-**Updating:** from v0.3.1, Lunelis updates itself (Settings > Updates). Before
-that, unzip the new version over the old one. Your library isn't in the
-program folder: it lives in the data folder (below), so every version, and
-the from-source version, uses the same catalog, thumbnails and settings.
+Your library isn't in the program folder: it lives in the data folder (below),
+so every version, and the from-source version, uses the same catalog,
+thumbnails and settings.
 
 ### From source (for development)
 
@@ -36,7 +66,8 @@ python -m lunelis
 
 ## First run
 
-The window opens on an empty library. Choose **Library > Add folder...**
+If the installer or the Welcome window added your folders, the scan has
+already started. Otherwise choose **Library > Add folder...**
 (`Ctrl+O`) and pick a folder of photos - a local drive, a mapped drive or a
 network path like `\\nas\photos` all work.
 
