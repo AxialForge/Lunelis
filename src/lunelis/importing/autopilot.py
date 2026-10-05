@@ -149,8 +149,16 @@ def _scenes(conn, ids, thumbs, data_dir, stop):
     if rec is None:
         return "skipped", "Scene tags are off - turn them on in Settings to have shoots tagged.", {}
     photos = _photos(conn, ids)
+
+    def pairs():
+        q = ",".join("?" * len(photos))
+        return {tuple(r) for r in conn.execute(
+            f"SELECT file_id, tag_id FROM file_tags WHERE confidence IS NOT NULL AND file_id IN ({q})", photos)}
+    before = pairs() if photos else set()
     _emb, n = scenes.tag_files(conn, photos, rec, data_dir, stop)
-    return "done", f"{n:,} scene suggestion{'s' if n != 1 else ''} to look over on the Tags page.", {"ids": photos}
+    added = sorted(pairs() - before) if photos else []
+    return "done", f"{n:,} scene suggestion{'s' if n != 1 else ''} to look over on the Tags page.", \
+        {"ids": photos, "added": [list(p) for p in added]}
 
 
 def _top_scene(conn, ids) -> str | None:
@@ -272,9 +280,10 @@ def undo(conn: sqlite3.Connection, run_id: int, stage: str) -> None:
     if stage == "bursts":
         for sid, (cover, chosen) in d.get("before", {}).items():
             conn.execute("UPDATE stacks SET cover_file_id = ?, cover_chosen = ? WHERE id = ?", (cover, chosen, int(sid)))
-    elif stage == "scenes" and d.get("ids"):
-        q = ",".join("?" * len(d["ids"]))
-        conn.execute(f"DELETE FROM file_tags WHERE confidence IS NOT NULL AND file_id IN ({q})", d["ids"])
+    elif stage == "scenes" and d.get("added"):
+        # Only what this run suggested (still a suggestion): earlier ones and accepted tags stay.
+        conn.executemany("DELETE FROM file_tags WHERE file_id = ? AND tag_id = ? AND confidence IS NOT NULL",
+                         [tuple(p) for p in d["added"]])
     elif stage == "event" and d.get("event_id"):
         from lunelis.events import model as ev
         ev.delete(conn, d["event_id"])

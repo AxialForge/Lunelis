@@ -123,3 +123,30 @@ def test_updates_tab_offers_a_newer_version(tmp_path):
     from lunelis.settings import Settings
     assert Settings(conn).get("update_skip_version") == "99.0.0"
     conn.close()
+
+
+def test_an_update_refuses_a_shared_or_portable_program_folder(tmp_path, monkeypatch):
+    from lunelis import paths, updater
+    install = tmp_path / "Lunelis"
+    (install / "_internal").mkdir(parents=True)
+    (install / "Lunelis.exe").write_bytes(b"x")
+    staged = tmp_path / "new"
+    (staged / "_internal").mkdir(parents=True)
+    (staged / "Lunelis.exe").write_bytes(b"y")
+    monkeypatch.setattr(paths, "DATA_DIR", tmp_path / "data")
+    updater.check_install_folder(install, staged)                 # just Lunelis: fine
+    (install / "OtherTool.exe").write_bytes(b"z")
+    with pytest.raises(updater.UpdateError, match="also holds OtherTool.exe"):
+        updater.check_install_folder(install, staged)
+    (install / "OtherTool.exe").unlink()
+    monkeypatch.setattr(paths, "DATA_DIR", install / "data")
+    with pytest.raises(updater.UpdateError, match="data folder is inside"):
+        updater.check_install_folder(install, staged)
+
+
+def test_the_data_folder_cant_move_into_the_program_folder(tmp_path, monkeypatch):
+    from lunelis import paths, updater
+    monkeypatch.setattr(updater, "install_dir", lambda: tmp_path / "Program")
+    with pytest.raises(ValueError, match="program folder"):
+        paths.check_new_data_dir(tmp_path / "Program" / "data", tmp_path / "olddata")
+    paths.check_new_data_dir(tmp_path / "elsewhere", tmp_path / "olddata")

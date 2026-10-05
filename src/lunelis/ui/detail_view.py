@@ -501,10 +501,10 @@ class InfoPanel(QScrollArea):
         self.setWidget(page)
         self.info: photoinfo.PhotoInfo | None = None
 
-        self.title = QLabel(objectName="SectionTitle")
+        self.title = QLabel(objectName="SectionTitle", textFormat=Qt.TextFormat.PlainText)
         self.title.setWordWrap(True)
         self.v.addWidget(self.title)
-        self.kind = QLabel(objectName="Help")
+        self.kind = QLabel(objectName="Help", textFormat=Qt.TextFormat.PlainText)
         self.v.addWidget(self.kind)
         self.v.addSpacing(10)
 
@@ -634,9 +634,10 @@ class InfoPanel(QScrollArea):
     def _link(self, href: str) -> None:
         if href.startswith("event:"):
             _, eid, name = href.split(":", 2)
-            self.show_event.emit(int(eid), name)
-        else:
-            QDesktopServices.openUrl(QUrl(href))
+            from html import unescape
+            self.show_event.emit(int(eid), unescape(name))
+        elif href.startswith("https://www.openstreetmap.org/"):
+            QDesktopServices.openUrl(QUrl(href))          # the only other link the panel makes
 
     def _show_in_folder(self) -> None:
         if self.info:
@@ -662,9 +663,13 @@ class InfoPanel(QScrollArea):
         self.pick_b.setChecked(info.flag == "pick")
         self.reject_b.setChecked(info.flag == "reject")
 
-        def put(key: str, text: str) -> None:
+        from html import escape
+
+        def put(key: str, text: str, rich: bool = False) -> None:
+            # Text from the file itself (camera, lens, names...) is shown as text,
+            # never as markup: a crafted photo can't put a link or picture here.
             lab = self.fields[key]
-            lab.setText(text)
+            lab.setText(text if rich else escape(text))
             lab.setVisible(bool(text))
             lab.property("heading").setVisible(bool(text))
 
@@ -676,9 +681,11 @@ class InfoPanel(QScrollArea):
         put("lens", info.lens or "")
         put("exposure", info.exposure())
         put("dimensions", info.dimensions() + (" · Motion photo (a short video is inside)" if info.motion_video else ""))
-        put("event", f'<a href="event:{info.event_id}:{info.event}">{info.event}</a>' if info.event else "")
+        put("event", f'<a href="event:{info.event_id}:{escape(info.event)}">{escape(info.event)}</a>'
+            if info.event else "", rich=True)
         url = info.map_url()
-        put("location", f'{info.lat:.5f}, {info.lon:.5f}  ·  <a href="{url}">Open map</a>' if url else "")
+        put("location", f'{info.lat:.5f}, {info.lon:.5f}  ·  <a href="{escape(url)}">Open map</a>' if url else "",
+            rich=True)
         from lunelis.damage.check import PROBLEM_TEXT
         put("status", PROBLEM_TEXT.get(info.damaged, info.damaged) if info.damaged else "")
         put("backup", info.protection)
@@ -728,10 +735,10 @@ class DetailView(QWidget):
         back.setFlat(True)
         back.setToolTip("Esc")
         h.addWidget(back)
-        self.name = QLabel()
+        self.name = QLabel(textFormat=Qt.TextFormat.PlainText)
         self.name.setStyleSheet("font-weight: 600;")
         h.addWidget(self.name)
-        self.summary = QLabel(objectName="Count")
+        self.summary = QLabel(objectName="Count", textFormat=Qt.TextFormat.PlainText)
         # The details line gives way on narrow windows (it's all in the Info panel
         # and the tooltip too) instead of forcing the window wider.
         self.summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -1107,7 +1114,8 @@ class DetailView(QWidget):
                 self.set_editing(False)
                 return
         if self.info is not None and self.info.is_video and self.player is not None and not ctrl:
-            act = {Qt.Key.Key_K: self.player.toggle, Qt.Key.Key_J: lambda: self.player.jump(-5000),
+            act = {Qt.Key.Key_K: self.player.toggle, Qt.Key.Key_Space: self.player.toggle,
+                   Qt.Key.Key_J: lambda: self.player.jump(-5000),
                    Qt.Key.Key_L: lambda: self.player.jump(5000), Qt.Key.Key_I: self.player.set_in,
                    Qt.Key.Key_O: self.player.set_out}.get(k)
             if act is not None:

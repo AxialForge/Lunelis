@@ -80,22 +80,32 @@ def _parse(path: str) -> dict | None:
             d = json.load(fh)
     except (OSError, ValueError):
         return None
-    if not isinstance(d, dict) or "title" not in d:
+    if not isinstance(d, dict) or not isinstance(d.get("title"), str):
         return None
-    taken = (d.get("photoTakenTime") or {}).get("timestamp")
-    geo = d.get("geoData") or {}
-    lat, lon = geo.get("latitude"), geo.get("longitude")
+
+    def obj(v) -> dict:
+        return v if isinstance(v, dict) else {}
+
+    def num(v) -> float | None:
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) <= 180 else None
+
+    taken = obj(d.get("photoTakenTime")).get("timestamp")
+    geo = obj(d.get("geoData"))
+    lat, lon = num(geo.get("latitude")), num(geo.get("longitude"))
     if not lat and not lon:
-        geo = d.get("geoDataExif") or {}
-        lat, lon = geo.get("latitude"), geo.get("longitude")
-    if lat == 0 and lon == 0:
+        geo = obj(d.get("geoDataExif"))
+        lat, lon = num(geo.get("latitude")), num(geo.get("longitude"))
+    if (lat == 0 and lon == 0) or (lat is not None and abs(lat) > 90):
         lat = lon = None
+    ts = int(taken) if isinstance(taken, (str, int)) and str(taken).isdigit() else 0
+    desc = d.get("description")
+    people = d.get("people") if isinstance(d.get("people"), list) else []
     return {
         "title": d["title"],
-        "taken": int(taken) if taken and str(taken).isdigit() and int(taken) > 0 else None,
+        "taken": ts if 0 < ts < 32503680000 else None,          # before year 3000
         "lat": lat, "lon": lon,
-        "description": (d.get("description") or "").strip() or None,
-        "people": [p.get("name") for p in d.get("people", []) if p.get("name")],
+        "description": desc.strip() or None if isinstance(desc, str) else None,
+        "people": [p["name"] for p in people if isinstance(p, dict) and isinstance(p.get("name"), str) and p["name"]],
     }
 
 

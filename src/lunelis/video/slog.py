@@ -104,7 +104,8 @@ def detect(clip: str | Path) -> str | None:
     if xml is None:
         return None
     try:
-        head = xml.read_text(encoding="utf-8", errors="replace")[:200_000]
+        with open(xml, "rb") as f:
+            head = f.read(200_000).decode("utf-8", "replace")
     except OSError:
         return None
     items = {k.lower(): v.lower() for k, v in _ITEM.findall(head)}

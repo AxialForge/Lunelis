@@ -220,17 +220,19 @@ def empty(conn: sqlite3.Connection, items: list[Entry], *, backup_dir: Path | No
             res.skipped.append((e, "its kept copy is missing or different - it stays in quarantine"))
             continue
         side = _sidecars_near(e)
+        network = _is_network(e.now)
+        if network and e.exact and not _same_bytes(e.kept, e.now):
+            # No Recycle Bin on a share: the copy kept must really be the same
+            # bytes, not just the same size, before this one goes for good.
+            res.skipped.append((e, "its kept copy isn't byte-for-byte the same any more - it stays in quarantine"))
+            continue
         try:
-            if _is_network(e.now):
+            if network:
                 os.remove(e.now)
-                for s in side:
-                    os.remove(s)
                 how = "deleted"
                 res.deleted += 1
             else:
                 _recycle(e.now)
-                for s in side:
-                    _recycle(s)
                 how = "recycled"
                 res.recycled += 1
         except OSError as err:
@@ -251,17 +253,46 @@ def empty(conn: sqlite3.Connection, items: list[Entry], *, backup_dir: Path | No
             conn.execute("UPDATE migration_items SET state = 'purged', quarantine_path = NULL WHERE id = ?",
                          (int(e.key[1:]),))
         conn.commit()
+        # The photo is gone and recorded: its sidecars follow, best effort (one
+        # that won't go stays in the quarantine folder; nothing is left unrecorded).
+        for sc in side:
+            try:
+                os.remove(sc) if network else _recycle(sc)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                res.sidecars_left = getattr(res, "sidecars_left", 0) + 1
         _prune_empty_dirs(e.now)
     return res
+
+
+def _same_bytes(a: str | None, b: str) -> bool:
+    import hashlib
+
+    def digest(path: str) -> str | None:
+        h = hashlib.sha256()
+        try:
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+        except OSError:
+            return None
+        return h.hexdigest()
+    if not a:
+        return False
+    da = digest(a)
+    return da is not None and da == digest(b)
 
 
 def _sidecars_near(e: Entry) -> list[str]:
     folder, name = os.path.split(e.now)
     stem = os.path.splitext(name)[0]
-    out = []
-    for cand in (name + ".xmp", stem + ".xmp", name + ".XMP", stem + ".XMP"):
+    out, seen = [], set()
+    for cand in (name + ".xmp", stem + ".xmp"):
         p = os.path.join(folder, cand)
-        if os.path.exists(p) and p not in out:
+        key = os.path.normcase(p)                     # x.xmp and x.XMP are one file on Windows and SMB
+        if key not in seen and os.path.exists(p):
+            seen.add(key)
             out.append(p)
     return out
 

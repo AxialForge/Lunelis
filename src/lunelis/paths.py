@@ -124,6 +124,11 @@ def check_new_data_dir(new: str | os.PathLike, current: Path | None = None) -> N
                          "can't live on a network share.")
     if _inside(new, current) or _inside(current, new):
         raise ValueError("Choose a folder that's neither inside the current data folder nor contains it.")
+    from lunelis.updater import install_dir
+    program = install_dir()
+    if program is not None and (_inside(new, program) or _inside(program, new)):
+        # An update replaces the program folder: data there would go with it.
+        raise ValueError("Choose a folder outside Lunelis's program folder - updates replace that folder.")
     if (new / "catalog.db").exists():
         raise ValueError(f"{new} already holds a Lunelis catalog - choose an empty folder.")
 

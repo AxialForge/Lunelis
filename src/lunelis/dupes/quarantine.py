@@ -58,14 +58,19 @@ def quarantine(conn: sqlite3.Connection, group_id: int, file_ids: list[int], *,
         src = os.path.join(root, *rel.split("/"))
         dst = os.path.join(root, QUARANTINE_DIR, *rel.split("/"))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-        if os.path.exists(dst):
+        s_src = os.path.join(os.path.dirname(src), sidecar) if sidecar else None
+        s_name = sidecar
+        if os.path.exists(dst) or (sidecar and os.path.exists(os.path.join(os.path.dirname(dst), sidecar))):
+            # Taken already: this copy and its sidecar both get the id, decided
+            # before anything moves (a clash half-way would lose track of one).
             base, ext = os.path.splitext(dst)
             dst = f"{base} ({fid}){ext}"
+            if sidecar:
+                s_name = os.path.basename(dst) + sidecar[len(os.path.basename(src)):] \
+                    if sidecar.lower().startswith(os.path.basename(src).lower()) else f"({fid}) {sidecar}"
         os.rename(src, dst)                       # same volume: instant, no copy
-        if sidecar:
-            s_src = os.path.join(os.path.dirname(src), sidecar)
-            if os.path.exists(s_src):
-                os.rename(s_src, os.path.join(os.path.dirname(dst), sidecar))
+        if s_src and os.path.exists(s_src):
+            os.rename(s_src, os.path.join(os.path.dirname(dst), s_name))
         conn.execute("UPDATE files SET quarantined_at = ?, quarantine_path = ? WHERE id = ?",
                      (_now(), dst, fid))
         conn.commit()                             # per file: a crash can't lose track of one

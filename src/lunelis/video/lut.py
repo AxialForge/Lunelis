@@ -107,18 +107,27 @@ def parse_cube(text: str) -> Lut3D:
         if key == "TITLE":
             title = line[5:].strip().strip('"')
         elif key == "LUT_3D_SIZE":
-            size = int(line.split()[1])
+            try:
+                size = int(line.split()[1])
+            except (IndexError, ValueError):
+                raise LutError("LUT_3D_SIZE needs a number.") from None
+            if not 2 <= size <= 129:
+                raise LutError("LUT_3D_SIZE must be 2-129.")
         elif key == "LUT_1D_SIZE":
             raise LutError("1D LUTs aren't supported - use a 3D .cube LUT.")
-        elif key == "DOMAIN_MIN":
-            lo = tuple(float(x) for x in line.split()[1:4])
-        elif key == "DOMAIN_MAX":
-            hi = tuple(float(x) for x in line.split()[1:4])
+        elif key in ("DOMAIN_MIN", "DOMAIN_MAX"):
+            vals = tuple(float(x) for x in line.split()[1:4])
+            if len(vals) != 3 or not all(np.isfinite(vals)):
+                raise LutError(f"{key} needs three numbers.")
+            lo, hi = (vals, hi) if key == "DOMAIN_MIN" else (lo, vals)
         elif key[0].isdigit() or key[0] in "-.":
             parts = line.split()
             if len(parts) < 3:
                 raise LutError(f"Not a LUT line: {line!r}")
-            rows.append([float(parts[0]), float(parts[1]), float(parts[2])])
+            try:
+                rows.append([float(parts[0]), float(parts[1]), float(parts[2])])
+            except ValueError:
+                raise LutError(f"Not a LUT line: {line!r}") from None
         # other keywords (LUT_3D_INPUT_RANGE, comments in other tools) are ignored
     if not size or size < 2:
         raise LutError("No LUT_3D_SIZE in this file.")
@@ -128,6 +137,8 @@ def parse_cube(text: str) -> Lut3D:
         raise LutError("DOMAIN_MAX must be above DOMAIN_MIN.")
     # Red changes fastest: the flat list is ordered [b][g][r].
     table = np.asarray(rows, np.float32).reshape(size, size, size, 3).transpose(2, 1, 0, 3)
+    if not np.isfinite(table).all():
+        raise LutError("The LUT has values that aren't numbers.")
     return Lut3D(np.ascontiguousarray(table), title, lo, hi)
 
 

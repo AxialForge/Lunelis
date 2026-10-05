@@ -115,14 +115,20 @@ def _quarantine_original(root: str, rel: str, sidecar: str | None, migration_id:
     src = _abs(root, rel)
     dst = os.path.join(root, QUARANTINE_DIR, f"migration-{migration_id}", *rel.split("/"))
     os.makedirs(os.path.dirname(dst), exist_ok=True)
-    if os.path.exists(dst):
+    s_name = sidecar
+    if os.path.exists(dst) or (sidecar and os.path.exists(os.path.join(os.path.dirname(dst), sidecar))):
+        # Decided before anything moves: the photo and its sidecar get the same new name.
         base, ext = os.path.splitext(dst)
         dst = f"{base} ({datetime.now():%H%M%S}){ext}"
+        if sidecar:
+            old = os.path.basename(src)
+            s_name = (os.path.basename(dst) + sidecar[len(old):] if sidecar.lower().startswith(old.lower())
+                      else f"({datetime.now():%H%M%S}) {sidecar}")
     os.rename(src, dst)
     if sidecar:
         s_src = os.path.join(os.path.dirname(src), sidecar)
         if os.path.exists(s_src):
-            os.rename(s_src, os.path.join(os.path.dirname(dst), sidecar))
+            os.rename(s_src, os.path.join(os.path.dirname(dst), s_name))
     return dst
 
 

@@ -181,11 +181,30 @@ try {
 """
 
 
+def check_install_folder(target: Path, staged: Path) -> None:
+    """The swap replaces the whole install folder (and later deletes the old
+    one), so it must hold Lunelis and nothing else: refuse when the data folder
+    sits inside it, or when it holds things the new version doesn't have
+    (other programs, a portable data folder). Raises UpdateError with what to do."""
+    from lunelis import paths
+    if paths._inside(paths.DATA_DIR, target):
+        raise UpdateError(f"Lunelis's data folder is inside its program folder ({target}). Move the data folder "
+                          "(Settings > Advanced > Data folder) before updating, so the update can't touch it.")
+    ours = {p.name.lower() for p in Path(staged).iterdir()}
+    extra = sorted(p.name for p in Path(target).iterdir()
+                   if p.name.lower() not in ours and not p.name.lower().endswith((".log", ".tmp")))
+    if extra:
+        shown = ", ".join(extra[:5]) + (f" and {len(extra) - 5} more" if len(extra) > 5 else "")
+        raise UpdateError(f"The program folder {target} also holds {shown}. An update replaces the whole folder, "
+                          "so put Lunelis in a folder of its own first (unzip it into an empty folder).")
+
+
 def apply(staged: Path) -> None:
     """Start the swap script; the caller then quits Lunelis."""
     target = install_dir()
     if target is None:
         raise UpdateError("running from source - update with git pull instead")
+    check_install_folder(target, staged)
     # Move-Item can't move a folder to another drive: put the new version next
     # to the install folder first (same drive), then the swap is two renames.
     if os.path.splitdrive(str(staged))[0].lower() != os.path.splitdrive(str(target))[0].lower():
