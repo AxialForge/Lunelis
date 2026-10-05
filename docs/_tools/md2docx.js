@@ -6,7 +6,7 @@
 // - bullets (one level of nesting), 1. numbered steps, | tables |, ``` code
 // blocks, ![caption](image.png) on its own line, **bold**, `code` and
 // [text](url). The first "# " heading becomes the cover title; a table of
-// contents follows it.
+// contents follows it. Each "## " starts a new page unless MD_NO_BREAKS is set.
 const fs = require("fs");
 const path = require("path");
 const {
@@ -92,7 +92,7 @@ while (i < lines.length) {
     const level = l.match(/^#+/)[0].length;
     const text = l.replace(/^#+ /, "");
     const heading = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3][level];
-    target.push(new Paragraph({ heading, pageBreakBefore: level === 2 && target.length > 2, children: [new TextRun(text)] }));
+    target.push(new Paragraph({ heading, pageBreakBefore: level === 2 && target.length > 2 && !process.env.MD_NO_BREAKS, children: [new TextRun(text)] }));
     i++; continue;
   }
   if (/^```/.test(l)) {

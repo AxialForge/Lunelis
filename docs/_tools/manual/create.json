@@ -1,0 +1,133 @@
+{
+ "chapters": [
+  {
+   "id": "create",
+   "title": "Create",
+   "purpose": "Create makes new things from your photos: animations, collages, batch copies, contact sheets, timelapses, slideshow videos, before-and-after pictures, prints, focus stacks, star trails, median stacks, panoramas and HDR merges. Use it whenever you want a new file made from photos you already have.",
+   "intro": [
+    "Everything Create makes is a new file in one folder - Pictures\\Lunelis creations unless you choose another. Your photos are only read, and nothing in the Create folder is ever overwritten: a second file with the same name gets \" (2)\".",
+    "Every tool takes its photos the same way, with the Photos box at the top: the photos selected in the library, what the library shows now, an album or event, a folder, your Picks, your 4- and 5-star photos, or the latest imports. They appear as a strip - drag to change the order, untick to leave one out - and each is used with its edits."
+   ],
+   "screens": ["create", "create_animation", "create_collage", "create_batch", "create_contact", "create_timelapse",
+               "create_slideshow", "create_before_after", "create_print", "create_focus", "create_trails",
+               "create_median", "create_panorama", "create_hdr"],
+   "workflows": [
+    {"title": "Make a short animation from a burst",
+     "steps": ["Select the burst's frames in the library (or open the stack with S and select them).",
+               "Open Create and click Animation. The Photos box says Selected in the library.",
+               "Choose MP4 video, WebP animation or GIF, set the Speed, and tick Play forward, then back for a boomerang.",
+               "Watch the preview on the right; drag photos in the strip to change the order.",
+               "Click Make. The message under the tool links to the new file and its folder."]},
+    {"title": "Lay out a collage yourself",
+     "steps": ["Open Create > Collage and pick the photos.",
+               "Choose a layout close to what you want, then tick Place the photos yourself.",
+               "Click a frame to select it; Shift+drag moves it, a corner handle resizes it.",
+               "Add a frame takes the next photo of the strip; Remove frame takes the selected one away.",
+               "Choose the shape, size, spacing and corners, then Make."]},
+    {"title": "Make a timelapse from an interval shoot",
+     "steps": ["Select the shoot's frames (or pick the folder in the Photos box).",
+               "Open Create > Timelapse. Set the frames a second and the size.",
+               "Leave Deflicker on; set Even out over to more frames for a smoother result.",
+               "Tick Stabilise if the camera was knocked or drifted.",
+               "Make. The video is saved in the Create folder."]},
+    {"title": "Stack frames for front-to-back focus",
+     "steps": ["Select the frames you focused at different distances.",
+               "Open Create > Focus stack. Leave Line the frames up ticked for hand-held shots.",
+               "Choose the size and JPEG or TIFF, then Make.",
+               "Lunelis noticed offers the same from the Library status page when it spots a focus stack."]},
+    {"title": "Print photos on Letter sheets",
+     "steps": ["Pick the photos and open Create > Prints.",
+               "Choose the print size (wallet, 4 x 6, 5 x 7, 8 x 10) and On: Letter or A4 sheets, or one file per print.",
+               "Fill crops each photo to the print's shape; untick it for the whole photo with white borders.",
+               "Set copies and cut marks, then Make. Sheets come out as one PDF."]}
+   ],
+   "edge_cases": [
+    {"situation": "Make stays greyed out.", "what_happens": "The tool needs more photos than are ticked in the strip - two for an animation, three for a median stack. Tick more, or choose another source in the Photos box."},
+    {"situation": "A photo in the strip can't be read (its drive is offline, or the file is damaged).", "what_happens": "Batch copies skip it and the message lists the ones that failed; the other tools stop and say which photo it was. Nothing half-made is kept."},
+    {"situation": "You click Cancel while a tool is working.", "what_happens": "An animation, collage, video or stack is not saved at all; a batch keeps the copies already finished."},
+    {"situation": "Panorama or HDR from Create.", "what_happens": "These hand the photos to the same merge as Photo > Merge: it asks how to blend and where to save, and the result is added to the library."},
+    {"situation": "The Create folder is on a drive that's unplugged.", "what_happens": "The tool says the drive or NAS stopped answering and that nothing was changed. Change the folder at the top of the Create page or plug the drive in."}
+   ]
+  }
+ ],
+ "screen_text": {
+  "create": "The Create page: the folder everything is saved to, with Open the folder and Change, and a card for every tool. Click a card to open the tool.",
+  "create_animation": "Animation: MP4, WebP or GIF from a burst or a few photos, with a live preview on the right.",
+  "create_collage": "Collage: several photos on one picture. Drag a photo onto another cell to swap them; drag inside a cell to move the photo; the mouse wheel zooms it.",
+  "create_batch": "Batch copies: many photos resized, converted, renamed, stripped of metadata or watermarked at once - always as new files in a new folder.",
+  "create_contact": "Contact sheet: the photos in a grid on printable pages, with captions.",
+  "create_timelapse": "Timelapse: an interval shoot as a video, deflickered and stabilised.",
+  "create_slideshow": "Slideshow video: photos one after another with transitions, a slow zoom and music.",
+  "create_before_after": "Before and after: the photo as shot next to your edit, or a sweeping slider video or GIF.",
+  "create_print": "Prints: real print sizes at 300 dots per inch, on sheets with cut marks or as one file per print for a lab.",
+  "create_focus": "Focus stack: frames focused at different distances combined so everything is sharp.",
+  "create_trails": "Star trails: night frames combined so the stars draw arcs.",
+  "create_median": "Median stack: a scene shot several times with the people walking through taken out.",
+  "create_panorama": "Panorama: overlapping shots stitched by the same merge as Photo > Merge.",
+  "create_hdr": "HDR: bracketed exposures blended by the same merge as Photo > Merge."
+ },
+ "controls": {
+  "create_animation": {
+   "‹ Create": {"does": "Back to the Create page's tool cards.", "inputs": "Click.", "default": "-", "notes": "-"},
+   "Photos:": {"does": "Which photos the tool uses: Selected in the library, What the library shows now, An album or event..., A folder..., Picks, 4 and 5 stars, or Recently imported.", "inputs": "Choose from the list; an album or folder asks which.", "default": "Selected in the library when photos are selected, otherwise what the library shows.", "notes": "The strip below shows them: drag to reorder, untick to leave one out. Videos aren't offered."},
+   "Make": {"does": "Makes the new file in the Create folder.", "inputs": "Click. A progress bar with Cancel shows while it works.", "default": "-", "notes": "The message under the tool links to the file and its folder. Nothing is ever overwritten."},
+   "Speed": {"does": "How long each photo is shown.", "inputs": "20 ms to 5 s.", "default": "200 ms", "notes": "The preview plays at this speed."},
+   "Loop": {"does": "GIF / WebP: how many times it repeats (0 = forever). MP4: how many times the photos are played in the video.", "inputs": "A number.", "default": "Forever (GIF / WebP); once (MP4).", "notes": "-"},
+   "Play forward, then back": {"does": "Plays 1 2 3 4 3 2 1 - a \"boomerang\".", "inputs": "Tick.", "default": "Off", "notes": "-"},
+   "Quality": {"does": "Higher is better and bigger.", "inputs": "Slider.", "default": "80", "notes": "MP4 and WebP only; a GIF always has 256 colours a frame."}
+  },
+  "create_collage": {
+   "Layout": {"does": "The arrangement of cells - 2 side by side up to 3 x 3.", "inputs": "Choose from the list.", "default": "2 x 2", "notes": "The first photos of the strip fill the cells in order."},
+   "Place the photos yourself": {"does": "Turns the layout into frames you move and resize yourself.", "inputs": "Tick. Then click a frame to select it, Shift+drag to move it, drag a corner to resize.", "default": "Off", "notes": "Frames may overlap; later ones sit on top. Unticking goes back to the chosen layout."},
+   "Add a frame": {"does": "A new frame in the middle, with the next photo of the strip that isn't placed yet.", "inputs": "Click.", "default": "-", "notes": "Only while Place the photos yourself is ticked."},
+   "Remove frame": {"does": "Takes the selected frame away.", "inputs": "Click.", "default": "-", "notes": "At least one frame always stays."},
+   "Shape": {"does": "The picture's shape: square, portrait 4:5, story 9:16, wide 16:9, landscape 3:2, tall 2:3.", "inputs": "Choose.", "default": "Square 1:1", "notes": "-"},
+   "Spacing": {"does": "The gap between photos.", "inputs": "Slider.", "default": "1.5 %", "notes": "Spacing, border and corners are measured against the picture's short side, so the saved file looks like the preview."},
+   "% of the picture's short side (tenths)": {"does": "The exact value of the slider beside it.", "inputs": "Type a number.", "default": "-", "notes": "-"},
+   "Background colour…": {"does": "The colour of the gaps and border.", "inputs": "Click and pick a colour.", "default": "White", "notes": "-"}
+  },
+  "create_batch": {
+   "Size and format": {"does": "A preset: size, fit, format and quality - Original size, Large, Web, Email, Instagram square / portrait, Story, Facebook, Widescreen, Lossless PNG, Small WebP, plus your own.", "inputs": "Choose.", "default": "Web", "notes": "Instagram and Story crop to fill their exact size; the others only shrink."},
+   "Edit the presets…": {"does": "Opens create_presets.json in the data folder, to add or change presets.", "inputs": "Click; edit the file; reopen Batch copies.", "default": "-", "notes": "A preset with a built-in's name replaces it."},
+   "Names": {"does": "How the copies are named: {name} the original's name, {n} 001 002..., {date} the capture date, and your own text.", "inputs": "Type.", "default": "{name}", "notes": "-"},
+   "No watermark": {"does": "Your text written on each copy (or none).", "inputs": "Type the text to turn it on.", "default": "None", "notes": "A soft shadow keeps it readable on any photo."},
+   "Where": {"does": "The watermark's corner, or the centre.", "inputs": "Choose.", "default": "Bottom right", "notes": "-"},
+   "Opacity": {"does": "How see-through the watermark is.", "inputs": "Slider.", "default": "60 %", "notes": "-"},
+   "Colour": {"does": "The watermark's colour.", "inputs": "Click and pick.", "default": "White", "notes": "-"}
+  },
+  "create_contact": {
+   "Contact sheet": {"does": "The tool's title.", "inputs": "-", "default": "-", "notes": "-"},
+   "Paper": {"does": "Letter or A4.", "inputs": "Choose.", "default": "Letter", "notes": "-"},
+   "Landscape": {"does": "Turns the pages sideways.", "inputs": "Tick.", "default": "Off", "notes": "-"},
+   "Dates": {"does": "Prints each photo's date under it (with names and stars, as ticked).", "inputs": "Tick.", "default": "On", "notes": "A PDF holds every page; PNG makes one picture per page."}
+  },
+  "create_timelapse": {
+   "Deflicker": {"does": "Evens out exposure jumps between frames.", "inputs": "Tick.", "default": "On", "notes": "A sunset still gets darker; the flicker goes."},
+   "Even out over": {"does": "How many frames the deflicker looks across.", "inputs": "3-99 frames.", "default": "15", "notes": "More frames: smoother, slower to follow real changes."},
+   "Stabilise": {"does": "Takes out drift and knocks; the picture is enlarged just enough that moved edges never show.", "inputs": "Tick.", "default": "Off", "notes": "-"}
+  },
+  "create_slideshow": {
+   "Timing": {"does": "Seconds each photo is shown.", "inputs": "1-30 s.", "default": "3 s", "notes": "-"},
+   "Transition": {"does": "Crossfade, fade through black, or cut.", "inputs": "Choose.", "default": "Crossfade", "notes": "-"},
+   "Slow zoom (Ken Burns)": {"does": "Each photo drifts slowly closer.", "inputs": "Tick.", "default": "On", "notes": "-"},
+   "Fill the frame (crop) instead of showing the whole photo": {"does": "Crops each photo to the video's shape instead of showing it whole on black.", "inputs": "Tick.", "default": "Off", "notes": "Music: pick any audio file; it's cut to the video's length and faded out."}
+  },
+  "create_before_after": {
+   "Slider as": {"does": "For the slider: a video or a GIF where a line sweeps across from before to after.", "inputs": "Choose.", "default": "Video", "notes": "Side by side and stacked make a still picture."},
+   "Label Before and After": {"does": "Writes Before and After on the two halves.", "inputs": "Tick.", "default": "On", "notes": "The \"before\" keeps the photo's crop, so the two line up."}
+  },
+  "create_print": {
+   "Print size": {"does": "Wallet, 4 x 6, 5 x 7 or 8 x 10 inches, at 300 dots per inch.", "inputs": "Choose.", "default": "4 x 6", "notes": "-"},
+   "On": {"does": "Letter or A4 sheets (a PDF, as many prints as fit, turned to suit each photo), or one exact-size file per print for a lab.", "inputs": "Choose.", "default": "Letter sheets", "notes": "-"},
+   "Fill the print (crop the edges) - off: the whole photo with white borders": {"does": "Crops each photo to the print's shape, like a lab does.", "inputs": "Tick.", "default": "On", "notes": "-"},
+   "Copies": {"does": "How many prints of each photo.", "inputs": "A number.", "default": "1", "notes": "-"},
+   "Cut marks": {"does": "Short lines at each print's corners on the sheet.", "inputs": "Tick.", "default": "On", "notes": "Sheets only."}
+  },
+  "create_focus": {
+   "Line the frames up (for hand-held shots)": {"does": "Moves each frame onto the middle one before combining.", "inputs": "Tick.", "default": "On (off and greyed for star trails, whose stars are meant to move).", "notes": "Size: 2048 px to full size; save as JPEG or TIFF."}
+  },
+  "create_panorama": {
+   "Merge…": {"does": "Hands the photos to the merge (as Photo > Merge): it asks how to blend and where to save, then adds the result to the library.", "inputs": "Click.", "default": "-", "notes": "Needs two photos or more."}
+  }
+ }
+}

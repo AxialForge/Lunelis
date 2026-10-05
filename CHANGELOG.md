@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-10-05
+
+### Fixed
+
+- Lunelis noticed no longer offers a plain burst as a focus stack: parts of
+  the frame must really go from soft to sharp across the frames.
+- Stepping onto a video or animated GIF while editing shows its Info panel;
+  editing picks up again on the next photo.
+
+### Documentation
+
+- The release documents for 0.33: the user manual now covers every screen
+  added since 0.12 (Map, On this day, Stats, Library status, Sensor dust,
+  Review your shoot, scene suggestions, Ask, video, culling, sharing, smart
+  albums and all 13 Create tools), plus a release overview in three tiers
+  (simple, medium, advanced), the release history, an install guide and a
+  developer guide. The tools that make them are in docs/_tools.
+
 ## [0.33.0] - 2026-10-04
 
 Hardening after the October 2026 audit (docs/Audit-2026-10.md).

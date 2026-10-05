@@ -519,7 +519,7 @@ from lunelis.ui import main_window as mw  # noqa: E402
 
 win = mw.MainWindow()
 win.apply_theme(THEME)
-win.resize(1440, 900)
+win.resize(1440, 1100)
 win.show()
 pump(5)
 conn = win.conn
@@ -549,6 +549,10 @@ def settings_tab(tab: str):
 
 
 def library():
+    if win.ask_bar.isVisible():
+        win.ask_bar.close_bar()
+    if win.detail.editing:
+        win.detail.set_editing(False)
     win.set_filter(mw.Filter())
     win.open_page("Library")
     pump(2)
@@ -632,6 +636,7 @@ def dialog(fn):
         result = fn()
         pump(1)
         if isinstance(result, QWidget):
+            opened.append(result)                  # closed after its screen, like the others
             return result
         return opened[before] if len(opened) > before else win
     return go
@@ -735,6 +740,83 @@ def menu(title: str, sub: str | None = None):
     return go
 
 
+# --- screens added since 0.12 ---------------------------------------------------------------
+
+def create_tool(key: str):
+    def go():
+        win.open_page("Create")
+        pump(1)
+        if key != "home":
+            win.create_page.set_library_context(ids("2025/08-19 Mountain Trip")[:6], mw.Filter(), None)
+            win.create_page.open_tool(key)
+            pump(2.5)
+        return win
+    return go
+
+
+def video_view():
+    library()
+    win.open_detail(ids("2025/10-02 Clips")[0])
+    pump(4)
+    return win
+
+
+def scene_suggestions():
+    win.open_page("Tags")
+    win.tags_page.show_suggestions()
+    pump(2)
+    return win
+
+
+def ask_bar():
+    library()
+    win.open_ask()
+    win.ask_bar.box.setText("summer lake, 4 stars")
+    pump(1)
+    return win
+
+
+def cull():
+    library()
+    select(ids("2025/08-19 Mountain Trip")[:4])
+    win.cull()
+    v = win.cull_view
+    v.showNormal()
+    v.resize(1440, 900)
+    pump(3)
+    opened.append(v)
+    return v
+
+
+def share_dialog():
+    from lunelis.ui.share_dialog import ShareDialog
+    aid = conn.execute("SELECT id FROM albums WHERE name = 'Best of 2024'").fetchone()[0]
+    d = ShareDialog(conn, aid, "Best of 2024", lambda: (8735, True), win)
+    d.show()
+    return d
+
+
+def smart_album_dialog():
+    from lunelis.ui.smart_dialog import SmartAlbumDialog
+    d = SmartAlbumDialog("Low light keepers", {"match": "all", "rules": [
+        {"field": "iso", "op": ">=", "value": 3200}, {"field": "stars", "op": ">=", "value": 4}]}, win)
+    d.show()
+    return d
+
+
+def shortcut_sheet():
+    from lunelis.ui.shortcuts import ShortcutSheet
+    d = ShortcutSheet(win, "Library")
+    d.show()
+    return d
+
+
+def review_shoot():
+    win.open_page("Review your shoot")
+    pump(1.5)
+    return win
+
+
 SCREENS = [
     ("main_window", "Main window (library)", None, library, "MainWindow"),
     ("search", "Searching the library", "main_window", search, "MainWindow"),
@@ -773,6 +855,27 @@ SCREENS = [
     ("menu_library", "Library menu", "main_window", menu("Library"), "MainWindow"),
     ("menu_photo", "Photo menu", "main_window", menu("Photo"), "MainWindow"),
     ("menu_help", "Help menu", "main_window", menu("Help"), "MainWindow"),
+    ("map", "Map page", "main_window", page("Map"), "MapView"),
+    ("on_this_day", "On this day page", "main_window", page("On this day"), "CalendarView"),
+    ("stats", "Stats page", "main_window", page("Stats"), "StatsView"),
+    ("library_status", "Library status page", "main_window", page("Library status"), "StatusView"),
+    ("sensor_dust", "Sensor dust page", "main_window", page("Sensor dust"), "DustView"),
+    ("review_shoot", "Review your shoot", "import", review_shoot, "AutopilotView"),
+    ("scene_suggestions", "Tags page - Scene suggestions", "tags", scene_suggestions, "SceneReview"),
+    ("ask", "Ask your library", "main_window", ask_bar, "AskBar"),
+    ("video", "Photo view playing a video", "photo_view", video_view, "VideoPlayer"),
+    ("cull", "Culling (full screen)", "main_window", cull, "CullView"),
+    ("dialog_share", "Share an album on the home network", "albums", dialog(share_dialog), "ShareDialog"),
+    ("dialog_smart_album", "Smart album rules", "albums", dialog(smart_album_dialog), "SmartAlbumDialog"),
+    ("dialog_shortcuts", "Keyboard shortcuts", "main_window", dialog(shortcut_sheet), "ShortcutSheet"),
+    ("create", "Create page", "main_window", create_tool("home"), "CreatePage"),
+] + [(f"create_{key}", f"Create - {name}", "create", create_tool(key), cls) for key, name, cls in (
+    ("animation", "Animation", "AnimationTool"), ("collage", "Collage", "CollageTool"),
+    ("batch", "Batch copies", "BatchTool"), ("contact", "Contact sheet", "ContactSheetTool"),
+    ("timelapse", "Timelapse", "TimelapseTool"), ("slideshow", "Slideshow video", "SlideshowTool"),
+    ("before_after", "Before and after", "BeforeAfterTool"), ("print", "Prints", "PrintTool"),
+    ("focus", "Focus stack", "FocusStackTool"), ("trails", "Star trails", "StarTrailsTool"),
+    ("median", "Median stack", "MedianTool"), ("panorama", "Panorama", "PanoramaTool"), ("hdr", "HDR", "HdrTool"))
 ] + [(f"menu_photo_{s.lower()}", f"Photo menu - {s}", "menu_photo", menu("Photo", s), "MainWindow")
      for s in ("Rating", "Label", "Event", "Album", "Tags", "Merge", "Edit", "Stack", "Flag")]
 
@@ -782,6 +885,9 @@ SCREENS = [
 # and says which area every control is in.
 
 PAGE_NAMES = {"AlbumsView": "Albums page", "TagsView": "Tags page", "EventsView": "Event suggestions page",
+              "CreatePage": "Create page", "MapView": "Map page", "CalendarView": "On this day page",
+              "StatsView": "Stats page", "StatusView": "Library status page", "DustView": "Sensor dust page",
+              "AutopilotView": "Review page",
               "ImportView": "Import page", "MigrateView": "Migrate page", "DuplicatesView": "Duplicates page",
               "DamagedView": "Damaged files page", "BackupsView": "Backups page",
               "QuarantineView": "Quarantine page"}
@@ -879,7 +985,7 @@ def draw_parts(clean: Path, parts: list[dict], dest: Path) -> None:
 def main() -> None:
     shots = OUT / "screenshots"
     shots.mkdir(parents=True, exist_ok=True)
-    result = {"theme": THEME, "window": [1440, 900], "screens": [], "shortcuts": []}
+    result = {"theme": THEME, "window": [1440, 1100], "screens": [], "shortcuts": []}
     global SCREEN_FILE, SCREEN_CLASS, SCREEN_ID
     for n, (sid, name, parent, go, cls) in enumerate(SCREENS, 1):
         SCREEN_CLASS, SCREEN_ID = cls, sid

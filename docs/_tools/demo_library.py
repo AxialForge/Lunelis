@@ -79,7 +79,25 @@ def lights(rng) -> Image.Image:
     return pil.filter(ImageFilter.GaussianBlur(3))
 
 
-def exif(taken: datetime, subsec: str, camera: str, lens: str, iso: int, gps: tuple[float, float] | None) -> bytes:
+def _clip(path: Path, rng, seconds: int = 3) -> None:
+    """A tiny invented video (a moving sun over hills), with silent sound."""
+    import av
+    still = np.asarray(landscape(rng).resize((640, 360)))
+    with av.open(str(path), "w") as c:
+        v = c.add_stream("libx264", rate=25)
+        v.width, v.height, v.pix_fmt = 640, 360, "yuv420p"
+        for i in range(seconds * 25):
+            frame = np.roll(still, i * 3, axis=1)
+            f = av.VideoFrame.from_ndarray(np.ascontiguousarray(frame), format="rgb24")
+            f.pts = i
+            for pkt in v.encode(f):
+                c.mux(pkt)
+        for pkt in v.encode():
+            c.mux(pkt)
+
+
+def exif(taken: datetime, subsec: str, camera: str, lens: str, iso: int, gps: tuple[float, float] | None,
+         shutter: str = "1/250") -> bytes:
     def rat(v, d=100):
         return (int(round(v * d)), d)
 
@@ -93,7 +111,7 @@ def exif(taken: datetime, subsec: str, camera: str, lens: str, iso: int, gps: tu
     ex = {piexif.ExifIFD.DateTimeOriginal: taken.strftime("%Y:%m:%d %H:%M:%S").encode(),
           piexif.ExifIFD.SubSecTimeOriginal: subsec.encode(), piexif.ExifIFD.OffsetTimeOriginal: b"-05:00",
           piexif.ExifIFD.LensModel: lens.encode(), piexif.ExifIFD.FNumber: rat(4.0),
-          piexif.ExifIFD.ExposureTime: (1, 250), piexif.ExifIFD.ISOSpeedRatings: iso,
+          piexif.ExifIFD.ExposureTime: tuple(int(x) for x in (shutter.split('/') + ['1'])[:2]), piexif.ExifIFD.ISOSpeedRatings: iso,
           piexif.ExifIFD.FocalLength: rat(35), piexif.ExifIFD.ExposureProgram: 3,
           piexif.ExifIFD.MeteringMode: 5, piexif.ExifIFD.Flash: 16, piexif.ExifIFD.WhiteBalance: 0}
     gps_ifd = {}
@@ -134,7 +152,8 @@ def build(work: Path) -> dict:
     burst_t = datetime(2024, 6, 14, 11, 0, 5)
     for k in range(5):
         p = lib / "2024/06-14 Lakeside Weekend" / f"DSC{n:05d}.JPG"
-        base.rotate(k * 0.6, resample=Image.Resampling.BICUBIC).save(
+        # A hand-held drift between frames, as a camera shoots it.
+        Image.fromarray(np.roll(np.asarray(base), k * 3, axis=1)).save(
             p, "JPEG", quality=88, exif=exif(burst_t, f"{k * 200:03d}", "ILCE-7RM5", "FE 24-105mm F4 G OSS", 100, (45.10, -85.20)))
         n += 1
     # An old backup drive: three exact copies and one resized (near-duplicate) copy.
@@ -144,6 +163,20 @@ def build(work: Path) -> dict:
     with Image.open(made[3]) as im:
         im.resize((W // 2, H // 2)).save(old / "2024/06-14 Lakeside Weekend" / made[3].name, "JPEG", quality=80,
                                          exif=im.info.get("exif"))
+    # A short video and an animated GIF (playback, trimming).
+    clips = lib / "2025/10-02 Clips"
+    clips.mkdir(parents=True)
+    _clip(clips / "C0001.MP4", rng)
+    frames = [landscape(rng).resize((480, 320)) for _ in range(4)]
+    frames[0].save(clips / "loop.gif", save_all=True, append_images=frames[1:], duration=300, loop=0)
+    # A bracketed set (3 exposures, a second apart): "Lunelis noticed" offers an HDR.
+    base = city(rng)
+    for k, (shutter, gain) in enumerate((("1/250", 0.6), ("1/125", 1.0), ("1/60", 1.6))):
+        p = lib / "2025/03-02 City Walk" / f"DSC{n:05d}.JPG"
+        img = Image.fromarray(np.clip(np.asarray(base).astype(np.float32) * gain, 0, 255).astype(np.uint8))
+        img.save(p, "JPEG", quality=88, exif=exif(datetime(2025, 3, 2, 16, 0, k), "000", "ILCE-7M4",
+                                                  "FE 16-35mm F2.8 GM", 200, (40.10, -83.00), shutter))
+        n += 1
     # A damaged file: a camera JPEG whose contents are all zeros.
     (lib / "2025/03-02 City Walk" / "DSC09999.JPG").write_bytes(b"\0" * 200_000)
     return {"lib": lib, "old": old, "backup": backup}
@@ -222,9 +255,56 @@ def catalog(work: Path, where: dict) -> None:
         if copy:
             quarantine(conn, g[0], [copy[0]])
     create_set(conn, "USB backup drive", str(where["backup"]), [lib_id])
+    _newer_features(conn, lake, mountain, city_, a)
     search.refresh(conn)
     conn.commit()
     conn.close()
+
+
+def _newer_features(conn, lake, mountain, city_, best_album) -> None:
+    """What the 0.17 - 0.33 pages show: scene suggestions, Lunelis noticed, a shoot
+    waiting for review, a shared album, a dust map, a virtual copy. All invented."""
+    import json
+    from lunelis import dust, gallery, noticed, paths
+    from lunelis.edit import store
+    from lunelis.edit.stack import Stack
+    from lunelis.importing import autopilot
+    # Scene suggestions waiting on the Tags page.
+    for name, fids, conf in (("Scene|Landscape", lake[:4] + mountain[:3], 0.84), ("Scene|City", city_[:4], 0.77),
+                             ("Scene|Sunset", lake[4:6], 0.58)):
+        tid = conn.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (name,)).lastrowid or             conn.execute("SELECT id FROM tags WHERE name = ?", (name,)).fetchone()[0]
+        conn.executemany("INSERT OR IGNORE INTO file_tags (file_id, tag_id, confidence) VALUES (?, ?, ?)",
+                         [(f, tid, conf) for f in fids])
+    conn.commit()
+    noticed.find(conn, paths.THUMBNAIL_CACHE)                     # finds the bracketed set
+    # A shoot the autopilot sorted out, waiting for review.
+    imp = conn.execute("INSERT INTO imports (source, template, destination, state, name) VALUES"
+                       " ('E:\', '{YYYY}/{MM}-{DD}', 'Demo Library', 'done', NULL)").lastrowid
+    stages = {
+        "bursts": {"status": "done", "summary": "1 burst: the sharpest frame of each is now its cover.",
+                   "data": {"before": {}}},
+        "scenes": {"status": "done", "summary": "7 scene suggestions to look over on the Tags page.",
+                   "data": {"ids": mountain, "added": []}},
+        "event": {"status": "skipped", "summary": "Already in the event 'Mountain Trip' (from the import's name).",
+                  "data": {}},
+        "edits": {"status": "waiting", "summary": "An edit in your style for 6 photos (learned from 48 edits)"
+                  " - not applied yet.", "data": {"edits": {}}},
+        "album": {"status": "done", "summary": 'Made the album "Mountain Trip - best" with 6 photos.', "data": {}},
+        "reel": {"status": "waiting", "summary": "A highlight reel of 6 photos - not made yet.",
+                 "data": {"ids": mountain[:6]}},
+    }
+    conn.execute("INSERT INTO autopilot_runs (import_id, state, stages, file_ids) VALUES (?, 'review', ?, ?)",
+                 (imp, json.dumps(stages), json.dumps(mountain)))
+    conn.commit()
+    gallery.share(conn, best_album, pin=None)                      # a shared album (link + QR)
+    # A dust map for one camera: two spots, one cleaned off.
+    m = dust.DustMap("ILCE-7RM5", 64, [
+        dust.Spot(0.31, 0.27, 0.012, 0.82, 23, 28, "2024-06-14T09:12:00", "2025-08-19T08:40:00", "present"),
+        dust.Spot(0.71, 0.58, 0.009, 0.66, 14, 21, "2024-06-14T09:12:00", "2024-12-24T19:54:00", "cleaned")],
+        ["2024-12-24"])
+    dust.save(conn, m)
+    # A virtual copy of the edited photo.
+    store.add_copy(conn, mountain[1], Stack(adjust={"saturation": -100, "contrast": 25}), "Black and white")
 
 
 if __name__ == "__main__":

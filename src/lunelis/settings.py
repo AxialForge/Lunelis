@@ -35,8 +35,8 @@ DEFAULTS: dict[str, Any] = {
     "import_template": r"{YYYY}\{M}-{D}-{YYYY}[ {import_name}]",
     "import_staging_local": None,        # None = <data dir>/staging
     "import_staging_network": None,      # None = no spill-over: pause when the local disk is full
-    "import_local_reserve_gb": 50,
-    "import_recent": [],                 # folders imported from, newest first (Import page)       # never let staging take C: below this much free
+    "import_local_reserve_gb": 50,       # never let staging take C: below this much free
+    "import_recent": [],                 # folders imported from, newest first (Import page)
     # Tray: keep running in the notification area and watch for memory cards.
     "tray_enabled": True,
     "start_with_windows": False,
@@ -51,13 +51,13 @@ DEFAULTS: dict[str, Any] = {
     "event_min_photos": 30,              # fewer photos than this isn't suggested
     # Editing: a filter every newly imported photo starts with (None = none).
     "import_filter": None,
-    "export_last": None,
-    "merge_last_dir": None,
-    "tags_recent": [],                   # the last tags used, offered first when tagging              # where the last HDR/panorama was saved (the save dialog starts there)                 # the Export dialog's last settings (edit/export.ExportOptions)
+    "export_last": None,                 # the Export dialog's last settings (edit/export.ExportOptions)
+    "merge_last_dir": None,              # where the last HDR/panorama was saved (the save dialog starts there)
+    "tags_recent": [],                   # the last tags used, offered first when tagging
     # Burst stacks: frames shot in quick succession show as one tile.
     "stack_bursts": True,
-    "pair_raw_jpeg": True,
-    "scene_tags_auto": False,            # look at new photos (scene tags) after each scan - on once the model is in               # a RAW+JPEG shot shows as one photo (pairs.py)
+    "pair_raw_jpeg": True,               # a RAW+JPEG shot shows as one photo (pairs.py)
+    "scene_tags_auto": False,            # look at new photos (scene tags) after each scan - on once the model is in
     "burst_gap_seconds": 1.0,            # frames at most this far apart (sub-second times) are one burst
     "burst_min_frames": 3,               # fewer shots than this isn't a burst
     # Appearance.
@@ -70,7 +70,7 @@ DEFAULTS: dict[str, Any] = {
     "window_geometry": None,             # the window's size, place and monitor (Qt saveGeometry, hex)
     "grid_default_size": 180,            # tile edge in px (the Grid size slider starts here)
     "show_videos": True,                 # videos in the library grid
-    "hover_info": True,
+    "hover_info": True,                  # the info card over a photo the mouse rests on
     "start_page": "Library",             # Library | Albums | last (the page open when Lunelis closed)
     "last_page": "Library",
     "wheel_action": "zoom",              # the photo view's mouse wheel: zoom | step (next/previous photo)
@@ -91,8 +91,8 @@ DEFAULTS: dict[str, Any] = {
     "date_format": "long",               # long | iso | day_first | short (photoinfo.DATE_FORMATS)
     "confirm_quit": True,                # ask before quitting while an export, merge or job runs
     "edit_live_quality": "fast",         # fast (half size while dragging) | sharp
-    "detail_strip_height": 88,
-    "edit_sections_closed": ["Masks", "Lens corrections", "Effects"],   # folded Edit panel sections           # the photo view's filmstrip (drag its divider)                  # the info card over a photo the mouse rests on
+    "detail_strip_height": 88,           # the photo view's filmstrip (drag its divider)
+    "edit_sections_closed": ["Masks", "Lens corrections", "Effects"],   # folded Edit panel sections
     # Updates (packaged builds): check the public releases once a day at start-up.
     "update_check": True,
     "update_last_check": None,           # ISO time of the last check

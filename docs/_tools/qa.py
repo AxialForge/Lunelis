@@ -5,7 +5,7 @@ Quality checks for the release documentation package.
 
 1. Every control in ui_inventory.json appears in the user manual, in its screen's table.
 2. Callout numbers on each screenshot match the table rows (1..N, same count, same order).
-3. Every annotated and clean screenshot exists, in both themes.
+3. Every annotated and clean screenshot exists, in each theme captured for the package.
 4. The PDFs open, have pages, and their table of contents lists every chapter
    with a page number.
 Writes qa_report.json and prints a summary.
@@ -35,7 +35,7 @@ def docx_text(p: Path) -> str:
 def pdf_check(p: Path, chapters: list[str]) -> dict:
     doc = pdfium.PdfDocument(str(p))
     toc_text = ""
-    for i in range(min(6, len(doc))):
+    for i in range(min(14, len(doc))):
         t = doc[i].get_textpage().get_text_range()
         toc_text += t
         if i and "...." not in t:
@@ -52,6 +52,9 @@ def main() -> None:
     report: dict = {"controls_missing_from_manual": [], "callout_mismatches": [], "screenshots_missing": [],
                     "pdfs": {}, "files": {}}
 
+    # Themes captured for this package: capture_graphite.json -> light, capture_midnight.json -> dark.
+    themes = {t for t, f in (("light", "graphite"), ("dark", "midnight")) if (PKG / f"capture_{f}.json").exists()}
+    report["themes"] = sorted(themes)
     rows_by_screen = {s["id"]: s["rows"] for ch in data["chapters"] for s in ch["screens"]}
     for w in inv["windows"]:
         ctrls = w.get("controls", [])
@@ -66,14 +69,20 @@ def main() -> None:
             if c["name"] not in text:
                 report["controls_missing_from_manual"].append(f"{w['id']} #{c['callout']} {c['name']}")
         for key, rel in w["screenshots"].items():
+            if key.split("_")[0] not in themes:          # a theme this package didn't capture
+                continue
             if rel is None or not (PKG / rel).exists():
                 report["screenshots_missing"].append(f"{w['id']} {key}")
 
     chapters = [ch["title"] for ch in data["chapters"]]
     front = ["About this manual", "Installing Lunelis", "The interface at a glance"]
     for name, chs in (("USER_MANUAL.pdf", front + chapters), ("RELEASE_OVERVIEW.pdf",
-                      ["What Lunelis is", "Architecture", "Technology stack", "How a release is made",
+                      ["Simple: Lunelis in one page", "Medium: what it does and how you use it",
+                       "Advanced: how it is built", "How a release is made",
                        "Version history", "Known limitations", "Roadmap"]),
+                      ("INSTALL_GUIDE.pdf", ["Before you start", "Install", "First run", "Where Lunelis keeps things",
+                       "Updating", "Moving to a new PC", "Uninstalling", "Troubleshooting the install"]),
+                      ("RELEASE_HISTORY.pdf", ["At a glance"]),
                       ("DEVELOPER_GUIDE.pdf", ["Rebuilding on a clean machine", "Repository layout",
                        "The catalog: schema and migrations", "Configuration", "Tests and coverage",
                        "Regenerating the documentation and screenshots", "Extension points", "Releasing"])):
@@ -93,7 +102,7 @@ def main() -> None:
                         "manual_gaps": data["gaps"], "manual_unverified_fields": data["unverified"]}
     (PKG / "qa_report.json").write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
     print(json.dumps({k: report[k] for k in ("controls_missing_from_manual", "callout_mismatches",
-                                             "screenshots_missing", "pdfs", "totals")}, indent=1, ensure_ascii=False))
+                                             "themes", "screenshots_missing", "pdfs", "totals")}, indent=1, ensure_ascii=False))
 
 
 main()

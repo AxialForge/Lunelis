@@ -20,7 +20,7 @@ OUT = Path(sys.argv[1]).resolve()
 TOOLS = Path(__file__).resolve().parent
 BUILD = TOOLS / "build"
 PARTS = BUILD / "parts"
-CONTENT = ["library", "editing", "organize", "settings"]      # chapter order in the manual
+CONTENT = ["library", "editing", "create", "newer", "organize", "settings"]      # chapter order
 PAGE_W_PX, PAGE_H_PX = 864, 600   # picture area of a landscape Letter page at 96 dpi
 DARK = ["main_window", "photo_view", "edit_panel", "albums", "quarantine", "settings"]
 

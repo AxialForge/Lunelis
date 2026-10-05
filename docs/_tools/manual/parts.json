@@ -2,9 +2,9 @@
  "intro": "Every screen of Lunelis is made of a few named areas. This manual always uses the same names for them, shown in bold, and every callout table says in which area each control is (the Where column).",
  "parts": {
   "Menu bar": "The Library, Photo and Help menus along the very top of the window. The Photo menu acts on the selected photos; right-clicking a photo opens the same menu.",
-  "Sidebar": "The dark column on the left: every page of Lunelis in three foldable groups (Photos; Bring in & organize; Keep safe), Settings at the bottom, and the size of the library under it. It is the same on every page.",
-  "Top bar": "The row above the photos in the library: the search box (Ctrl+F) on the left; the sort order and the Grid size slider on the right.",
-  "Filter bar": "The row under the Top bar: the Rating, Label, Flag and Tag filters, Clear all while anything is filtering, the Stack bursts switch, and how many photos are showing.",
+  "Sidebar": "The dark column on the left: every page of Lunelis in four foldable groups (Photos; Create; Bring in & organize; Keep safe), Settings at the bottom, and the size of the library under it.",
+  "Top bar": "The row above the photos in the library: the search box (Ctrl+F) and the Ask button on the left; the sort order and the Grid size slider on the right.",
+  "Filter bar": "The row under the Top bar: the Rating, Label, Flag, Backup and Tag filters, Clear all while anything is filtering, the Stack bursts switch, and how many photos are showing.",
   "Photo grid": "The thumbnails of every photo that matches the search and filters. Click to select, double-click (or Enter) to open a photo in the photo view.",
   "Timeline": "The narrow strip down the right edge of the Photo grid with years and months. Click or drag on it to jump through the library. It shows when the grid is sorted by date.",
   "Status bar": "The thin bar along the very bottom: what Lunelis is doing in the background (scans, thumbnails, backups) on the left, and the Jobs button on the right.",
@@ -12,7 +12,7 @@
   "Photo": "The big picture in the photo view. The mouse wheel zooms, tilting the wheel steps to the previous or next photo, and dragging pans. While editing it also shows the crop frame and mask outlines.",
   "Filmstrip": "The row of small thumbnails under the Photo: the neighbouring photos in the library's order. Click one to jump to it; drag the divider above it to make it bigger or smaller.",
   "Info panel": "The column on the right of the photo view (when not editing): the file's name and type, its rating, colour label and flag, its tags, when and with what it was taken, its event, location, albums, file path, shooting details and all its metadata.",
-  "Edit panel": "The column on the right of the photo view while editing (press E or click Edit): Done, Auto, Reset and Before at the top, then foldable sections - Filters, Crop & rotate, Masks, Lens corrections, Light, Tone curve, Color, Effects and Detail.",
+  "Edit panel": "The column on the right of the photo view while editing (press E): Done, Auto, My look, Reset, Before and Proof at the top, the Version box, then foldable sections - Filters, Crop & rotate, Retouch, Masks, Lens corrections, Light, Tone curve, Color, Effects and Detail.",
   "Tab strip": "The row of tabs at the top of a page with several views: Exact copies / Near-duplicates on the Duplicates page, and the eleven tabs of Settings. Click a tab to switch.",
   "Settings tab": "The contents of the chosen Settings tab: cards of settings, each with a title. Changes are saved the moment you make them.",
   "Albums page": "Your albums as cover tiles, the New album tile, and the way to Event suggestions.",
@@ -24,8 +24,28 @@
   "Damaged files page": "Files that are empty, zero-filled, cut short or unreadable, each with the best surviving intact copy elsewhere in the library.",
   "Backups page": "Your photo backups (to USB drives, sticks or network folders): their status, and buttons to back up now, verify, restore and add a new backup.",
   "Quarantine page": "Every file Lunelis has set aside instead of deleting it, why, and whether the copy that was kept is still there; Restore puts files back, Empty removes them for good.",
-  "Page": "The main area of the current page."
+  "Page": "The main area of the current page.",
+  "Create page": "The Create folder at the top and a card for every tool; a tool fills the page with its Photos box, strip, options and Make.",
+  "Map page": "The map of photos with a location, with Show map tiles (online) and Fit at the top.",
+  "On this day page": "The date and its controls at the top; a row per year below.",
+  "Stats page": "Cards of numbers and bar charts about how you shoot.",
+  "Library status page": "The scan steps, the library at a glance, Lunelis noticed and the sources.",
+  "Sensor dust page": "The camera, Look for dust, the dust map and the heal buttons.",
+  "Review page": "The stages of an autopilot run, each with its answer."
  },
- "show_parts": ["main_window", "photo_view", "edit_panel", "albums", "tags", "events", "import", "migrate",
-                "dupes_exact", "damaged", "backups", "quarantine", "settings"]
+ "show_parts": [
+  "main_window",
+  "photo_view",
+  "edit_panel",
+  "albums",
+  "tags",
+  "events",
+  "import",
+  "migrate",
+  "dupes_exact",
+  "damaged",
+  "backups",
+  "quarantine",
+  "settings"
+ ]
 }

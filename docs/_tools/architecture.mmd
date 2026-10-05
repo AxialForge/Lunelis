@@ -3,21 +3,21 @@ flowchart LR
 
     subgraph app["Lunelis.exe - one Python 3.13 process"]
         direction TB
-        ui["<b>User interface</b> (PySide6 / Qt 6)<br/>main window, pages, photo view, Edit panel, dialogs, tray icon"]
+        ui["<b>User interface</b> (PySide6 / Qt 6)<br/>main window, pages, photo view, Edit panel,<br/>Create tools, video player, culling, tray icon"]
         subgraph workers["Background work (Qt worker threads)"]
             direction LR
-            scan["<b>Library worker</b><br/>scan, sidecars, metadata,<br/>Takeout dates, thumbnails, damage"]
-            jobs["<b>Jobs engine</b><br/>duplicates, hashing, integrity<br/>pause / idle / night / speed limit"]
-            ingest["<b>Import, migrate,<br/>photo backups</b>"]
-            render["<b>Edit renderer</b><br/>previews, exports, merges"]
+            scan["<b>Library worker</b><br/>scan, sidecars, metadata, Takeout dates,<br/>thumbnails, damage, noticed, scene tags"]
+            jobs["<b>Jobs engine</b><br/>duplicates, hashing, rolling checks,<br/>dust maps; pause / idle / night / speed limit"]
+            ingest["<b>Import + Autopilot,<br/>migrate, photo backups</b>"]
+            render["<b>Edit renderer</b><br/>previews, exports, merges,<br/>Create outputs, trims"]
         end
         subgraph core["Core packages (no user interface)"]
             direction LR
-            catalog["<b>catalog</b><br/>SQLite schema v25,<br/>migrations, backups"]
-            media["<b>importers, raw, albums, events,<br/>tags, search, stacks</b><br/>EXIF, RAW, HEIC, video; organising"]
+            catalog["<b>catalog</b><br/>SQLite schema v37,<br/>migrations, backups"]
+            media["<b>importers, raw, video, albums, events,<br/>tags, search, ask, recognize, stacks</b><br/>EXIF, RAW, HEIC, video; organising"]
             dupes["<b>dupes, damage</b><br/>exact / near copies,<br/>quarantine"]
-            edit["<b>edit</b><br/>pipeline, masks, AI, lens,<br/>noise reduction, merge, export"]
-            xmp["<b>xmp, updater</b><br/>sidecars; checked updates"]
+            edit["<b>edit</b><br/>pipeline, masks, retouch, look, AI,<br/>lens, noise, merge, ICC export"]
+            xmp["<b>xmp, updater, gallery</b><br/>sidecars; checked updates;<br/>home-network album server"]
         end
         ui --> workers --> core
     end
@@ -39,10 +39,12 @@ flowchart LR
     subgraph net["Internet - optional"]
         direction LR
         releases["GitHub releases<br/>updates, SHA-256 checked"]
-        models["AI mask models<br/>pinned SHA-256"]
+        models["AI models (masks, scenes)<br/>pinned SHA-256"]
+        tiles["Map tiles<br/>only when the map is on"]
     end
 
     core --> data
     core -- "read; copy in; move aside" --> photos
     core -. "only when asked" .-> net
     dt["darktable<br/>(Lua plugin)"] <-.-> sidecars
+    home(["Phones and TVs<br/>on the home network"]) -. "shared albums only" .-> core

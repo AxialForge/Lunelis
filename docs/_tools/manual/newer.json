@@ -1,0 +1,1074 @@
+{
+ "chapters": [
+  {
+   "id": "looking-back",
+   "title": "Map, On this day and Stats",
+   "purpose": "Three ways to look at the whole library: where you took photos (Map), what you shot on this date in other years (On this day), and how you shoot and what you keep (Stats).",
+   "intro": [
+    "All three read the catalog only. The Map draws dots on a plain grid until you turn online map tiles on - then OpenStreetMap's map pictures are fetched (only tile numbers are asked for; nothing about your photos is sent) and kept in the data folder."
+   ],
+   "screens": [
+    "map",
+    "on_this_day",
+    "stats"
+   ],
+   "workflows": [
+    {
+     "title": "See the photos from one place",
+     "steps": [
+      "Open Map in the sidebar.",
+      "Drag to move and use the mouse wheel (or + / -) to zoom; Fit shows every photo.",
+      "Click a numbered circle: the library opens with just those photos."
+     ]
+    },
+    {
+     "title": "Look back at today in other years",
+     "steps": [
+      "Open On this day. It starts on today's date.",
+      "Each year with photos on that date is a row with a strip of photos; Show all opens them in the library.",
+      "Step a day with ‹ / ›, pick a date, or tick Within 3 days for the week around it."
+     ]
+    },
+    {
+     "title": "Find your best-kept lens",
+     "steps": [
+      "Open Stats.",
+      "Choose Keeper rate by: Lens. Each bar is the photos taken with that lens; the dark part is the ones you flagged Pick, with the rate beside it.",
+      "Focal lengths on a lens shows where a zoom really gets used."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "The Map is a grid with dots, no map.",
+     "what_happens": "Online map tiles are off (the default). Click Show map tiles (online) to turn them on; once a tile is fetched it's kept, so it works offline after."
+    },
+    {
+     "situation": "A photo has no location.",
+     "what_happens": "It isn't on the Map. Photos at 0, 0 (a camera with no GPS fix) are left out too."
+    },
+    {
+     "situation": "Stats show no keepers.",
+     "what_happens": "A keeper is a photo flagged Pick (P). Flag your best photos and the rates fill in."
+    }
+   ]
+  },
+  {
+   "id": "videos",
+   "title": "Videos",
+   "purpose": "Videos and animated GIFs play in the photo view, and a clip can be trimmed to a new, shorter file. Sony S-Log3 clips play through a look that makes them watchable without grading.",
+   "intro": [
+    "The original clip is never changed: a trim is a new file in the Create folder, copied without re-encoding (quick and lossless), starting at the keyframe just before your start mark."
+   ],
+   "screens": [
+    "video"
+   ],
+   "workflows": [
+    {
+     "title": "Trim a clip",
+     "steps": [
+      "Open the video like a photo (double-click it).",
+      "Play to where the copy should start and click Start here (or press I).",
+      "Play on to where it should end and click End here (or press O).",
+      "Click Save trimmed copy. The message links to the new file and its folder."
+     ]
+    },
+    {
+     "title": "Compare an S-Log3 clip with its look",
+     "steps": [
+      "Open an S-Log3 clip (recognised from the camera's XML sidecar).",
+      "It plays through the look chosen in Settings > Library; Show log shows it as recorded while held on."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "A video won't play.",
+     "what_happens": "Lunelis says it couldn't play the file. Open with default app (in the Info panel) plays it in Windows' own player."
+    },
+    {
+     "situation": "Space on a video.",
+     "what_happens": "Plays and pauses it. Left / Right still go to the previous or next photo."
+    }
+   ]
+  },
+  {
+   "id": "cull-ask",
+   "title": "Culling, asking and shortcuts",
+   "purpose": "Culling sorts a shoot from the keyboard in full screen; Ask finds photos from a sentence; the shortcut sheet lists every key.",
+   "intro": [
+    "Culling (Ctrl+K) shows the selection - or everything the library shows - one at a time, or 2-4 side by side zooming together. A burst's frames are all shown, so you choose between them."
+   ],
+   "screens": [
+    "cull",
+    "ask",
+    "dialog_shortcuts"
+   ],
+   "workflows": [
+    {
+     "title": "Cull a shoot",
+     "steps": [
+      "Select the shoot in the library and press Ctrl+K.",
+      "P picks, X rejects, 0-5 rates; with auto-advance on it moves to the next photo.",
+      "C compares 2, 3 or 4 photos; Tab chooses which one the keys act on; Z zooms all together.",
+      "Ctrl+Z undoes a mistake. Esc goes back to the library."
+     ]
+    },
+    {
+     "title": "Ask your library",
+     "steps": [
+      "Click Ask beside the search box (or press Ctrl+Shift+F).",
+      "Type a sentence: \"sunset on a beach, A7R V, 2024, 4 stars\".",
+      "The chips show how it was read; remove one to loosen the search. The best matches come first."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "Ask understood only part of a sentence.",
+     "what_happens": "Camera, lens, dates and stars are read exactly; the rest is matched against what's in the photos when scene tags are on (Settings > Library). Without them, the rest searches names and tags."
+    }
+   ]
+  },
+  {
+   "id": "noticed",
+   "title": "Library status and Lunelis noticed",
+   "purpose": "The Library status page shows what Lunelis is doing to the library and how the library is - and what Lunelis noticed in your shoots: brackets, panoramas, focus stacks, timelapses and star trails it offers to build.",
+   "intro": [
+    "Nothing is built without your click. A dismissed suggestion is never offered again."
+   ],
+   "screens": [
+    "library_status"
+   ],
+   "workflows": [
+    {
+     "title": "Build what Lunelis noticed",
+     "steps": [
+      "Open Library status.",
+      "Under Lunelis noticed, look at the frames of a suggestion.",
+      "Build the HDR... / Build the panorama... opens the merge; Make the timelapse... / focus stack... / star trails... opens the Create tool with those frames.",
+      "Show photos shows them in the library; Dismiss takes the suggestion away for good."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "A source shows Offline.",
+     "what_happens": "Its drive or NAS isn't answering. Its photos stay in the library from their thumbnails, marked OFFLINE; nothing is marked missing."
+    }
+   ]
+  },
+  {
+   "id": "sensor-dust",
+   "title": "Sensor dust",
+   "purpose": "Dust on a camera's sensor shows as the same soft dark blot in many photos. The Sensor dust page finds it per camera and heals it out of the photos as edits.",
+   "intro": [
+    "Healing adds Heal spots to the photos' edits - the files never change - and Undo the last heal takes them off again."
+   ],
+   "screens": [
+    "sensor_dust"
+   ],
+   "workflows": [
+    {
+     "title": "Find and heal dust",
+     "steps": [
+      "Open Sensor dust (Keep safe). Pick the camera.",
+      "Click Look for dust. The map shows each spot: solid while it's there, dashed once a cleaning removed it.",
+      "Show the photos to check them, then Heal on N photos. Lunelis asks first.",
+      "Undo the last heal if you change your mind."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "No dust found.",
+     "what_happens": "Dust shows best at f/8 and narrower on plain bright areas; with few such photos there may be nothing to go on."
+    },
+    {
+     "situation": "Some photos were left alone.",
+     "what_happens": "Photos rotated or flipped in Lunelis are skipped (the sensor's corners moved); the message says how many."
+    }
+   ]
+  },
+  {
+   "id": "autopilot",
+   "title": "Review your shoot (Autopilot)",
+   "purpose": "With Autopilot ticked on the Import page, Lunelis sorts out an imported shoot in stages - best burst frames, scene tags, an event, edits in your style, a draft album, a highlight reel - and waits for you to review it.",
+   "intro": [
+    "Nothing is set aside, deleted, renamed or edited before you've reviewed it: edits and the reel wait for Apply / Make it, and every other stage can be undone."
+   ],
+   "screens": [
+    "review_shoot"
+   ],
+   "workflows": [
+    {
+     "title": "Review a shoot",
+     "steps": [
+      "When the import is done, click Review it on the Import page (or the tray message).",
+      "Undo any stage you don't want; Apply the edits; Make it for the highlight reel.",
+      "Show the photos to look at the shoot; Done reviewing keeps what's left."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "A stage says it was skipped.",
+     "what_happens": "It couldn't run - no scene model yet, fewer than 15 edits to learn your look from - and says why. Turn stages on or off in Settings > Library."
+    }
+   ]
+  },
+  {
+   "id": "sharing",
+   "title": "Sharing an album at home",
+   "purpose": "Share an album with the family's phones and TV on your home network - a link and a QR code, no accounts, nothing on the internet.",
+   "intro": [
+    "Only home-network addresses are answered. Each shared album has its own long random key; an optional PIN is stored only as a salted hash; guests see resized copies without location; the originals only if you allow it."
+   ],
+   "screens": [
+    "dialog_share",
+    "dialog_smart_album",
+    "scene_suggestions"
+   ],
+   "workflows": [
+    {
+     "title": "Share an album",
+     "steps": [
+      "On the Albums page, right-click an album > Share on the home network...",
+      "Optionally type a PIN (4-12 digits) and tick Allow downloading the original files.",
+      "Click Share. Copy the link, or point a phone's camera at the QR code.",
+      "Stop sharing makes the link useless at once."
+     ]
+    },
+    {
+     "title": "Make a smart album",
+     "steps": [
+      "On the Albums page click New smart album...",
+      "Choose whether photos must match all rules or any, and add rules (ISO at least 3200, 4 stars or more, a lens...).",
+      "Save. The album keeps itself up to date."
+     ]
+    },
+    {
+     "title": "Accept scene suggestions",
+     "steps": [
+      "Open Tags > Scene suggestions.",
+      "Pick a suggested tag; tick the photos that really show it.",
+      "Accept ticked (or Accept all above a confidence - it asks first). Rejected ones aren't suggested again."
+     ]
+    }
+   ],
+   "edge_cases": [
+    {
+     "situation": "A phone can't open the link.",
+     "what_happens": "It must be on the same home network. Windows may have asked whether Lunelis may accept connections on private networks - allow it."
+    },
+    {
+     "situation": "Update with the PIN field empty.",
+     "what_happens": "Keeps the PIN. Tick Remove the PIN to take it off."
+    }
+   ]
+  }
+ ],
+ "screen_text": {
+  "map": "The Map page: photos with a location as dots, grouped into numbered circles where they crowd.",
+  "on_this_day": "On this day: what you shot on this date in other years, one row per year.",
+  "stats": "Stats: at a glance, keeper rate by lens / camera / focal length / aperture / ISO / shutter, focal lengths on a lens, months, and a yearly recap picture.",
+  "library_status": "Library status: the scan steps, the library at a glance, Lunelis noticed, and every source with its state.",
+  "sensor_dust": "Sensor dust: a camera's dust map and the photos it would heal.",
+  "review_shoot": "Review your shoot: what the autopilot did, stage by stage, each with its answer.",
+  "scene_suggestions": "Tags > Scene suggestions: tags the scene model suggested, waiting for your accept.",
+  "ask": "Ask your library: a sentence becomes a search; the chips show how it was read.",
+  "video": "The photo view playing a video, with the trim controls.",
+  "cull": "Culling, full screen: one photo or a compare of 2-4, all from the keyboard.",
+  "dialog_share": "Share an album on the home network: PIN, originals, link, QR code.",
+  "dialog_smart_album": "A smart album's rules.",
+  "dialog_shortcuts": "Every keyboard shortcut, for the screen you're on first (press ?)."
+ },
+ "controls": {
+  "main_window": {
+   "Ask": {
+    "does": "Opens Ask your library: find photos from a sentence.",
+    "inputs": "Click, or Ctrl+Shift+F.",
+    "default": "-",
+    "notes": "See Culling, asking and shortcuts."
+   },
+   "Backup": {
+    "does": "Filters to photos that are backed up, or not.",
+    "inputs": "Choose Backed up or Not backed up.",
+    "default": "Any",
+    "notes": "A photo counts as backed up when a backup holds a good copy of it."
+   },
+   "Map": {
+    "does": "Opens the Map page.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "On this day": {
+    "does": "Opens the On this day page.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Stats": {
+    "does": "Opens the Stats page.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Create": {
+    "does": "Opens the Create page (and folds or unfolds the Create group when it's the group heading).",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Library status": {
+    "does": "Opens the Library status page.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Sensor dust": {
+    "does": "Opens the Sensor dust page.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Collapse": {
+    "does": "Folds the sidebar to icons only (Expand brings the names back).",
+    "inputs": "Click, or Ctrl+B.",
+    "default": "Names shown",
+    "notes": "Settings > Appearance can fold it on narrow windows by itself."
+   },
+   "Ask your library…": {
+    "does": "Opens Ask your library.",
+    "inputs": "Ctrl+Shift+F.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Move the Archive to a drive…": {
+    "does": "Moves the archived photos to another drive (through Migrate).",
+    "inputs": "Click and choose the drive.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Sidebar: icons only": {
+    "does": "Folds or unfolds the sidebar.",
+    "inputs": "Ctrl+B.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Undo": {
+    "does": "Takes back the last change to stars, labels, flags, tags, albums, events, the archive, stacks or edits on many photos.",
+    "inputs": "Ctrl+Z.",
+    "default": "-",
+    "notes": "Edit mode has its own undo for the photo being edited."
+   },
+   "Redo": {
+    "does": "Puts back what Undo took away.",
+    "inputs": "Ctrl+Shift+Z or Ctrl+Y.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Cull full screen…": {
+    "does": "Opens culling for the selection (or everything showing).",
+    "inputs": "Ctrl+K.",
+    "default": "-",
+    "notes": "-"
+   },
+   "More like these": {
+    "does": "Shows photos that look like the selected ones, best first.",
+    "inputs": "Ctrl+Alt+F.",
+    "default": "-",
+    "notes": "Needs scene tags turned on (Settings > Library)."
+   },
+   "Archive": {
+    "does": "Archives the selected photos: kept, but out of the library's view (the Archive album shows them).",
+    "inputs": "Ctrl+Shift+H.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Open in the Edit page": {
+    "does": "Opens the selected photos on the Edit page, the editing workspace.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Keyboard shortcuts": {
+    "does": "Shows every keyboard shortcut.",
+    "inputs": "Press ?.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "photo_view": {
+   "All metadata": {
+    "does": "Unfolds every tag the file carries.",
+    "inputs": "Click.",
+    "default": "Folded",
+    "notes": "Text from the file is shown as text only."
+   },
+   "Show in folder": {
+    "does": "Opens the photo's folder in Explorer with the file selected.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Open with default app": {
+    "does": "Opens the file in Windows' own program for it.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "edit_panel": {
+   "My look": {
+    "does": "Suggests an edit in your style, learned on this PC from your own edits.",
+    "inputs": "Click; the suggestion shows with Apply and Not now.",
+    "default": "-",
+    "notes": "Needs 15 edited photos. Nothing changes until Apply; Ctrl+Z undoes it."
+   },
+   "Proof": {
+    "does": "Soft proof: shows how the photo will print with the profile chosen in Settings > Edit, with colours it can't print in magenta.",
+    "inputs": "Toggle.",
+    "default": "Off (greyed until a proof profile is chosen).",
+    "notes": "-"
+   },
+   "Version": {
+    "does": "Switches between the photo's own edit (Original) and its virtual copies.",
+    "inputs": "Choose.",
+    "default": "Original",
+    "notes": "Copies are other edits of the same file - nothing is copied on disk."
+   },
+   "New copy": {
+    "does": "Starts a virtual copy from the edit on screen.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "⋯": {
+    "does": "Export this copy... or Delete this copy.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Only for a copy, not the Original."
+   },
+   "Presets": {
+    "does": "Import presets... from a file, or Export my filters... to one.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "A filter you already have by that name is left as it is."
+   },
+   "Retouch": {
+    "does": "The section with the Heal, Clone and Red-eye tools.",
+    "inputs": "Click the heading to fold or unfold.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Heal": {
+    "does": "Click a spot on the photo to blend it away with what's around it.",
+    "inputs": "Turn on, set Size, click on the photo.",
+    "default": "Off",
+    "notes": "The patch is chosen when you click, so the export matches the preview."
+   },
+   "Clone": {
+    "does": "Copies one place of the photo over another.",
+    "inputs": "Alt+click where to copy from, then click where to paint.",
+    "default": "Off",
+    "notes": "Further clicks keep the same offset."
+   },
+   "Red-eye": {
+    "does": "Click each red eye; only the red is taken out.",
+    "inputs": "Turn on, click the eyes.",
+    "default": "Off",
+    "notes": "-"
+   },
+   "Remove last spot": {
+    "does": "Takes the latest spot away.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Ctrl+Z works too."
+   }
+  },
+  "dialog_export": {
+   "Last used": {
+    "does": "Presets: Last used, ready-made ones (Web, Email, Social, Print matte / glossy, Archive TIFF) and your own.",
+    "inputs": "Choose.",
+    "default": "Last used",
+    "notes": "A preset fills in every setting but the folder."
+   },
+   "Save as preset…": {
+    "does": "Keeps the current settings under a name.",
+    "inputs": "Click and name it.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Standard": {
+    "does": "How strong the output sharpening is: low, standard or high.",
+    "inputs": "Choose.",
+    "default": "Standard",
+    "notes": "Sharpening (none, screen, matte, glossy) is added at the exported size, never to the edit."
+   },
+   "sRGB (screens, the web, most labs)": {
+    "does": "The colour profile the file is converted to and tagged with: sRGB, Display P3, Adobe RGB (1998)-compatible, or a profile of your own (.icc).",
+    "inputs": "Choose.",
+    "default": "sRGB",
+    "notes": "-"
+   },
+   "Perceptual": {
+    "does": "How colours outside the chosen profile are fitted in: perceptual or relative colorimetric.",
+    "inputs": "Choose.",
+    "default": "Perceptual",
+    "notes": "Only for a profile other than sRGB."
+   }
+  },
+  "albums": {
+   "New smart album…": {
+    "does": "Makes an album from rules that keeps itself up to date.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Album tile: Favorites": {
+    "does": "An automatic album: your 4- and 5-star photos.",
+    "inputs": "Click to open.",
+    "default": "-",
+    "notes": "Automatic albums fill themselves."
+   },
+   "Album tile: Picks": {
+    "does": "An automatic album: photos flagged Pick.",
+    "inputs": "Click to open.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Album tile: Videos": {
+    "does": "An automatic album: every video.",
+    "inputs": "Click to open.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Album tile: α7R V": {
+    "does": "An automatic album per camera.",
+    "inputs": "Click to open.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Album tile: α7 IV": {
+    "does": "An automatic album per camera.",
+    "inputs": "Click to open.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "tags": {
+   "Your tags": {
+    "does": "The tree of your tags.",
+    "inputs": "Click the tab.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Scene suggestions": {
+    "does": "Tags the scene model suggested, waiting for your accept.",
+    "inputs": "Click the tab.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "import": {
+   "Review it": {
+    "does": "Opens Review your shoot for a shoot the autopilot sorted out.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Shows only while a shoot waits for review."
+   },
+   "Autopilot": {
+    "does": "After the import, sorts out the shoot for you to review.",
+    "inputs": "Tick.",
+    "default": "Off",
+    "notes": "Stages: Settings > Library > Shoots, videos and the autopilot."
+   }
+  },
+  "migrate": {
+   "Only photos in the Archive - move the Archive out to this drive": {
+    "does": "Moves only the archived photos.",
+    "inputs": "Choose.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Preview - nothing is moved": {
+    "does": "Plans the move and shows what would happen, without moving anything.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "settings_appearance": {
+   "Fold the sidebar to icons when the window is narrow": {
+    "does": "Folds the sidebar by itself on a narrow window.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "-"
+   },
+   "Show a RAW+JPEG shot as one photo (stars, labels and albums go to both)": {
+    "does": "Shows a RAW and its JPEG as one tile with a badge like ARW+JPG.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "-"
+   }
+  },
+  "settings_library": {
+   "Download and turn on": {
+    "does": "Downloads the scene model (once, checked against its fingerprint) and turns scene tags on.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Becomes Remove once it's on."
+   },
+   "Tag the library…": {
+    "does": "Starts a background job that looks at every photo.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Review suggestions": {
+    "does": "Opens Tags > Scene suggestions.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Edit the labels…": {
+    "does": "Opens the list of scenes the model looks for, to add or change them.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Look at new photos after each scan": {
+    "does": "Suggests scene tags for new photos after each scan.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "-"
+   },
+   "After each scan, look for brackets, panoramas, focus stacks and timelapses": {
+    "does": "Lunelis noticed: looks for shots worth building after each scan.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "Suggestions wait on Library status; nothing is built by itself."
+   },
+   "S-Log3 videos": {
+    "does": "How S-Log3 clips are shown: the built-in look (to Rec.709), your own LUT, or off.",
+    "inputs": "Choose.",
+    "default": "Built-in look",
+    "notes": "Changing it remakes those clips' thumbnails."
+   },
+   "Best frame of each burst": {
+    "does": "Autopilot stage: makes each burst's sharpest frame its cover.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "-"
+   },
+   "Scene tags": {
+    "does": "Autopilot stage: suggests scene tags.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "-"
+   },
+   "An event": {
+    "does": "Autopilot stage: makes an event with a suggested name.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "-"
+   },
+   "Edits in your style": {
+    "does": "Autopilot stage: suggests an edit per photo, applied only in the review.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "-"
+   },
+   "A draft album": {
+    "does": "Autopilot stage: an album of the best frames.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "-"
+   },
+   "A highlight reel": {
+    "does": "Autopilot stage: offers a slideshow of the best frames, made only in the review.",
+    "inputs": "Tick.",
+    "default": "On",
+    "notes": "-"
+   }
+  },
+  "settings_edit": {
+   "Monitor profile": {
+    "does": "Shows the photo view and Edit through Windows' display profile.",
+    "inputs": "Choose.",
+    "default": "Off",
+    "notes": "For a calibrated monitor. Edits and exports are unaffected."
+   }
+  },
+  "settings_duplicates_jobs": {
+   "Re-read files": {
+    "does": "Regular file checks: how often (every week, every month, off) and how much is read each time.",
+    "inputs": "Choose; a number of GB.",
+    "default": "Every week, 20 GB",
+    "notes": "The files checked longest ago go first; damage shows on Damaged files."
+   }
+  },
+  "map": {
+   "Show map tiles (online)": {
+    "does": "Turns OpenStreetMap's map pictures on or off.",
+    "inputs": "Click.",
+    "default": "Off",
+    "notes": "Only tile numbers are asked for; tiles are kept after the first time."
+   },
+   "Fit": {
+    "does": "Shows every photo with a location.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "on_this_day": {
+   "On this day": {
+    "does": "The page's title.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "-"
+   },
+   "The day before": {
+    "does": "One day back.",
+    "inputs": "Click (‹).",
+    "default": "-",
+    "notes": "-"
+   },
+   "The day after": {
+    "does": "One day on.",
+    "inputs": "Click (›).",
+    "default": "-",
+    "notes": "-"
+   },
+   "Today": {
+    "does": "Back to today's date.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Within 3 days": {
+    "does": "The week around the date instead of just the day.",
+    "inputs": "Tick.",
+    "default": "Off",
+    "notes": "-"
+   }
+  },
+  "stats": {
+   "Keeper rate by": {
+    "does": "What the keeper-rate bars group by: lens, camera, focal length, aperture, ISO or shutter speed.",
+    "inputs": "Choose.",
+    "default": "Lens",
+    "notes": "A keeper is a photo flagged Pick."
+   },
+   "Focal lengths on": {
+    "does": "Which lens the focal-length chart shows.",
+    "inputs": "Choose.",
+    "default": "Your most used zoom",
+    "notes": "-"
+   },
+   "Your year": {
+    "does": "Which year the recap is for.",
+    "inputs": "Choose.",
+    "default": "This year",
+    "notes": "-"
+   },
+   "Make a recap picture": {
+    "does": "Saves a picture of the year's numbers to the Create folder.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "library_status": {
+   "Rescan everything (F5)": {
+    "does": "Scans every source again.",
+    "inputs": "Click or F5.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Build the HDR…": {
+    "does": "Lunelis noticed: hands the frames to the matching builder (Build the HDR / panorama, Make the timelapse / focus stack / star trails).",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "A merge counts as built when it's saved; a Create tool when it has made the file."
+   },
+   "Rescan": {
+    "does": "Scans that one source again.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Table: Folder, Status, Photos & videos, Missing, Last scanned": {
+    "does": "Every source: whether it's reachable now, how many photos, how many missing, when it was last scanned.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "Offline sources are left alone - nothing is marked missing."
+   }
+  },
+  "sensor_dust": {
+   "Sensor dust": {
+    "does": "Which camera's dust map to show.",
+    "inputs": "Choose a camera.",
+    "default": "The camera with the most f/8+ photos",
+    "notes": "-"
+   },
+   "Look for dust": {
+    "does": "Reads that camera's f/8-and-narrower photos and makes its dust map.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Runs in the background; the map is kept."
+   },
+   "Show the photos": {
+    "does": "Shows the photos a heal would touch.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Heal": {
+    "does": "Adds Heal spots for the dust to those photos' edits.",
+    "inputs": "Click; Lunelis asks first.",
+    "default": "-",
+    "notes": "Files never change."
+   },
+   "Undo the last heal": {
+    "does": "Takes off the spots the last heal added.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Spots you added yourself stay."
+   }
+  },
+  "review_shoot": {
+   "Done reviewing": {
+    "does": "Closes the review: what's left is kept, waiting stages are skipped.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Undo": {
+    "does": "Takes a finished stage back (the event, the album, the covers, the suggestions it added).",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Apply": {
+    "does": "Applies the suggested edits (photos you edited by hand meanwhile are left alone).",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Skip": {
+    "does": "Doesn't do a waiting stage.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Make it": {
+    "does": "Makes the highlight reel in the Create folder.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Then Play it / Open the folder."
+   }
+  },
+  "scene_suggestions": {
+   "Accept ticked": {
+    "does": "Turns the ticked suggestions into tags.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Reject ticked": {
+    "does": "Drops the ticked suggestions; they aren't suggested again.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Accept all at or above": {
+    "does": "The confidence for Accept all above.",
+    "inputs": "Slider.",
+    "default": "70 %",
+    "notes": "-"
+   },
+   "Tick all": {
+    "does": "Ticks every photo in the list.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Accept all above": {
+    "does": "Accepts every suggestion of this tag at or above the confidence.",
+    "inputs": "Click; Lunelis says how many and asks first.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "ask": {
+   "e.g. sunset on a beach, A7R V, 2024 · 4 stars picks from June 2024": {
+    "does": "Type a sentence; Enter asks.",
+    "inputs": "Text.",
+    "default": "-",
+    "notes": "Close (or Esc) goes back to the library."
+   }
+  },
+  "video": {
+   "Drag to move through the clip; J / L jump 5 seconds": {
+    "does": "The position in the clip.",
+    "inputs": "Drag; J / L jump 5 s.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Play / pause": {
+    "does": "Plays or pauses.",
+    "inputs": "Click, Space or K.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Sound on": {
+    "does": "Mutes or unmutes.",
+    "inputs": "Click.",
+    "default": "Sound on",
+    "notes": "-"
+   },
+   "Start here": {
+    "does": "Marks where the trimmed copy starts.",
+    "inputs": "Click or I.",
+    "default": "-",
+    "notes": "-"
+   },
+   "End here": {
+    "does": "Marks where it ends.",
+    "inputs": "Click or O.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Save trimmed copy": {
+    "does": "Saves the part between the marks as a new file in the Create folder.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Copied, not re-encoded; starts at the keyframe just before the start mark."
+   }
+  },
+  "dialog_share": {
+   "PIN (optional)": {
+    "does": "A PIN guests type once per browser.",
+    "inputs": "4-12 digits.",
+    "default": "No PIN",
+    "notes": "Stored only as a salted hash. Empty on Update keeps the PIN."
+   },
+   "No PIN": {
+    "does": "The PIN box.",
+    "inputs": "Digits.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Allow downloading the original files": {
+    "does": "Lets guests download the original files, not just the resized copies.",
+    "inputs": "Tick.",
+    "default": "Off",
+    "notes": "-"
+   },
+   "Update": {
+    "does": "Shares the album (Share) or saves changes (Update).",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Shows the link and QR code."
+   },
+   "Stop sharing": {
+    "does": "Makes the link useless at once.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "Sharing again makes a new link."
+   }
+  },
+  "dialog_smart_album": {
+   "Photos that match": {
+    "does": "Whether photos must match all the rules or any.",
+    "inputs": "Choose.",
+    "default": "all",
+    "notes": "-"
+   },
+   "ISO": {
+    "does": "A rule's field: stars, label, flag, camera, lens, ISO, aperture, focal length, date, tag...",
+    "inputs": "Choose.",
+    "default": "-",
+    "notes": "-"
+   },
+   ">=": {
+    "does": "How the field is compared.",
+    "inputs": "Choose.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Stars": {
+    "does": "Another rule's field.",
+    "inputs": "Choose.",
+    "default": "-",
+    "notes": "-"
+   },
+   "e.g. Low light keepers": {
+    "does": "The album's name.",
+    "inputs": "Text.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Num": {
+    "does": "The value the field is compared with.",
+    "inputs": "Type.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Remove": {
+    "does": "Removes that rule.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Add a rule": {
+    "does": "Adds a rule.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   },
+   "Save": {
+    "does": "Saves the smart album.",
+    "inputs": "Click.",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "dialog_shortcuts": {
+   "Table: Where, Keys, What they do": {
+    "does": "Every keyboard shortcut, the screen you're on first.",
+    "inputs": "-",
+    "default": "-",
+    "notes": "-"
+   }
+  },
+  "settings_import": {
+   "Default: C:\\Users\\Public\\Lunelis Demo\\data\\staging": {
+    "does": "Where an import stages files while it copies and checks them (empty: the data folder's staging folder).",
+    "inputs": "Type a folder, or Change...",
+    "default": "The data folder's staging folder",
+    "notes": "A fast local drive is best."
+   }
+  },
+  "settings_ratings_sidecars": {
+   "Default: C:\\Users\\Public\\Lunelis Demo\\data\\sidecars": {
+    "does": "The central sidecar folder (when sidecars are kept in one place).",
+    "inputs": "Change... / Default.",
+    "default": "The data folder's sidecars folder",
+    "notes": "Existing sidecars move with it."
+   }
+  },
+  "settings_backups": {
+   "Default: C:\\Users\\Public\\Lunelis Demo\\data\\backups": {
+    "does": "Where catalog backups are kept.",
+    "inputs": "Change... / Default.",
+    "default": "The data folder's backups folder",
+    "notes": "Another drive protects against this PC's drive failing."
+   }
+  }
+ }
+}
