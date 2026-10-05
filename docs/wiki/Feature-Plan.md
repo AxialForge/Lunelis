@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.27.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.28.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -146,7 +146,7 @@ automatic; dismissals are remembered.
 | Protection indicator | Protected / not protected per photo from backup state; scheduled integrity checks. |
 | Map and calendar | Photos by GPS on a map (opt-in, labelled online tiles) and an "on this day" calendar. |
 
-### 0.27 - Learn My Look ✅ 0.27.0 · 0.28 - Autopilot Import
+### 0.27 - Learn My Look ✅ 0.27.0 · 0.28 - Autopilot Import ✅ 0.28.0
 
 **Learn My Look:** a small local model learns your editing style from your
 own edit history and suggests an edit (never applied automatically, with

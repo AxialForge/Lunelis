@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-04
+
+### Added (Autopilot Import)
+
+- **Autopilot** on the Import page: after the import, the shoot is sorted
+  out - the sharpest frame of each burst as its cover, scene tags, an event
+  with a suggested name, edits in your style, a draft album of the best
+  frames and a highlight reel.
+- **Review your shoot:** Undo any stage; edits and the reel wait for Apply /
+  Make it. Nothing is set aside, deleted, renamed or edited before the review.
+- An interrupted autopilot carries on where it stopped.
+
 ## [0.27.0] - 2026-10-04
 
 ### Added (Learn My Look)

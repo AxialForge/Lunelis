@@ -40,6 +40,30 @@ filed by the event's start date, so a multi-day trip stays in one folder.
 
 Don't format the card before the second message.
 
+## Autopilot
+
+Tick **Autopilot** beside the Import button and, once the photos are
+imported and catalogued, Lunelis sorts out the shoot for you to review:
+
+| Stage | What it does | In the review |
+|---|---|---|
+| Best frame of each burst | The sharpest frame becomes the burst's cover | Undo puts the old cover back |
+| Scene tags | Suggestions for the shoot (when scene tags are on in Settings) | Undo removes the suggestions |
+| An event | Named from the shoot - e.g. *Beach · Sep 12, 2026* (skipped if you gave the import a name) | Undo removes it; rename it on the Albums page |
+| Edits in your style | A suggested edit per photo from [My look](Editing.md#my-look) - **not applied** | **Apply** or **Skip** |
+| A draft album | The best frames: no rejects, one per burst | Undo removes it |
+| A highlight reel | A slideshow of up to 30 best frames - **not made** | **Make it** (saved to the Create folder) or **Skip** |
+
+When it's done, the status bar (and the tray) says *your shoot is ready* -
+click **review it**. **Show the photos** shows the shoot in the library;
+**Done reviewing** keeps what's left and skips what's still waiting.
+
+Nothing is set aside, deleted, renamed or edited before you've reviewed it.
+A stage that can't run says why (no scene model yet, fewer than 15 edits to
+learn your look from). If Lunelis is closed half-way, the autopilot carries
+on where it stopped the next time. Turn stages off with the `autopilot_skip`
+setting.
+
 ## Camera profiles
 
 Lunelis recognises the card from its layout and reads it the way that
