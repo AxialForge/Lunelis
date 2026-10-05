@@ -35,6 +35,8 @@ _PATHS = {
                 '<circle cx="15" cy="6" r="2"/><circle cx="8.5" cy="12" r="2"/><circle cx="13" cy="18" r="2"/>',
     "edit": '<path d="M4 20l4.4-1L19 8.4a2.1 2.1 0 0 0 0-3l-.4-.4a2.1 2.1 0 0 0-3 0L5 15.6z"/><path d="M14 6.5l3.5 3.5"/>',
     "stats": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    "dust": '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><circle cx="9" cy="10" r="1.3"/>'
+            '<circle cx="15" cy="14" r="1.8"/><circle cx="16" cy="9" r=".8"/>',
     "map": '<path d="M9 4.5L3.5 6.5v13L9 17.5l6 2 5.5-2v-13L15 6.5z"/><path d="M9 4.5v13M15 6.5v13"/>',
     "calendar": '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'
                 '<path d="M12 13.5v3h2.5"/>',
@@ -48,7 +50,8 @@ _PATHS = {
 NAV_ICONS = {"Library": "library", "Albums": "albums", "Tags": "tags", "Import": "import", "Migrate": "migrate",
              "Duplicates": "duplicates", "Damaged files": "damaged", "Backups": "backups",
              "Quarantine": "quarantine", "Settings": "settings", "Library status": "status",
-             "Edit": "edit", "Create": "create", "Stats": "stats", "Map": "map", "On this day": "calendar"}
+             "Edit": "edit", "Create": "create", "Stats": "stats", "Map": "map", "On this day": "calendar",
+             "Sensor dust": "dust"}
 
 
 def _pixmap(name: str, color: str, size: int) -> QPixmap:
