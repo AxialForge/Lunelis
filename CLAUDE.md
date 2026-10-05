@@ -883,6 +883,30 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
   the suite slowed to hours. It waits for the thread pool first and skips a
   window whose QThread still runs - deleting a page mid-work killed the
   process with exit 127 and no traceback.
+- **"Home network" is an explicit list, not `ip.is_private`.** Python counts
+  documentation and benchmark ranges (203.0.113.0/24, 198.18.0.0/15...) as
+  private; the family gallery (gallery.py HOME_NETS) would have let them in.
+- **Text from a photo's file is never markup.** Camera / lens / names come
+  from EXIF anyone can write; an Info-panel label in AutoText rendered a
+  crafted `<a href="file://...">` as a live link (and `<img>` can fetch a UNC
+  path). `put()` escapes unless told `rich=True`, `_link` only opens
+  `event:` and openstreetmap.org.
+- **An update replaces the whole program folder** (and deletes the old one
+  later): `updater.check_install_folder` refuses when the data folder or
+  anything that isn't Lunelis lives in it; the data folder can't be moved
+  into it either.
+- **A PIN lockout must count the attempt before checking it.** Checking
+  `locked()` and recording the failure after PBKDF2 let ~120 parallel
+  guesses through per window (ThreadingHTTPServer). `_Limiter.attempt()`
+  reserves the slot first; one PIN check at a time.
+- **Settings defaults: insert whole lines.** Patching `"key": value,` as a
+  prefix and appending new keys after it pushed the original line's comment
+  onto the new keys - comments drifted down the DEFAULTS block for several
+  versions before anyone noticed. Match the full line.
+- **Timers and late signals after close:** every timer that reads the
+  catalog is stopped in closeEvent (`_reach_timer`, `_integrity_timer`...),
+  and a window that outlives a test (CullView) handles previews through
+  `@unless_closed` - a preview landing after close hit a closed catalog.
 
 ## Roadmap (unbuilt)
 

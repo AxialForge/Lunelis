@@ -20,7 +20,7 @@ with a bar underneath:
 
 | Control | Key | What it does |
 |---|---|---|
-| ▶ / ❚❚ | K | Play or pause |
+| ▶ / ❚❚ | Space or K | Play or pause |
 | Slider | J / L | Move through the clip; J and L jump 5 seconds back or on |
 | Sound on / Muted | | Turn the sound off and on |
 

@@ -61,8 +61,9 @@ click **review it**. **Show the photos** shows the shoot in the library;
 Nothing is set aside, deleted, renamed or edited before you've reviewed it.
 A stage that can't run says why (no scene model yet, fewer than 15 edits to
 learn your look from). If Lunelis is closed half-way, the autopilot carries
-on where it stopped the next time. Turn stages off with the `autopilot_skip`
-setting.
+on where it stopped the next time. Turn stages on and off in **Settings >
+Library > Shoots, videos and the autopilot**. While a shoot waits, the Import
+page shows a **Review it** banner; the tray message opens the review too.
 
 ## Camera profiles
 

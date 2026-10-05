@@ -48,16 +48,33 @@ darktable · Updates · Advanced**.
   Medium 180, Large 260, Extra large 360, or Custom), and whether videos
   show in the library. Changing the sort or the Grid size slider in the
   library also updates these.
-- **Lunelis noticed:** whether to look for brackets, panoramas, focus
-  stacks and timelapses after each scan. See [Lunelis noticed](Lunelis-Noticed.md).
-- **S-Log3 videos:** how S-Log3 clips are shown - the built-in look (to
-  Rec.709), your own `.cube` LUT, or off (as recorded). See
-  [Videos](Videos-and-Google-Takeout.md#s-log3-footage).
-- **Start new photos with** (Import tab): a filter every newly imported
-  photo gets as its starting edit. See [Editing](Editing.md#filters).
+- **Hover info, sidebar folding, RAW+JPEG pairs:** show photo info when the
+  pointer rests on a photo; fold the sidebar to icons on a narrow window; show
+  a RAW+JPEG shot as one photo.
 - **Burst stacks:** whether bursts show as one tile, how far apart frames
   can be (default 1 s), and how many shots make a burst (default 3). See
   [Browsing](Browsing.md#burst-stacks).
+
+## Scene tags (Library tab)
+
+Download and turn on the scene model (once, checked against its fingerprint),
+tag the whole library as a background job, choose whether new photos are
+tagged after each scan, and open the suggestions to review. See
+[Tags](Tags.md#scene-tags).
+
+## Shoots, videos and the autopilot (Library tab)
+
+- **After each scan, look for brackets, panoramas, focus stacks and
+  timelapses** - see [Lunelis noticed](Lunelis-Noticed.md).
+- **S-Log3 videos** - the built-in look, your own `.cube` LUT, or off. See
+  [Videos](Videos-and-Google-Takeout.md#s-log3-footage).
+- **Autopilot after an import** - which stages run. See
+  [Importing](Importing.md#autopilot).
+
+## Colour (Edit tab)
+
+**Monitor profile** (off, or Windows' display profile) and a **Soft-proof
+profile** (a printer or paper .icc) - see [Editing](Editing.md#colour).
 
 ## Thumbnails (Library tab)
 

@@ -35,7 +35,7 @@ button in the status bar.
 ## Choosing where a job runs
 
 The dialog opens with the defaults from
-[Settings > Duplicates and background jobs](Settings.md#duplicates-and-background-jobs).
+[Settings > Duplicates & jobs](Settings.md#duplicates-and-background-jobs).
 These cover when to run, the idle time, the hours and the speed limit.
 
 The job dialog lists your sources with tick boxes. Tick whole sources, or

@@ -47,11 +47,15 @@ Lunelis then works through the folder in the background:
    Lightroom, culling tools).
 3. **Metadata** - camera, lens, exposure, date, GPS for every file.
 4. **Takeout** - if the folder is a Google Takeout export, dates from Google's JSON.
-5. **Thumbnails** - a 512 px preview per file, taken from the preview your
+5. **Bursts** - shots fired in a quick burst are stacked into one tile.
+6. **Search index** - so the search box answers at once.
+7. **Thumbnails** - a 512 px preview per file, taken from the preview your
    camera already embedded, so even 120 MB RAWs are quick.
-6. **Damage check** - flags empty, zero-filled or corrupt files.
+8. **Comparing photos** - near-duplicates, scene tags (when turned on) and
+   what [Lunelis noticed](Lunelis-Noticed.md).
+9. **Damage check** - flags empty, zero-filled or corrupt files.
 
-The status bar shows progress. You can browse while it runs; thumbnails fill
+The status bar shows the step ("Step 3 of 9") and its progress. You can browse while it runs; thumbnails fill
 in as they're made. Add more folders the same way, and press `F5` to rescan
 everything later.
 
@@ -68,7 +72,7 @@ needs lives in one data folder:
   sidecars\           ratings/labels as XMP files (the central store)
 ```
 
-To keep it on another drive, use **Settings > Data folder > Move...**; see
+To keep it on another drive, use **Settings > Advanced > Data folder > Move...**; see
 [Settings](Settings.md#data-folder).
 
 ## Next

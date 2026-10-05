@@ -55,7 +55,7 @@ as `catalog.db.before-restore-<time>`, so a restore can itself be undone.
 ## Moving the data folder
 
 The data folder defaults to `%LOCALAPPDATA%\Lunelis`. To use another drive,
-choose **Settings > Data folder > Move...**. Lunelis restarts and moves
+choose **Settings > Advanced > Data folder > Move...**. Lunelis restarts and moves
 everything, copying and checking every file before the old folder is removed
 (see [Settings](Settings.md#data-folder)). It has to be a drive in this PC,
 not a network share.
@@ -79,7 +79,7 @@ photo without a good copy, and the Library status page counts them.
 ## Regular file checks
 
 Files can go bad without anyone touching them - a failing disk sector, a bit
-flipped on a NAS. Every week (Settings > Duplicates and background jobs >
+flipped on a NAS. Every week (Settings > Duplicates & jobs >
 **Regular file checks**) Lunelis re-reads a little of the library in idle
 time - 20 GB by default, the files checked longest ago first - and compares
 each with the fingerprint it took the first time. A file whose bytes changed

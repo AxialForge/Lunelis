@@ -85,5 +85,7 @@ In short:
 
 ## Later
 
-Face and content recognition (on this PC, or a GPU server on your network),
-map and timeline views, natural-language search, a Mac version.
+Faces (found and grouped on this PC), a full-screen slideshow viewer, Canon
+CR3 details, editing layers, encrypted backups, a camera-matched RAW look, a
+smaller download, a Mac version. (Scene recognition, the map, the timeline and
+natural-language search are built - 0.20, 0.26, 0.4 and 0.21.)

@@ -5,7 +5,7 @@ one grid.
 
 ## The sidebar and the status bar
 
-- **Sidebar:** every page, in three foldable groups. **Collapse** (above
+- **Sidebar:** every page, in four foldable groups. **Collapse** (above
   Settings), **Library > Sidebar: icons only** or `Ctrl+B` folds it to a
   narrow strip of icons - rest the mouse on one for its name - and gives the
   photos more room. Lunelis remembers the choice.
@@ -127,6 +127,8 @@ The filter bar narrows the grid:
 - **Label** - Red, Yellow, Green, Blue, Purple
 - **Flag** - Picks or Rejects
 - **Tag** - one tag and everything inside it (see [Tags](Tags.md))
+- **Backup** - photos that are backed up, or not (see
+  [Safety and backups](Safety-and-Backups.md#is-this-photo-backed-up))
 
 Active filters show as chips; click a chip's ✕ to remove it or **Clear all**.
 The count on the right always says how many photos match.
@@ -153,7 +155,7 @@ stack's cover - with a ❐ frame count and card edges peeking out under it.
 A burst is at least three shots from one camera in one folder, each within
 a second of the last (measured to the fraction of a second when the camera
 records it, otherwise in the same second). A RAW+JPEG pair counts as one
-shot. Change both in **Settings > Library**. Stacks only change the grid:
+shot. Change both in **Settings > Appearance**. Stacks only change the grid:
 albums, events, duplicates and backups still see every frame.
 
 If a filter leaves the cover out (say, only 5-star photos), the stack shows

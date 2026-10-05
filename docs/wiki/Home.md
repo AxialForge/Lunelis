@@ -25,7 +25,7 @@ Nothing leaves your computer, and Lunelis never modifies your photos.
 | [Map and On this day](Browsing.md#map-and-on-this-day) | Photos placed by GPS; what you shot on this date in other years |
 | [Stats](Stats.md) | Your keeper rate by lens, focal length, aperture, ISO and shutter; habits; a yearly recap |
 | [Lunelis noticed](Lunelis-Noticed.md) | Brackets, panoramas, focus stacks, timelapses and star trails spotted in your shoots, offered to build |
-| [Create](Create.md) | Animations (MP4 / WebP / GIF), collages and batch copies - new files, never overwriting |
+| [Create](Create.md) | Animations, collages, batch copies, contact sheets, timelapses, slideshows, before/after, prints, focus stacks, star trails, median stacks, panoramas, HDR - new files, never overwriting |
 | [Editing](Editing.md) | Light, colour, crop, filters, copy/paste edits, export - the originals never change |
 | [Ratings, labels and sidecars](Ratings-Labels-and-Sidecars.md) | Stars, colour labels, picks/rejects, XMP sidecars, darktable |
 | [Background jobs](Jobs.md) | Long work you can pause, schedule and resume after a restart |
@@ -70,5 +70,11 @@ Nothing leaves your computer, and Lunelis never modifies your photos.
 | `Ctrl+Shift+E` | Export the selected photos |
 | `S` | Open / close a burst stack |
 | `Ctrl+J` | Jobs panel |
-| `Ctrl+,` | Settings (theme under Appearance) |
+| `Ctrl+K` | Cull full screen |
+| `Ctrl+Shift+F` | Ask your library in a sentence |
+| `Ctrl+Alt+F` | Find similar photos |
+| `Ctrl+Shift+H` | Archive the selected photos |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
+| `Ctrl+B` | Sidebar: icons only |
+| `?` | Every keyboard shortcut |
 | `Ctrl+,` | Settings |
