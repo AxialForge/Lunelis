@@ -40,6 +40,10 @@ class ExportOptions:
     quality: int = 92                    # JPEG only
     metadata: str = "all"                # all | no_location | none
     pattern: str = "{name}"
+    sharpen: str = "none"                # output sharpening for: none | screen | matte | glossy
+    sharpen_amount: str = "standard"     # low | standard | high
+    profile: str | None = None           # an output .icc profile (None: sRGB)
+    intent: str = "perceptual"           # perceptual | relative (rendering intent into `profile`)
 
     def check(self) -> None:
         if self.format not in FORMATS:
@@ -52,6 +56,42 @@ class ExportOptions:
             raise ValueError("quality must be 1-100")
         if not self.pattern.strip():
             raise ValueError("the name pattern can't be empty")
+        if self.sharpen not in SHARPEN:
+            raise ValueError(f"sharpening must be one of {tuple(SHARPEN)}")
+        if self.sharpen_amount not in AMOUNTS:
+            raise ValueError(f"sharpening amount must be one of {tuple(AMOUNTS)}")
+        if self.profile and not self.profile.startswith("builtin:") and not os.path.isfile(self.profile):
+            raise ValueError(f"the colour profile isn't there: {self.profile}")
+
+
+# Output sharpening: radius (px at the output size), strength (%), threshold - per target.
+SHARPEN = {"none": None, "screen": (0.6, 70, 2), "matte": (1.2, 110, 2), "glossy": (0.9, 90, 2)}
+AMOUNTS = {"low": 0.65, "standard": 1.0, "high": 1.4}
+
+
+def output_sharpen(img: Image.Image, target: str, amount: str = "standard") -> Image.Image:
+    """Sharpening for where the picture is going, at its final size - never part of the edit."""
+    spec = SHARPEN.get(target)
+    if not spec:
+        return img
+    from PIL import ImageFilter
+    radius, percent, threshold = spec
+    return img.filter(ImageFilter.UnsharpMask(radius, round(percent * AMOUNTS[amount]), threshold))
+
+
+def to_profile(img: Image.Image, profile: str | None, intent: str = "perceptual") -> tuple[Image.Image, bytes]:
+    """The image converted from sRGB into `profile` (an .icc file) and that profile's bytes."""
+    if not profile:
+        return img, _srgb_icc()
+    if profile.startswith("builtin:"):
+        from lunelis import paths
+        from lunelis.edit import icc
+        profile = str(icc.profile_path(profile[8:], paths.DATA_DIR / "profiles"))
+    out_p = ImageCms.getOpenProfile(profile)
+    mode = ImageCms.Intent.PERCEPTUAL if intent == "perceptual" else ImageCms.Intent.RELATIVE_COLORIMETRIC
+    converted = ImageCms.profileToProfile(img, ImageCms.createProfile("sRGB"), out_p, renderingIntent=mode,
+                                          outputMode="RGB")
+    return converted, out_p.tobytes()
 
 
 # --- names ----------------------------------------------------------------------------
@@ -154,7 +194,7 @@ def _srgb_icc() -> bytes:
 # --- one photo ----------------------------------------------------------------------------------
 
 def rendered(conn: sqlite3.Connection, file_id: int, long_edge: int | None = None,
-             geometry_only: bool = False) -> Image.Image:
+             geometry_only: bool = False, stack=None) -> Image.Image:
     """The photo with its edits, no bigger than `long_edge` (None: full size).
     Export and every Create tool make their pixels here. `geometry_only`: the
     original look with just its crop and rotation (a "before")."""
@@ -164,7 +204,7 @@ def rendered(conn: sqlite3.Connection, file_id: int, long_edge: int | None = Non
         raise ValueError("not in the catalog")
     root, rel, is_raw = row
     src_path = os.path.join(root, *rel.split("/"))
-    stack = store.get(conn, file_id)
+    stack = store.get(conn, file_id) if stack is None else stack
     if geometry_only:
         from lunelis.edit.stack import Stack
         stack = Stack(geometry=stack.geometry)
@@ -184,17 +224,20 @@ def rendered(conn: sqlite3.Connection, file_id: int, long_edge: int | None = Non
     return img
 
 
-def export_one(conn: sqlite3.Connection, file_id: int, opts: ExportOptions, n: int = 1) -> str:
-    """Export one photo; returns the new file's path."""
+def export_one(conn: sqlite3.Connection, file_id: int, opts: ExportOptions, n: int = 1, stack=None) -> str:
+    """Export one photo (with `stack` instead of its own edit - a virtual copy's);
+    returns the new file's path."""
     row = conn.execute("SELECT f.filename, e.captured_at FROM files f LEFT JOIN exif e ON e.file_id = f.id"
                        " WHERE f.id = ?", (file_id,)).fetchone()
     if row is None:
         raise ValueError("not in the catalog")
     filename, taken = row
-    img = rendered(conn, file_id, opts.long_edge)
+    img = rendered(conn, file_id, opts.long_edge, stack=stack)
+    img = output_sharpen(img, opts.sharpen, opts.sharpen_amount)
+    img, icc = to_profile(img, opts.profile, opts.intent)
     os.makedirs(opts.folder, exist_ok=True)
     dest = free_path(opts.folder, file_name(opts.pattern, filename, taken, n, FORMATS[opts.format]))
-    kwargs: dict = {"icc_profile": _srgb_icc()}
+    kwargs: dict = {"icc_profile": icc}
     exif = exif_bytes(conn, file_id, opts.metadata, img.size)
     if exif:
         kwargs["exif"] = exif

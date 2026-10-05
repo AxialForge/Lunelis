@@ -84,6 +84,9 @@ DEFAULTS: dict[str, Any] = {
     "map_online": False,
     "autopilot": False,                  # after a card import, sort out the shoot (importing/autopilot.py)
     "autopilot_skip": [],
+    "export_presets": {},                # name -> ExportOptions (as a dict)
+    "monitor_profile": "off",            # the photo view's colours: off | system (Windows' display profile)
+    "proof_profile": None,               # soft-proofing: an .icc (a printer / paper) to preview against                # autopilot stages turned off                 # the Map page fetches OpenStreetMap tiles (off: dots on a plain grid)              # when the last regular check was planned (ISO)                # look for brackets, panoramas... after each scan                 # 1 once log clips' thumbnails were remade with the preview look
     "date_format": "long",               # long | iso | day_first | short (photoinfo.DATE_FORMATS)
     "confirm_quit": True,                # ask before quitting while an export, merge or job runs
     "edit_live_quality": "fast",         # fast (half size while dragging) | sharp

@@ -1,8 +1,11 @@
 """
 Photo > Export... (Ctrl+Shift+E): the selected photos (or the one on screen)
 as new files, with their edits, in a folder you pick. Settings are
-remembered (Settings `export_last`). Runs on a worker thread with a
-progress window you can cancel; videos are skipped.
+remembered (Settings `export_last`), and any set can be saved as a named
+preset (`export_presets`). Output sharpening (for screen, matte or glossy
+prints) and an output colour profile (.icc) are applied to the exported
+file only - never to the edit. Runs on a worker thread with a progress
+window you can cancel; videos are skipped.
 """
 from __future__ import annotations
 
@@ -32,6 +35,17 @@ class ExportDialog(QDialog):
         head.setWordWrap(True)
         v.addWidget(head)
         form = QFormLayout()
+        prow = QHBoxLayout()
+        self.preset = QComboBox()
+        self.preset.addItem("Last used", None)
+        for name in sorted(Settings(conn).get("export_presets") or {}):
+            self.preset.addItem(name, name)
+        self.preset.currentIndexChanged.connect(self._preset_chosen)
+        prow.addWidget(self.preset, 1)
+        prow.addWidget(QPushButton("Save as preset…", clicked=self._save_preset))
+        pw = QWidget()
+        pw.setLayout(prow)
+        form.addRow("Preset", pw)
         row = QHBoxLayout()
         self.folder = QLineEdit(last.get("folder") or os.path.join(os.path.expanduser("~"), "Pictures", "Lunelis exports"))
         row.addWidget(self.folder, 1)
@@ -60,6 +74,34 @@ class ExportDialog(QDialog):
             self.metadata.addItem(label, key)
         self.metadata.setCurrentIndex(max(0, self.metadata.findData(last.get("metadata", "all"))))
         form.addRow("Metadata", self.metadata)
+        self.sharpen = QComboBox()
+        for label, key in (("None", "none"), ("For screen", "screen"), ("For matte paper", "matte"),
+                           ("For glossy paper", "glossy")):
+            self.sharpen.addItem(label, key)
+        self.amount = QComboBox()
+        for label, key in (("Low", "low"), ("Standard", "standard"), ("High", "high")):
+            self.amount.addItem(label, key)
+        srow = QHBoxLayout()
+        srow.addWidget(self.sharpen, 1)
+        srow.addWidget(self.amount)
+        sw = QWidget()
+        sw.setLayout(srow)
+        form.addRow("Output sharpening", sw)
+        self.profile = QComboBox()
+        self.profile.addItem("sRGB (screens, the web, most labs)", None)
+        self.profile.addItem("Display P3 (wide-colour screens, phones)", "builtin:display-p3")
+        self.profile.addItem("Adobe RGB (1998) compatible (print workflows)", "builtin:adobe-rgb")
+        self.profile.addItem("A profile of my own (.icc)…", "pick")
+        self.profile.activated.connect(self._profile_chosen)
+        self.intent = QComboBox()
+        for label, key in (("Perceptual", "perceptual"), ("Relative colorimetric", "relative")):
+            self.intent.addItem(label, key)
+        crow = QHBoxLayout()
+        crow.addWidget(self.profile, 1)
+        crow.addWidget(self.intent)
+        cw = QWidget()
+        cw.setLayout(crow)
+        form.addRow("Colour profile", cw)
         self.pattern = QLineEdit(last.get("pattern", "{name}"))
         self.pattern.setToolTip("{name} = the original's name, {date} = capture date, {n} = 001, 002…")
         form.addRow("File names", self.pattern)
@@ -76,6 +118,69 @@ class ExportDialog(QDialog):
         v.addWidget(buttons)
         self._format_changed()
         self.options: ExportOptions | None = None
+        self._show_extras(last)
+
+    def _show_extras(self, d: dict) -> None:
+        self.sharpen.setCurrentIndex(max(0, self.sharpen.findData(d.get("sharpen", "none"))))
+        self.amount.setCurrentIndex(max(0, self.amount.findData(d.get("sharpen_amount", "standard"))))
+        self.intent.setCurrentIndex(max(0, self.intent.findData(d.get("intent", "perceptual"))))
+        self._set_profile(d.get("profile"))
+
+    def _set_profile(self, path: str | None) -> None:
+        for i in range(self.profile.count() - 1, 3, -1):           # drop an earlier own profile
+            self.profile.removeItem(i)
+        if path and path.startswith("builtin:"):
+            self.profile.setCurrentIndex(max(0, self.profile.findData(path)))
+        elif path:
+            self.profile.addItem(os.path.basename(path), path)
+            self.profile.setCurrentIndex(self.profile.count() - 1)
+        else:
+            self.profile.setCurrentIndex(0)
+        self.intent.setEnabled(bool(path))
+
+    def _profile_chosen(self, _i: int) -> None:
+        if self.profile.currentData() != "pick":
+            self.intent.setEnabled(bool(self.profile.currentData()))
+            return
+        path, _ = QFileDialog.getOpenFileName(self, "Choose a colour profile", "", "ICC profiles (*.icc *.icm)")
+        self._set_profile(path or None)
+
+    def _current(self) -> ExportOptions:
+        prof = self.profile.currentData()
+        return ExportOptions(self.folder.text().strip(), self.format.currentData(), self.size.currentData(),
+                             self.quality.value(), self.metadata.currentData(), self.pattern.text().strip(),
+                             self.sharpen.currentData(), self.amount.currentData(),
+                             prof if prof not in (None, "pick") else None, self.intent.currentData())
+
+    def _apply(self, d: dict) -> None:
+        self.folder.setText(d.get("folder") or self.folder.text())
+        self.format.setCurrentIndex(max(0, self.format.findData(d.get("format", "jpeg"))))
+        self.size.setCurrentIndex(max(0, self.size.findData(d.get("long_edge"))))
+        self.quality.setValue(int(d.get("quality", 92)))
+        self.metadata.setCurrentIndex(max(0, self.metadata.findData(d.get("metadata", "all"))))
+        self.pattern.setText(d.get("pattern", "{name}"))
+        self._show_extras(d)
+
+    def _preset_chosen(self, _i: int) -> None:
+        name = self.preset.currentData()
+        s = Settings(self.conn)
+        self._apply((s.get("export_presets") or {}).get(name) if name else (s.get("export_last") or {}))
+
+    def _save_preset(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "Save as preset", "Name this export preset:")
+        name = name.strip()
+        if not ok or not name:
+            return
+        s = Settings(self.conn)
+        presets = dict(s.get("export_presets") or {})
+        presets[name] = asdict(self._current())
+        s.set("export_presets", presets)
+        if self.preset.findData(name) < 0:
+            self.preset.addItem(name, name)
+        self.preset.blockSignals(True)
+        self.preset.setCurrentIndex(self.preset.findData(name))
+        self.preset.blockSignals(False)
 
     def _pick(self) -> None:
         d = QFileDialog.getExistingDirectory(self, "Export into which folder?", self.folder.text())
@@ -86,8 +191,7 @@ class ExportDialog(QDialog):
         self.quality.setEnabled(self.format.currentData() == "jpeg")
 
     def _accept(self) -> None:
-        opts = ExportOptions(self.folder.text().strip(), self.format.currentData(), self.size.currentData(),
-                             self.quality.value(), self.metadata.currentData(), self.pattern.text().strip())
+        opts = self._current()
         try:
             if not opts.folder:
                 raise ValueError("Choose a folder to export into.")
