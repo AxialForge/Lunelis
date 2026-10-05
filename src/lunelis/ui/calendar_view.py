@@ -56,9 +56,8 @@ def _load(conn, day: date, spread: int):
         thumbs = []
         for fid in ids[::step][:STRIP]:
             row = conn.execute("SELECT thumbnail_path FROM files WHERE id = ?", (fid,)).fetchone()
-            img = QImage(str(paths.THUMBNAIL_CACHE / row[0])) if row and row[0] else QImage()
-            thumbs.append(img.scaledToHeight(THUMB_H, Qt.TransformationMode.SmoothTransformation)
-                          if not img.isNull() else img)
+            from lunelis.ui.thumbcache import load_image
+            thumbs.append(load_image(paths.THUMBNAIL_CACHE / row[0], THUMB_H) if row and row[0] else QImage())
         out.append((year, ids, thumbs))
     return out
 

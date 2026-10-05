@@ -289,6 +289,18 @@ class LibraryIndex:
                     rr[EDIT_REV] = revs.get(r[ID])
                     rows[i] = tuple(rr)
 
+    def snapshot(self) -> "LibraryIndex":
+        """A copy that later loads of this index can't change - the photo view
+        keeps one, so a background reload (scans, jobs) never shifts the photo
+        under it: its filmstrip and its picture always show the same file."""
+        c = LibraryIndex()
+        c.sort_key, c.filter = self.sort_key, self.filter
+        c.collapse, c.expanded = self.collapse, set(getattr(self, "expanded", set()))
+        c.all_rows = list(self.all_rows)
+        c.rows = c.all_rows if self.rows is self.all_rows else list(self.rows)
+        c.load_seconds = getattr(self, "load_seconds", 0.0)
+        return c
+
     def file_id(self, i: int) -> int:
         return self.rows[i][ID]
 

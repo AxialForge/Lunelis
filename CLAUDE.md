@@ -631,6 +631,28 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
 
 ## Gotchas / constraints
 
+- **Never share a LibraryIndex between views (0.37).** MainWindow.reload /
+  reload_later `apply()` new rows INTO `self.index`; the photo view used to
+  hold that same object, so a background reload (scan timer, jobs) moved
+  other photos under its `pos` - the filmstrip's highlight showed a different
+  photo than the picture ("VERY BAD" from the user). DetailView.open() takes
+  `index.snapshot()` and `follow()`s the library after each reload by FILE
+  ID. Anything else that keeps a position into the library index must do
+  the same.
+- **`clicked=self.some_signal.emit` is a bug** when the signal takes no
+  arguments: clicked(bool) passes `checked`, and the emit raises "back() only
+  accepts 0 argument(s)" at click time (tests that never click won't see it).
+  Always `clicked=lambda: self.sig.emit()`.
+- **Read thumbnails on worker threads with Pillow** (thumbcache.load_image),
+  not QImage(path): On this day's strip came back empty in the installed app
+  while working from source.
+- **Release notes are Markdown read as HTML too:** "People|<name>" swallowed
+  the rest of the notes in the updater and on GitHub. updater.safe_markdown
+  and packaging/release_notes.py escape < > outside `code`.
+- **Inno Setup has no inline `;` comments in [Setup] values** and no
+  `{userpics}` constant (0.34.0's setup died before its first page - CI's
+  install test caught it). Pictures: the registry's Shell Folders value.
+
 - **The test process ends with TerminateProcess** (tests/conftest.py,
   pytest_unconfigure): os._exit still unloads every DLL on Windows, and Qt's
   teardown there hit an access violation after clean runs - the source of the

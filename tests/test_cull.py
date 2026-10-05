@@ -98,3 +98,32 @@ def test_the_window_opens_culling_on_the_selection(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_the_photo_view_keeps_its_photo_when_the_library_reloads(tmp_path):
+    """The filmstrip and the picture must always be the same photo - a background
+    reload used to rewrite the list the photo view shared, shifting the strip."""
+    QApplication.instance() or QApplication([])
+    from lunelis.ui import main_window as mw
+    w = mw.MainWindow()
+    try:
+        root = tmp_path / "R"
+        root.mkdir()
+        for i in range(5):
+            Image.new("RGB", (60, 40), (i * 40, 0, 0)).save(root / f"r{i}.jpg")
+        rid = add_root(w.conn, root)
+        scan_root(w.conn, rid)
+        w.reload()
+        mine = [w.index.file_id(i) for i in range(len(w.index)) if w.index.file_id(i) in
+                {r[0] for r in w.conn.execute("SELECT id FROM files WHERE root_id = ?", (rid,))}]
+        w.open_detail(mine[1])
+        d = w.detail
+        shown = d.info.file_id
+        # The library's list changes under it (a re-sort / new photos), in place.
+        w.index.apply(list(reversed(w.index.all_rows)))
+        assert d.index.file_id(d.pos) == shown                       # its own copy didn't move
+        d.follow(w.index)
+        assert d.index.file_id(d.pos) == shown and d.strip.index.rows[d.strip.pos][0] == shown
+    finally:
+        w._quitting = True
+        w.close()

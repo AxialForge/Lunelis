@@ -6,6 +6,42 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-05
+
+From the first round of testing the installed app.
+
+### Fixed
+
+- **The filmstrip always shows the photo on screen.** A background reload of
+  the library (during scans and jobs) rewrote the list the photo view shared,
+  so the strip's highlighted thumbnail could be a different photo from the
+  one shown. The photo view now keeps its own list and follows the library
+  to the same photo.
+- **"‹ Create" in every Create tool** went back with an error ("back() only
+  accepts 0 arguments"); it goes back now. Three Settings buttons had the
+  same wiring and are fixed too.
+- **On this day** and the Library status page read their thumbnails in a way
+  the installed app couldn't; they load like the library grid now.
+- **Release notes** in Settings > Updates (and on the release page) lost
+  everything after "People|<name>"; they show in full now.
+- **The installer's licence page** wraps the licence text properly.
+
+### Changed
+
+- **Edit panel:** drag the divider between the photo and the panel to make
+  the panel wider (remembered); its buttons wrap instead of being cut off at
+  large text sizes.
+- **Map:** a "Show map pictures" button on the Map, the same switch in
+  Settings > Library > Places, and a message if OpenStreetMap can't be reached.
+- **Stats:** cards for the figures at a glance, each chart in its own box with
+  its numbers in their own column, the page centred on wide screens, focal
+  lengths in ranges on zooms, and a plain "no keepers yet" note instead of
+  "0 % kept" everywhere.
+- **Duplicates:** rebuilt to be understood at a glance - how it works in
+  three steps, groups with thumbnails and names (no long paths), and for the
+  chosen group the copy that stays, the extra copies (any can be kept
+  instead), and the one action that applies: Verify or Set aside.
+
 ## [0.36.0] - 2026-10-05
 
 ### Added (places and unknown tags)

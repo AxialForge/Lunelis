@@ -574,7 +574,7 @@ class InfoPanel(QScrollArea):
         self.setObjectName("SettingsScroll")
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
-        self.setFixedWidth(340)
+        self.setMinimumWidth(300)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         page = QWidget(objectName="DetailPanel")
         self.v = QVBoxLayout(page)
@@ -890,7 +890,15 @@ class DetailView(QWidget):
         self.split.splitterMoved.connect(lambda *_: Settings(self.conn).set("detail_strip_height",
                                                                            max(56, min(260, self.strip.height()))))
         left.addWidget(self.split, 1)
-        body.addLayout(left, 1)
+        left.setContentsMargins(0, 0, 0, 0)
+        left_w = QWidget()
+        left_w.setLayout(left)
+        # The photo | the side panel (Info or Edit): drag the divider to widen the panel; remembered.
+        self.body_split = QSplitter(Qt.Orientation.Horizontal)
+        self.body_split.setChildrenCollapsible(False)
+        self.body_split.setHandleWidth(6)
+        self.body_split.addWidget(left_w)
+        body.addWidget(self.body_split, 1)
         self._full_signals = _FullSignals()
         self._full_signals.loaded.connect(self._full_ready)
         self._full_for: int | None = None
@@ -908,10 +916,17 @@ class DetailView(QWidget):
             for w in (self.back_b, self.edit_b, self.develop.done_b):
                 w.hide()
         self.side = QStackedWidget()
-        self.side.setFixedWidth(340)
+        self.side.setMinimumWidth(300)
+        self.side.setMaximumWidth(760)
         self.side.addWidget(self.panel)
         self.side.addWidget(self.develop)
-        body.addWidget(self.side)
+        self.body_split.addWidget(self.side)
+        self.body_split.setStretchFactor(0, 1)
+        self.body_split.setStretchFactor(1, 0)
+        side_w = int(Settings(conn).get("side_panel_width"))
+        self.body_split.setSizes([1200, side_w])
+        self.body_split.splitterMoved.connect(
+            lambda *_: Settings(self.conn).set("side_panel_width", max(300, min(760, self.side.width()))))
         self.editing = False
         self.edit = EditMode(conn, self.canvas, self.develop, paths.THUMBNAIL_CACHE, paths.EDIT_CACHE, self)
         self.edit.saved.connect(self._edit_saved)
@@ -922,9 +937,26 @@ class DetailView(QWidget):
     # --- showing ---------------------------------------------------------------------------
 
     def open(self, index: LibraryIndex, pos: int) -> None:
-        self.index = index
+        self.index = index.snapshot()          # its own copy: library reloads can't move the photo under it
         self.go(pos)
         self.setFocus()
+
+    def follow(self, index: LibraryIndex) -> None:
+        """The library was reloaded (new photos, a re-sort): take the new list,
+        staying on the photo being shown. A photo that left the list (filtered
+        out, set aside) keeps the old list until you move on."""
+        if self.info is None:
+            return
+        pos = index.position(self.info.file_id)
+        if pos < 0:
+            return
+        self.index = index.snapshot()
+        self.pos = pos
+        n = len(self.index)
+        self.strip.set_position(self.index, pos)
+        self.counter.setText(f"{pos + 1:,} of {n:,}")
+        self.prev_b.setEnabled(pos > 0)
+        self.next_b.setEnabled(pos < n - 1)
 
     def go(self, pos: int) -> None:
         n = len(self.index)
@@ -935,9 +967,16 @@ class DetailView(QWidget):
         self._stop_motion()
         self.pos = pos
         fid = self.index.file_id(pos)
-        self.info = photoinfo.load(self.conn, fid)
-        if self.info is None:
+        info = photoinfo.load(self.conn, fid)
+        if info is None:
+            # Gone from the catalog since the list was made: say so, never keep showing the last photo.
+            self.info = None
+            self.strip.set_position(self.index, pos)
+            self.counter.setText(f"{pos + 1:,} of {n:,}")
+            self.canvas.set_photo(None)
+            self.canvas.show_pixmap(None, sharp=False, message="This photo isn't in the library any more")
             return
+        self.info = info
         self.refresh_info()
         self.canvas.set_photo((self.info.width, self.info.height))
         self._full_for = None

@@ -78,7 +78,7 @@ def test_the_stats_page_shows_the_figures_and_makes_a_recap(lib, tmp_path):
     page = StatsView(lib)
     page.refresh()
     page.bg.wait()
-    values = [page.glance.itemAt(i).widget().text() for i in range(page.glance.count())]
+    values = page.glance_values()
     assert "6" in values and "ILCE-7RM5" in values
     assert [r.bucket for r in page.by_chart.rows] == ["FE 24-70mm", "FE 85mm"]
     page.by.setCurrentIndex(page.by.findData("iso"))

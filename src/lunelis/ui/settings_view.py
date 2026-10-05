@@ -429,10 +429,10 @@ class SettingsView(QWidget):
             v, "Accept a suggestion by itself when the model is at least", "scene_auto_accept",
             "scene_auto_threshold", "Off: every suggestion waits for you on the Tags page.")
         row = QHBoxLayout()
-        self.scene_job_b = QPushButton("Tag the library…", clicked=self.scene_job.emit)
+        self.scene_job_b = QPushButton("Tag the library…", clicked=lambda: self.scene_job.emit())
         self.scene_job_b.setToolTip("A background job: pausable, and runs only when you choose (Jobs, Ctrl+J)")
         row.addWidget(self.scene_job_b)
-        row.addWidget(QPushButton("Review suggestions", clicked=self.open_suggestions.emit))
+        row.addWidget(QPushButton("Review suggestions", clicked=lambda: self.open_suggestions.emit()))
         row.addWidget(QPushButton("Edit the labels…", clicked=self._edit_scene_labels))
         row.addStretch(1)
         v.addLayout(row)
@@ -475,10 +475,10 @@ class SettingsView(QWidget):
             "Off: a likely match shows as \"Ann?\" and waits on the People page until you say yes. "
             "On: sure matches are named (and tagged) straight away; fix any mistake on the People page.")
         row = QHBoxLayout()
-        self.faces_job_b = QPushButton("Find faces in the library…", clicked=self.faces_job.emit)
+        self.faces_job_b = QPushButton("Find faces in the library…", clicked=lambda: self.faces_job.emit())
         self.faces_job_b.setToolTip("A background job: pausable, and runs only when you choose (Jobs, Ctrl+J)")
         row.addWidget(self.faces_job_b)
-        row.addWidget(QPushButton("Open the People page", clicked=self.open_people.emit))
+        row.addWidget(QPushButton("Open the People page", clicked=lambda: self.open_people.emit()))
         row.addStretch(1)
         v.addLayout(row)
         return card
@@ -496,6 +496,11 @@ class SettingsView(QWidget):
                                     "library from cameras without GPS it tags most photos.")
         self.places_none.toggled.connect(self._places_none_changed)
         v.addWidget(self.places_none)
+        self.map_online = QCheckBox("Show map pictures on the Map (from OpenStreetMap, over the internet)")
+        self.map_online.setToolTip("Only the map tile numbers are asked for - nothing about your photos is sent. "
+                                   "Off: the Map shows the dots on a plain grid.")
+        self.map_online.toggled.connect(lambda on: self._set("map_online", on))
+        v.addWidget(self.map_online)
         row = QHBoxLayout()
         row.addWidget(QPushButton("Name places now", clicked=self._name_places))
         self.places_status = QLabel(objectName="Help")
@@ -509,6 +514,7 @@ class SettingsView(QWidget):
         s = Settings(self.conn)
         self.places_auto.setChecked(bool(s.get("places_auto")))
         self.places_none.setChecked(bool(s.get("places_tag_no_location")))
+        self.map_online.setChecked(bool(s.get("map_online")))
 
     def _places_none_changed(self, on: bool) -> None:
         if self._set("places_tag_no_location", on):
@@ -976,7 +982,8 @@ class SettingsView(QWidget):
             self.update_notes.hide()
             return
         self.update_status.setText(f"Lunelis {rel.version} is available ({rel.size / 1e6:,.0f} MB).")
-        self.update_notes.setMarkdown(rel.notes or "(no release notes)")
+        from lunelis.updater import safe_markdown
+        self.update_notes.setMarkdown(safe_markdown(rel.notes) or "(no release notes)")
         self.update_notes.show()
         if paths.FROZEN:
             self.install_b.setText(f"Download and install {rel.version}")

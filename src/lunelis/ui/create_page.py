@@ -278,7 +278,7 @@ class Tool(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(24, 12, 24, 16)
         head = QHBoxLayout()
-        b = QPushButton("‹ Create", clicked=self.back.emit)
+        b = QPushButton("‹ Create", clicked=lambda: self.back.emit())
         b.setFlat(True)
         head.addWidget(b)
         t = QLabel(self.title_text, objectName="PageTitle")

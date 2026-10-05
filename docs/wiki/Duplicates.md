@@ -8,7 +8,7 @@ The Duplicates page has two tabs:
   re-compressed, re-encoded by Google Takeout, or exported
   ([below](#near-duplicates)).
 
-Lunelis never deletes anything: extra copies are moved to a quarantine
+Lunelis never deletes anything: extra copies are set aside in a quarantine
 folder that you empty yourself.
 
 ## Finding them
@@ -35,31 +35,42 @@ Reading every byte of a multi-terabyte library would take days. Instead:
 ## Verifying
 
 A likely group is almost always a real duplicate, but nothing is ever moved
-on a sample alone. **Verify likely groups...** runs a job that compares every
+on a sample alone. **Verify all likely groups...** runs a job that compares every
 byte. Groups that really are identical become **Verified**; a rare lookalike
 is dissolved.
 
-## Choosing what to keep
+## The Exact copies tab
 
-**Keep copies in:** chooses which source the kept copy should come from
-(e.g. your main pool over an old backup). Without a choice, Lunelis keeps
-the copy that isn't in a Google Takeout export and sits in the least-nested
-folder.
+Three cards at the top say how it works: **1 Found** (same size, matching
+samples), **2 Verified** (every byte compared), **3 Set aside** (moved to
+quarantine on the same drive, restorable). Below them:
 
-The lower panel lists every copy of the selected group with
-**Show in Explorer**.
+- **The summary** - how many files have copies and how much space the extras
+  take, split into verified (ready to set aside) and likely (still to verify).
+- **Show** - all groups, verified only, or likely only.
+- **When copies are identical, keep the one in** - which source the kept
+  copy should come from (your main pool over an old backup). "Any source"
+  keeps the copy that isn't in a Google Takeout export and sits in the
+  least-nested folder.
+- **The groups** (left) - a thumbnail, the file's name, how many copies, the
+  space the extras take, and **Verified** or **Likely**.
+- **The chosen group** (right) - the photo; **Stays where it is** (the
+  source and folder of the copy that's kept); **Extra copies**, each with
+  **Show** (in Explorer) and **Keep this one** (keep that copy instead - it's
+  remembered for the group); and one button: **Verify this group** (likely)
+  or **Set aside N extra copies** (verified).
 
-## Quarantine
+## Setting aside
 
-**Move extra copies to quarantine...** handles every *verified* group:
+**Set aside all verified extras...** (or the button for one group):
 
 - one copy of each photo stays exactly where it is;
 - the others are **renamed** into a `_Lunelis Quarantine` folder on the same
   drive (instant - nothing is copied or deleted);
 - the catalog is backed up first;
-- Lunelis refuses to quarantine a group that isn't verified, or its last copy.
+- Lunelis refuses to set aside a group that isn't verified, or its last copy.
 
-Quarantined files disappear from the grid, and scans ignore the folder.
+Set-aside files disappear from the grid, and scans ignore the folder.
 The [Quarantine](Quarantine.md) page lists them, and there you can restore
 them or empty them for good.
 

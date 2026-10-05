@@ -277,3 +277,36 @@ def test_duplicates_view_groups(pools):
     assert len(after) == 1 and after[0].verified
     keep = conn.execute("SELECT root_id FROM files WHERE id = ?", (after[0].keeper,)).fetchone()[0]
     assert keep == old_id and after[0].extra_bytes == after[0].size
+
+
+def test_the_duplicates_page_keeps_verifies_and_sets_aside_one_group(pools, monkeypatch):
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.dupes_view import DuplicatesView, load_groups
+    conn, _, _, (main_id, old_id) = pools
+    detect.process_folder(conn, main_id, "2019/Chicago")
+    page = DuplicatesView(conn)
+    page.refresh()
+    page.bg.wait()
+    assert page.model.rowCount() == 2 and "files have copies" in page.summary.text()
+    page.table.selectRow(0)
+    g = page.current
+    assert g is not None and not g.verified and g.name
+    # Keep the other copy instead: remembered for the group.
+    other = next(m[0] for m in g.members if m[0] != g.keeper)
+    page._keep(g, other)
+    assert next(x for x in load_groups(conn, []) if x.id == g.id).keeper == other
+    # Verify just this group, then set its extra aside.
+    for x in list(page._all):                   # one pair in this set is a near miss that verification dissolves
+        page._verify_one(x)
+        page.bg.wait()
+        QApplication.processEvents()
+        page.bg.wait()
+    verified = [x for x in page._all if x.verified]
+    assert verified
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    page._quarantine_one(verified[0])
+    page.bg.wait()
+    assert conn.execute("SELECT COUNT(*) FROM files WHERE quarantined_at IS NOT NULL").fetchone()[0] == 1
+    page.show_box.setCurrentIndex(page.show_box.findData("likely"))
+    assert all(not x.verified for x in page.model.groups)

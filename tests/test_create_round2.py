@@ -229,3 +229,18 @@ def test_free_collage_frames_move_resize_add_and_remove(photos):
     img = collage.render(tool.opts, lambda fid, e: Image.new("RGB", (40, 30)), long_edge=200)
     assert img.size == (200, 200)
     assert collage.clamp_rect(0.9, -0.2, 0.5, 0.01) == (0.5, 0.0, 0.5, 0.05)
+
+
+def test_every_tool_goes_back_to_the_create_page(tmp_path):
+    """"‹ Create" raised "back() only accepts 0 arguments" (the button's checked
+    flag reached a no-argument signal)."""
+    from PySide6.QtWidgets import QApplication, QPushButton
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.create_page import CreatePage
+    page = CreatePage(open_catalog(tmp_path / "w.db"))
+    for key in page.tools:
+        page.open_tool(key)
+        assert page.stack.currentIndex() != 0
+        back = next(b for b in page.tools[key].findChildren(QPushButton) if b.text().startswith("‹"))
+        back.click()
+        assert page.stack.currentIndex() == 0, key

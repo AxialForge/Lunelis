@@ -168,6 +168,20 @@ def run(report: str | None, samples: list[str] | None = None) -> int:
         return tag
     check("Place list (GeoNames)", place_list)
 
+    def worker_thumbnails():
+        # Pages that read thumbnails on a worker thread (On this day, Library status) decode with Pillow.
+        import tempfile
+        from PIL import Image
+        from lunelis.ui.thumbcache import load_image
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "t.jpg"
+            Image.new("RGB", (64, 48), (200, 30, 30)).save(p)
+            img = load_image(p, 24)
+        if img.isNull() or img.height() != 24:
+            raise RuntimeError("couldn't read a thumbnail")
+        return f"{img.width()}x{img.height()}"
+    check("Thumbnails on worker threads", worker_thumbnails)
+
     def window():
         from PySide6.QtWidgets import QApplication
         app = QApplication.instance() or QApplication([sys.argv[0]])

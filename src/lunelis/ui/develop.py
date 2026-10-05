@@ -552,12 +552,23 @@ class DevelopPanel(QScrollArea):
     brush_changed = Signal()
     lens_changed = Signal(str, object, bool)   # key, value, final
 
+    @staticmethod
+    def _wrap_row(*widgets) -> QWidget:
+        """Buttons side by side that wrap onto a second line when the panel is
+        narrow (large text, a scaled screen) - never cut off at its edge."""
+        from lunelis.ui.tag_editor import FlowLayout
+        box = QWidget()
+        flow = FlowLayout(box, spacing=6)
+        for w in widgets:
+            flow.addWidget(w)
+        return box
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("SettingsScroll")
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
-        self.setFixedWidth(340)
+        self.setMinimumWidth(300)                # wider by dragging the divider (DetailView)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         page = QWidget(objectName="DetailPanel")
         v = QVBoxLayout(page)
@@ -589,14 +600,14 @@ class DevelopPanel(QScrollArea):
         self.look_b = QPushButton("My look", clicked=lambda: self.my_look.emit())
         self.look_b.setToolTip("Suggest an edit in the style of your own edits - shown first, applied only "
                                "if you say so")
-        for b in (self.auto_b, self.look_b, self.reset_b, self.before_b, self.proof_b):
-            row.addWidget(b)
-        v.addLayout(row)
+        v.addWidget(self._wrap_row(self.auto_b, self.look_b, self.reset_b, self.before_b, self.proof_b))
         vrow = QHBoxLayout()
         vrow.addWidget(QLabel("Version"))
         self.copy_box = QComboBox()
         self.copy_box.setToolTip("Virtual copies: other edits of this photo, without copying the file")
         self.copy_box.activated.connect(lambda _i: self.copy_chosen.emit(self.copy_box.currentData()))
+        self.copy_box.setMinimumWidth(60)
+        self.copy_box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         vrow.addWidget(self.copy_box, 1)
         self.copy_new_b = QPushButton("New copy", clicked=lambda: self.copy_new.emit())
         self.copy_new_b.setToolTip("Start another edit of this photo from this one")
@@ -641,15 +652,12 @@ class DevelopPanel(QScrollArea):
         self.save_filter_b.setToolTip("Keep this look as your own filter, for any photo")
         self.unpack_b = QPushButton("Adjust sliders", clicked=lambda: self.unpack_filter.emit())
         self.unpack_b.setToolTip("Move the filter's values into the sliders below to fine-tune each one")
-        row.addWidget(self.save_filter_b)
-        row.addWidget(self.unpack_b)
-        pre = QToolButton(text="Presets", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        pre = QToolButton(text="Presets ▾", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
         pm = QMenu(pre)
         pm.addAction("Import presets…", lambda: self.presets_import.emit())
         pm.addAction("Export my filters…", lambda: self.presets_export.emit())
         pre.setMenu(pm)
-        row.addWidget(pre)
-        v.addLayout(row)
+        v.addWidget(self._wrap_row(self.save_filter_b, self.unpack_b, pre))
 
         v.addWidget(self._heading("Crop & rotate"))
         row = QHBoxLayout()

@@ -1223,6 +1223,7 @@ class MainWindow(QMainWindow):
         sort_key, filt = self._view_settings()
         self.index.load(self.conn, sort_key, filt)
         self._show_index(catalog_stats(self.conn))
+        self.detail.follow(self.index)
 
     def reload_later(self, only_if_changed: bool = False) -> None:
         """Load the grid on a worker (the scan's periodic refresh, coming back
@@ -1248,6 +1249,7 @@ class MainWindow(QMainWindow):
             self.index.apply(rows, seconds)
             self._loaded_mark = mark
             self._show_index(stats)
+            self.detail.follow(self.index)
         self._bg().run("index", load, show)
 
     def _show_index(self, s) -> None:
@@ -2169,7 +2171,9 @@ class MainWindow(QMainWindow):
     def _detail_moved(self, file_id: int) -> None:
         # The photo on screen is what the rating keys apply to.
         self.grid.selected = {file_id}
-        self.grid.current = self.detail.pos
+        pos = self.index.position(file_id)          # the library's own position (the photo view keeps a copy)
+        if pos >= 0:
+            self.grid.current = pos
 
     def show_page(self, name: str) -> None:
         if name != "Edit" and self.pages.currentWidget() is getattr(self, "edit_page", None):

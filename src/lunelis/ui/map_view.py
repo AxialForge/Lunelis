@@ -79,6 +79,7 @@ def _count_unlocated(conn) -> int:
 class MapCanvas(QWidget):
     picked = Signal(list)                  # file ids under a clicked circle
     placed = Signal(float, float)          # placing mode: the spot clicked (lat, lon)
+    tiles_failed = Signal(str)             # OpenStreetMap couldn't be reached (once per run)
     dropped = Signal(list, float, float)   # photos dragged from the library onto the map (ids, lat, lon)
 
     def __init__(self, tiles_dir: Path, parent=None) -> None:
@@ -183,8 +184,14 @@ class MapCanvas(QWidget):
         key = reply.request().attribute(QNetworkRequest.Attribute.User)
         data = bytes(reply.readAll())
         ok = reply.error() == QNetworkReply.NetworkError.NoError
+        error = reply.errorString()
         reply.deleteLater()
-        if not ok or not key:
+        if not ok:
+            if not getattr(self, "_told", False):
+                self._told = True
+                self.tiles_failed.emit(error)
+            return
+        if not key:
             return
         z, x, y = (int(v) for v in str(key).split("/"))
         img = QImage.fromData(data)
@@ -382,12 +389,19 @@ class MapView(QWidget):
         self.place_bar.hide()
         outer.addWidget(self.place_bar)
         self._placing: list[int] = []
+        note_row = QWidget()
+        nr = QHBoxLayout(note_row)
+        nr.setContentsMargins(24, 6, 24, 6)
         self.note = QLabel(objectName="Help")
-        self.note.setContentsMargins(24, 6, 24, 6)
         self.note.setWordWrap(True)
-        outer.addWidget(self.note)
+        nr.addWidget(self.note, 1)
+        self.note_b = QPushButton("Show map pictures", objectName="Primary", clicked=self._toggle_online)
+        nr.addWidget(self.note_b)
+        self.note_row = note_row
+        outer.addWidget(note_row)
         self.canvas = MapCanvas(paths.DATA_DIR / "map_tiles")
         self.canvas.picked.connect(self.show_ids.emit)
+        self.canvas.tiles_failed.connect(self._tiles_failed)
         self.canvas.placed.connect(lambda lat, lon: self._place(self._placing, lat, lon))
         self.canvas.dropped.connect(self._place)
         outer.addWidget(self.canvas, 1)
@@ -456,9 +470,17 @@ class MapView(QWidget):
 
     def _update_online(self, on: bool) -> None:
         self.online_b.setText("Hide map tiles" if on else "Show map tiles (online)")
-        self.note.setText("" if on else "Dots on a plain grid of latitude and longitude. Map pictures need the "
-                                        "internet (OpenStreetMap) - nothing is fetched until you turn them on.")
-        self.note.setVisible(not on)
+        self.note.setText("" if on else "Dots on a plain grid of latitude and longitude. Map pictures come from "
+                                        "OpenStreetMap over the internet - nothing is fetched until you turn them "
+                                        "on (here, or Settings > Library > Places).")
+        self.note_b.setVisible(not on)
+        self.note_row.setVisible(not on)
+
+    def _tiles_failed(self, error: str) -> None:
+        self.note.setText(f"Couldn't reach OpenStreetMap for the map pictures ({error}). The dots still work; "
+                          "pictures appear once the connection is back.")
+        self.note_b.setVisible(False)
+        self.note_row.setVisible(True)
 
     def _toggle_online(self) -> None:
         from lunelis.settings import Settings

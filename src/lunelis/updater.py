@@ -82,6 +82,16 @@ def release_from_json(data: dict) -> Release:
                    sha_url=sha["browser_download_url"] if sha else None)
 
 
+def safe_markdown(text: str) -> str:
+    """Release notes as Markdown that shows every word: "People|<name>" would
+    otherwise read as an HTML tag and swallow the rest of the notes."""
+    import re
+    out = []
+    for part in re.split(r"(`[^`]*`)", text or ""):
+        out.append(part if part.startswith("`") else part.replace("<", "&lt;").replace(">", "&gt;"))
+    return "".join(out)
+
+
 def check(timeout: float = 15) -> Release:
     """The newest published release. Raises UpdateError when offline etc."""
     try:

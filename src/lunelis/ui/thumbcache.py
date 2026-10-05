@@ -64,6 +64,22 @@ def load_square(path: Path, px: int) -> QImage:
         return QImage()
 
 
+def load_image(path: Path, height: int | None = None) -> QImage:
+    """A thumbnail as a QImage, decoded by Pillow - safe on any thread. Qt's own
+    image plugins aren't (the packaged app's On this day strips came back
+    empty when a worker read them with QImage). Null if it can't be read."""
+    try:
+        with Image.open(path) as im:
+            im = im.convert("RGB")
+            if height and im.height != height:
+                im = im.resize((max(1, round(im.width * height / im.height)), height), Image.Resampling.BILINEAR)
+            w, h = im.size
+            data = im.tobytes()
+        return QImage(data, w, h, 3 * w, QImage.Format.Format_RGB888).copy()
+    except Exception:
+        return QImage()
+
+
 class ThumbCache(QObject):
     """file_id -> QPixmap at the current tile size."""
 

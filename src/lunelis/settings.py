@@ -103,6 +103,7 @@ DEFAULTS: dict[str, Any] = {
     "confirm_quit": True,                # ask before quitting while an export, merge or job runs
     "edit_live_quality": "fast",         # fast (half size while dragging) | sharp
     "detail_strip_height": 88,           # the photo view's filmstrip (drag its divider)
+    "side_panel_width": 360,             # the photo view's Info / Edit panel (drag its divider)
     "edit_sections_closed": ["Masks", "Lens corrections", "Effects"],   # folded Edit panel sections
     # Updates (packaged builds): check the public releases once a day at start-up.
     "update_check": True,

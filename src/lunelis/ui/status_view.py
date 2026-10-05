@@ -125,8 +125,8 @@ def _noticed(conn) -> tuple[list, int]:
         thumbs = []
         for fid in dict.fromkeys(pick):
             row = conn.execute("SELECT thumbnail_path FROM files WHERE id = ?", (fid,)).fetchone()
-            img = QImage(str(paths.THUMBNAIL_CACHE / row[0])) if row and row[0] else QImage()
-            thumbs.append(img.scaledToHeight(56) if not img.isNull() else img)
+            from lunelis.ui.thumbcache import load_image
+            thumbs.append(load_image(paths.THUMBNAIL_CACHE / row[0], 56) if row and row[0] else QImage())
         rows.append((sid, sug, thumbs))
     return rows, len(found)
 
