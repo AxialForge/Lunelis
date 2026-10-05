@@ -193,13 +193,22 @@ begin
   end;
 end;
 
+{ The user's Pictures folder, wherever it was moved to (Inno Setup has no constant for it). }
+function PicturesFolder: String;
+begin
+  if not RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders',
+    'My Pictures', Result) then
+    Result := GetEnv('USERPROFILE') + '\Pictures';
+end;
+
 procedure SuggestFolders;
 var
   F: TFindRec;
-  Downloads: String;
+  Downloads, Pics: String;
 begin
-  if DirExists(ExpandConstant('{userpics}')) and HasPhotos(ExpandConstant('{userpics}'), 2) then
-    AddFolder(ExpandConstant('{userpics}'), 'Pictures', True);
+  Pics := PicturesFolder;
+  if (Pics <> '') and DirExists(Pics) and HasPhotos(Pics, 2) then
+    AddFolder(Pics, 'Pictures', True);
   if (GetEnv('OneDrive') <> '') and DirExists(GetEnv('OneDrive') + '\Pictures')
      and HasPhotos(GetEnv('OneDrive') + '\Pictures', 2) then
     AddFolder(GetEnv('OneDrive') + '\Pictures', 'OneDrive', True);

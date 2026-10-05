@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-10-05
+
+### Fixed
+
+- The installer stopped before its first page (it looked for the Pictures
+  folder in a way Inno Setup doesn't support). It now reads where Windows
+  keeps your Pictures folder. 0.34.0 was tagged but never released; this is
+  the first release with the installer.
+
 ## [0.34.0] - 2026-10-05
 
 ### Added (installer and first-run setup)
