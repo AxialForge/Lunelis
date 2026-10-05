@@ -275,3 +275,12 @@ def test_the_scan_looks_only_when_turned_on(shoot, tmp_path, monkeypatch):
     Settings(conn).set("noticed_auto", False)
     worker._noticed(conn, lambda: False)
     assert len(calls) == 1
+
+
+def test_a_burst_is_not_a_focus_stack(shoot, tmp_path):
+    base = scene().crop((300, 0, 1200, 700))
+    for k in range(5):                                   # the same shot, a hair rotated each time
+        shoot.add(base.rotate(k * 0.6, resample=Image.Resampling.BICUBIC), T0 + timedelta(seconds=0.2 * k))
+    conn, _ = shoot.catalog(tmp_path)
+    noticed.find(conn, None)
+    assert kinds(conn) == []

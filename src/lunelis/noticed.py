@@ -287,21 +287,25 @@ def overlapping(images: list[np.ndarray]) -> bool:
     return True
 
 
-def sharpest_cell(img: np.ndarray, grid: int = 3) -> int:
+def cell_sharpness(img: np.ndarray, grid: int = 3) -> np.ndarray:
+    """Detail (Laplacian variance) in each cell of a grid x grid split."""
     import cv2
     lap = cv2.Laplacian(img.astype(np.float32), cv2.CV_32F)
     h, w = img.shape
-    best, cell = -1.0, 0
-    for r in range(grid):
-        for c in range(grid):
-            v = float(lap[r * h // grid:(r + 1) * h // grid, c * w // grid:(c + 1) * w // grid].var())
-            if v > best:
-                best, cell = v, r * grid + c
-    return cell
+    return np.array([float(lap[r * h // grid:(r + 1) * h // grid, c * w // grid:(c + 1) * w // grid].var())
+                     for r in range(grid) for c in range(grid)])
 
 
 def focus_moves(images: list[np.ndarray]) -> bool:
-    return len({sharpest_cell(i) for i in images}) >= 2
+    """A focus stack: the sharpest part of the frame moves, and parts of the
+    picture really go from soft to sharp (2x the detail or more) across the
+    frames. A burst of the same scene also lines up, but its detail barely
+    changes - only noise moves its "sharpest cell" around."""
+    maps = np.stack([cell_sharpness(i) for i in images])           # (frames, cells)
+    if len(set(maps.argmax(axis=1))) < 2:
+        return False
+    swing = maps.max(axis=0) / np.maximum(maps.min(axis=0), 1e-6)
+    return int((swing >= 2.0).sum()) >= 2
 
 
 # --- finding -------------------------------------------------------------------------------------
