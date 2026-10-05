@@ -24,7 +24,7 @@ a = Analysis(
     hiddenimports=hiddenimports,
     excludes=["tkinter", "pytest",
               "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtQml", "PySide6.QtQuick",
-              "PySide6.Qt3DCore", "PySide6.QtMultimedia", "PySide6.QtPdf", "PySide6.QtCharts"],
+              "PySide6.Qt3DCore", "PySide6.QtPdf", "PySide6.QtCharts"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

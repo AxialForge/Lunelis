@@ -89,6 +89,17 @@ def run(report: str | None, samples: list[str] | None = None) -> int:
         return f"PyAV {av.__version__}, {img.size}, {info.get('duration_s')}"
     check("Video (PyAV/FFmpeg)", video)
 
+    def playback():
+        # The photo view's player needs Qt Multimedia and its FFmpeg plugin in
+        # the build; with the plugin missing no format can be decoded.
+        from PySide6.QtMultimedia import QMediaFormat
+        formats = QMediaFormat().supportedFileFormats(QMediaFormat.ConversionMode.Decode)
+        if not formats:
+            raise RuntimeError("Qt Multimedia has no backend (multimedia plugin missing)")
+        from PySide6.QtMultimediaWidgets import QVideoWidget  # noqa: F401
+        return f"{len(formats)} formats"
+    check("Video playback (Qt Multimedia)", playback)
+
     for sample in samples or []:
         def render_sample(sample=sample):
             from lunelis.raw.thumbnails import render
