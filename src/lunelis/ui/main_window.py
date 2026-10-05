@@ -558,6 +558,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.calendar_page, scroll=False)
         from lunelis.ui.create_page import CreatePage
         self.create_page = CreatePage(self.conn)
+        self.create_page.merge_requested.connect(self._merge_from_create)
         self.pages.addWidget(self.create_page, scroll=False)        # fills the window; wraps its text
         from lunelis.ui.status_view import StatusView
         self.status_page = StatusView(self.conn, SCAN_STEPS)
@@ -2814,6 +2815,11 @@ class MainWindow(QMainWindow):
         self.grid.viewport().update()
         self.grid.selection_changed.emit(len(self.grid.selected))
 
+    def _merge_from_create(self, kind: str, ids: list) -> None:
+        """Create > Panorama / HDR: the frames selected in the library, then the usual merge."""
+        self.show_photos(ids, "To merge")
+        self.merge_photos(kind)
+
     def build_noticed(self, sid: int, kind: str, ids: list) -> None:
         """Build it: hand the frames to the tool that makes the thing."""
         from lunelis import noticed
@@ -2823,9 +2829,9 @@ class MainWindow(QMainWindow):
             self.merge_photos(kind)
             if getattr(self, "_merge_thread", None) is None:
                 self._noticed_pending = None          # the dialog was cancelled: still on offer
-        elif kind == "timelapse":
+        elif kind in ("timelapse", "focus", "startrails"):
             self.open_page("Create")
-            self.create_page.open_tool("timelapse")
+            self.create_page.open_tool({"startrails": "trails"}.get(kind, kind))
             noticed.mark_built(self.conn, sid)
 
     def _on_similar_done(self, groups: int) -> None:

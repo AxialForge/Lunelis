@@ -109,7 +109,8 @@ class _Reach(QRunnable):
 
 NOTICED_SHOWN = 12                       # suggestions listed; the rest are counted
 NOTICED_THUMBS = 6
-BUILDABLE = {"hdr": "Build the HDR…", "panorama": "Build the panorama…", "timelapse": "Make the timelapse…"}
+BUILDABLE = {"hdr": "Build the HDR…", "panorama": "Build the panorama…", "timelapse": "Make the timelapse…",
+             "focus": "Make the focus stack…", "startrails": "Make the star trails…"}
 
 
 def _noticed(conn) -> tuple[list, int]:

@@ -1239,6 +1239,108 @@ class _Card(QFrame):
 
 
 
+# --- Round three: stacks and merges --------------------------------------------------------------
+
+class StackTool(Tool):
+    """Focus stack / star trails / median stack (create/stacking.py)."""
+    kind = "focus"
+    minimum = 2
+
+    def __init__(self, conn, parent=None) -> None:
+        super().__init__(conn, parent)
+        from lunelis.create import stacking
+        self.st = stacking
+        form = QFormLayout()
+        self.size = QComboBox()
+        for key, label in (("2048", "2048 px"), ("4096", "4096 px"), ("6000", "6000 px"), ("full", "Full size")):
+            self.size.addItem(label, key)
+        self.size.setCurrentIndex(1)
+        form.addRow("Size", self.size)
+        self.align = QCheckBox("Line the frames up (for hand-held shots)", checked=self.kind != "trails")
+        if self.kind == "trails":
+            self.align.setChecked(False)
+            self.align.setEnabled(False)
+            self.align.setToolTip("Star trails are made from a tripod: the stars are meant to move")
+        form.addRow("", self.align)
+        self.fmt = QComboBox()
+        self.fmt.addItem("JPEG", "jpeg")
+        self.fmt.addItem("TIFF (lossless)", "tiff")
+        form.addRow("Save as", self.fmt)
+        box = QWidget()
+        box.setLayout(form)
+        box.setMaximumWidth(460)
+        self.body.addWidget(box)
+        self.body.addStretch(1)
+
+    def make(self) -> None:
+        ids = self.picker.ids()
+        opts = self.st.StackOptions(self.kind, self.size.currentData(), self.align.isChecked(), self.fmt.currentData())
+        try:
+            opts.check(len(ids))
+        except ValueError as e:
+            QMessageBox.information(self, self.title_text, _words(e))
+            return
+        folder, name = self.out_dir(), engine.stamp(self.st.KINDS[self.kind])
+        self.result.setText("")
+        self.run(f"Making the {self.title_text.lower()}…",
+                 lambda conn, prog, stop: self.st.make(conn, ids, opts, folder, name, prog, stop), len(ids) + 1)
+
+
+class FocusStackTool(StackTool):
+    title_text = "Focus stack"
+    blurb = ("Frames focused at different distances, combined so everything from front to back is sharp. "
+             "Each pixel comes from the frame that's sharpest there.")
+    kind = "focus"
+
+
+class StarTrailsTool(StackTool):
+    title_text = "Star trails"
+    blurb = ("Night frames from a tripod combined so the stars draw their arcs: each pixel keeps its brightest "
+             "value across the frames.")
+    kind = "trails"
+
+
+class MedianTool(StackTool):
+    title_text = "Median stack"
+    blurb = ("The same scene shot several times: each pixel takes the middle value, so people walking through "
+             "disappear. Three frames or more; more frames, cleaner result.")
+    kind = "median"
+    minimum = 3
+
+
+class MergeTool(Tool):
+    """Panorama / HDR: the photos go to the same merge as Photo > Merge."""
+    kind = "panorama"
+    merge = Signal(str, list)
+
+    def __init__(self, conn, parent=None) -> None:
+        super().__init__(conn, parent)
+        note = QLabel("The merge asks how to blend and where to save, then adds the result to the library.",
+                      objectName="Help", wordWrap=True)
+        self.body.addWidget(note)
+        self.body.addStretch(1)
+        self.make_b.setText("Merge…")
+
+    def make(self) -> None:
+        ids = self.picker.ids()
+        if len(ids) < 2:
+            QMessageBox.information(self, self.title_text, "Pick at least two photos.")
+            return
+        self.merge.emit(self.kind, ids)
+
+
+class PanoramaTool(MergeTool):
+    title_text = "Panorama"
+    blurb = "Overlapping shots stitched into one wide picture."
+    kind = "panorama"
+
+
+class HdrTool(MergeTool):
+    title_text = "HDR"
+    blurb = "Bracketed exposures blended so both the bright sky and the dark shadows keep their detail."
+    kind = "hdr"
+
+
 TOOLS = (
     ("animation", "Animation", "GIF, WebP or MP4 from a burst or a few photos.", AnimationTool),
     ("collage", "Collage", "Photos side by side on one picture, in a layout you choose.", CollageTool),
@@ -1249,10 +1351,17 @@ TOOLS = (
     ("before_after", "Before and after", "The original next to your edit - side by side or a sweeping slider.",
      BeforeAfterTool),
     ("print", "Prints", "4x6, 5x7, 8x10 or wallet prints on sheets with cut marks, or files for a lab.", PrintTool),
+    ("focus", "Focus stack", "Front-to-back sharpness from frames focused at different distances.", FocusStackTool),
+    ("trails", "Star trails", "Night frames combined so the stars draw their arcs.", StarTrailsTool),
+    ("median", "Median stack", "Several shots of one scene, with the people walking through taken out.", MedianTool),
+    ("panorama", "Panorama", "Overlapping shots stitched into one wide picture.", PanoramaTool),
+    ("hdr", "HDR", "Bracketed exposures blended into one with detail from shadow to sky.", HdrTool),
 )
 
 
 class CreatePage(QWidget):
+    merge_requested = Signal(str, list)        # panorama | hdr, file ids: the window runs the merge
+
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
         self.conn = conn
@@ -1291,6 +1400,8 @@ class CreatePage(QWidget):
             self.cards[key] = card
             tool = cls(conn)
             tool.back.connect(lambda: self.stack.setCurrentIndex(0))
+            if isinstance(tool, MergeTool):
+                tool.merge.connect(self.merge_requested.emit)
             self.tools[key] = tool
         h.addLayout(grid)
         h.addStretch(1)
