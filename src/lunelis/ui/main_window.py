@@ -69,7 +69,7 @@ NAV = [
     ("Photos", ["Library", "Albums", "Tags", "Edit", "Map", "On this day", "Stats"]),
     ("Create", ["Create"]),
     ("Bring in & organize", ["Import", "Migrate", "Duplicates", "Damaged files"]),
-    ("Keep safe", ["Library status", "Backups", "Quarantine"]),
+    ("Keep safe", ["Library status", "Backups", "Quarantine", "Sensor dust"]),
 ]
 BOTTOM_NAV = ["Settings"]
 
@@ -543,6 +543,11 @@ class MainWindow(QMainWindow):
         self.review_page.show_ids.connect(self.show_photos)
         self.review_page.reviewed.connect(self._shoot_reviewed)
         self.pages.addWidget(self.review_page, scroll=False)
+        from lunelis.ui.dust_view import DustView
+        self.dust_page = DustView(self.conn)
+        self.dust_page.show_ids.connect(self.show_photos)
+        self.dust_page.healed.connect(self._shoot_reviewed)
+        self.pages.addWidget(self.dust_page, scroll=False)
         from lunelis.ui.calendar_view import CalendarView
         self.calendar_page = CalendarView(self.conn)
         self.calendar_page.show_ids.connect(self.show_photos)
@@ -2010,6 +2015,9 @@ class MainWindow(QMainWindow):
         elif name == "Review your shoot":
             self.pages.setCurrentWidget(self.review_page)
             self.review_page.load()
+        elif name == "Sensor dust":
+            self.pages.setCurrentWidget(self.dust_page)
+            self.dust_page.refresh()
         elif name == "Map":
             self.pages.setCurrentWidget(self.map_page)
             self.map_page.refresh()

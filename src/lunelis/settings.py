@@ -75,18 +75,18 @@ DEFAULTS: dict[str, Any] = {
     "last_page": "Library",
     "wheel_action": "zoom",              # the photo view's mouse wheel: zoom | step (next/previous photo)
     "log_preview": "builtin",            # S-Log3 clips: builtin (to Rec.709) | off | cube:<path to a .cube LUT>
-    "log_thumbs_rev": 0,
+    "log_thumbs_rev": 0,                 # 1 once log clips' thumbnails were remade with the preview look
     "noticed_upto": 0,                   # Lunelis noticed: the highest file id already looked at
-    "noticed_auto": True,
+    "noticed_auto": True,                # look for brackets, panoramas... after each scan
     "integrity_every": "week",           # regular file checks: off | week | month (jobs/rolling.py)
     "integrity_gb": 20,                  # how much is re-read each time
-    "integrity_last": None,
-    "map_online": False,
+    "integrity_last": None,              # when the last regular check was planned (ISO)
+    "map_online": False,                 # the Map page fetches OpenStreetMap tiles (off: dots on a plain grid)
     "autopilot": False,                  # after a card import, sort out the shoot (importing/autopilot.py)
-    "autopilot_skip": [],
+    "autopilot_skip": [],                # autopilot stages turned off
     "export_presets": {},                # name -> ExportOptions (as a dict)
     "monitor_profile": "off",            # the photo view's colours: off | system (Windows' display profile)
-    "proof_profile": None,               # soft-proofing: an .icc (a printer / paper) to preview against                # autopilot stages turned off                 # the Map page fetches OpenStreetMap tiles (off: dots on a plain grid)              # when the last regular check was planned (ISO)                # look for brackets, panoramas... after each scan                 # 1 once log clips' thumbnails were remade with the preview look
+    "proof_profile": None,               # soft-proofing: an .icc (a printer / paper) to preview against
     "date_format": "long",               # long | iso | day_first | short (photoinfo.DATE_FORMATS)
     "confirm_quit": True,                # ask before quitting while an export, merge or job runs
     "edit_live_quality": "fast",         # fast (half size while dragging) | sharp

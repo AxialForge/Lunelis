@@ -759,6 +759,24 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    36,
+    "sensor dust maps per camera, and the heals made from them (for Undo)",
+    """
+    CREATE TABLE IF NOT EXISTS dust_maps (
+        camera TEXT PRIMARY KEY,
+        map TEXT NOT NULL,                    -- JSON (dust.DustMap)
+        made_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS dust_heals (
+        id INTEGER PRIMARY KEY,
+        camera TEXT NOT NULL,
+        spots TEXT NOT NULL,                  -- JSON: file id -> [[x, y, r], ...] added
+        made_at TEXT NOT NULL
+    );
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 
