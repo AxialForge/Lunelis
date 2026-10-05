@@ -7,6 +7,9 @@ library and how the library is.
 - **At a glance:** photos and videos, archived, missing, damaged, waiting for
   thumbnails or metadata, duplicates to review, quarantine, backups - each a
   link to the page that deals with it.
+- **Lunelis noticed:** shot sequences that could be built into an HDR,
+  panorama, timelapse... (noticed.py), each with Build it / Show photos /
+  Dismiss. Nothing is built without that click.
 - **Sources:** every folder Lunelis catalogs, whether it's reachable right now
   (checked off the GUI thread: an asleep NAS can take seconds to answer),
   its size, missing files and last scan, with a Rescan button each.
@@ -101,8 +104,33 @@ class _Reach(QRunnable):
             pass
 
 
+NOTICED_SHOWN = 12                       # suggestions listed; the rest are counted
+NOTICED_THUMBS = 6
+BUILDABLE = {"hdr": "Build the HDR…", "panorama": "Build the panorama…", "timelapse": "Make the timelapse…"}
+
+
+def _noticed(conn) -> tuple[list, int]:
+    """(rows, total) - rows: (id, suggestion, [QImage thumbnails]); on a worker."""
+    from PySide6.QtGui import QImage
+    from lunelis import noticed, paths
+    found = noticed.open_suggestions(conn)
+    rows = []
+    for sid, sug in found[:NOTICED_SHOWN]:
+        ids = sug.file_ids
+        pick = [ids[round(i * (len(ids) - 1) / max(1, NOTICED_THUMBS - 1))] for i in range(min(NOTICED_THUMBS, len(ids)))]
+        thumbs = []
+        for fid in dict.fromkeys(pick):
+            row = conn.execute("SELECT thumbnail_path FROM files WHERE id = ?", (fid,)).fetchone()
+            img = QImage(str(paths.THUMBNAIL_CACHE / row[0])) if row and row[0] else QImage()
+            thumbs.append(img.scaledToHeight(56) if not img.isNull() else img)
+        rows.append((sid, sug, thumbs))
+    return rows, len(found)
+
+
 class StatusView(QWidget):
     open_page = Signal(str)              # a link to another page
+    show_ids = Signal(list)              # Lunelis noticed: show these photos in the library
+    build = Signal(int, str, list)       # (suggestion id, kind, file ids): hand off to the builder
     rescan = Signal(object)              # list of root ids, or None for everything
     stop = Signal()
 
@@ -172,6 +200,17 @@ class StatusView(QWidget):
         self.glance.setVerticalSpacing(10)
         cv.addLayout(self.glance)
         self._glance_cells: dict[str, QLabel] = {}
+        v.addWidget(card)
+
+        # Lunelis noticed.
+        card, cv = self._card("Lunelis noticed",
+                              "Shots that look like they were taken to be combined - brackets, panoramas, "
+                              "focus stacks, timelapses, star trails. Nothing is built unless you say so; "
+                              "dismiss one and it isn't offered again.")
+        self.noticed_box = QVBoxLayout()
+        self.noticed_box.setSpacing(10)
+        cv.addLayout(self.noticed_box)
+        self.noticed_card = card
         v.addWidget(card)
 
         # Sources.
@@ -265,6 +304,57 @@ class StatusView(QWidget):
             from lunelis.ui.background import Background
             self.bg = Background(self, self.conn)
         self.bg.run("figures", _figures, self._show)
+        self.bg.run("noticed", _noticed, self._show_noticed)
+
+    def _show_noticed(self, result) -> None:
+        from PySide6.QtGui import QPixmap
+        from lunelis import noticed
+        rows, total = result
+        while self.noticed_box.count():
+            item = self.noticed_box.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        self.noticed_rows: list[tuple[int, QPushButton | None, QPushButton, QPushButton]] = []
+        if not rows:
+            self.noticed_box.addWidget(QLabel("Nothing right now. Lunelis looks after every scan.", objectName="Help"))
+            return
+        for sid, sug, thumbs in rows:
+            row = QWidget()
+            h = QHBoxLayout(row)
+            h.setContentsMargins(0, 0, 0, 0)
+            h.setSpacing(6)
+            for img in thumbs:
+                lab = QLabel()
+                lab.setFixedHeight(56)
+                if not img.isNull():
+                    lab.setPixmap(QPixmap.fromImage(img))
+                h.addWidget(lab)
+            text = QLabel(sug.text() + (" Build it?" if sug.kind in BUILDABLE else ""))
+            text.setWordWrap(True)
+            h.addWidget(text, 1)
+            build_b = None
+            if sug.kind in BUILDABLE:
+                build_b = QPushButton(BUILDABLE[sug.kind], objectName="Primary")
+                build_b.clicked.connect(lambda _=False, sid=sid, sug=sug: self.build.emit(sid, sug.kind, sug.file_ids))
+                h.addWidget(build_b)
+            else:
+                text.setToolTip("A builder for this comes in a later version - Show photos to see them together.")
+            show_b = QPushButton("Show photos")
+            show_b.clicked.connect(lambda _=False, ids=sug.file_ids: self.show_ids.emit(list(ids)))
+            dismiss_b = QPushButton("Dismiss")
+            dismiss_b.setToolTip("Don't offer these frames again")
+
+            def gone(_=False, sid=sid):
+                noticed.dismiss(self.conn, sid)
+                self.refresh()
+            dismiss_b.clicked.connect(gone)
+            h.addWidget(show_b)
+            h.addWidget(dismiss_b)
+            self.noticed_box.addWidget(row)
+            self.noticed_rows.append((sid, build_b, show_b, dismiss_b))
+        if total > len(rows):
+            self.noticed_box.addWidget(QLabel(f"…and {total - len(rows):,} more", objectName="Help"))
 
     def _show(self, figures) -> None:
         cells, sources = figures

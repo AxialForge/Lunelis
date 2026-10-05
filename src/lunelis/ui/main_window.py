@@ -106,6 +106,7 @@ class LibraryWorker(QObject):
     takeout_done = Signal(object)    # TakeoutResult
     damage_done = Signal(object)     # CheckResult
     similar_done = Signal(object)    # int near-duplicate groups (only when new photos were compared)
+    noticed_done = Signal(int)       # new Lunelis noticed suggestions
     stacks_done = Signal(object)     # int burst stacks (None when stacking is off)
     finished = Signal()
 
@@ -198,6 +199,8 @@ class LibraryWorker(QObject):
             if not self._cancel:
                 self._scene_tags(conn, stop)
             if not self._cancel:
+                self._noticed(conn, stop)
+            if not self._cancel:
                 self._say(8, "Checking for damaged files…")
                 self.damage_done.emit(check_damage(conn))
         finally:
@@ -222,6 +225,16 @@ class LibraryWorker(QObject):
                 return
             self._say(7, f"Looking at scenes… {start:,} / {len(todo):,}", start, len(todo))
             scenes.tag_files(conn, todo[start:start + 64], rec, paths.DATA_DIR, stop)
+
+    def _noticed(self, conn, stop) -> None:
+        from lunelis.settings import Settings
+        if not Settings(conn).get("noticed_auto"):
+            return
+        from lunelis import noticed
+        self._say(7, "Looking for brackets, panoramas and timelapses…")
+        n = noticed.find(conn, paths.THUMBNAIL_CACHE, stop)
+        if n:
+            self.noticed_done.emit(n)
 
     @staticmethod
     def _store(conn):
@@ -494,6 +507,9 @@ class MainWindow(QMainWindow):
         self.status_page.open_page.connect(self.open_page)
         self.status_page.rescan.connect(lambda ids: self.start(ids) if ids else self.rescan_all())
         self.status_page.stop.connect(self.cancel_scan)
+        self.status_page.show_ids.connect(self.show_photos)
+        self.status_page.build.connect(self.build_noticed)
+        self._noticed_pending: int | None = None      # a suggestion handed to the merge dialog
         self.pages.addWidget(self.status_page)
         self.settings_page = SettingsView(self.conn)
         self.settings_page.library_changed.connect(self.reload)
@@ -1750,10 +1766,14 @@ class MainWindow(QMainWindow):
         self._merge_thread.wait()
         self._merge_thread = None
         self._merge_progress.close()
+        sid, self._noticed_pending = self._noticed_pending, None
         if error:
             if error != "cancelled":
                 QMessageBox.warning(self, "Merge", error)
             return
+        if sid is not None:
+            from lunelis import noticed
+            noticed.mark_built(self.conn, sid)
         if file_id is not None:
             from lunelis.raw.thumbnails import generate_pending
             generate_pending(self.conn, paths.THUMBNAIL_CACHE, only=[file_id])   # just the new file
@@ -2562,6 +2582,7 @@ class MainWindow(QMainWindow):
             lambda n: self.status.setText(f"Recognised {n:,} moved file{'s' if n != 1 else ''} - ratings kept"))
         self._worker.damage_done.connect(self._on_damage_done)
         self._worker.similar_done.connect(self._on_similar_done)
+        self._worker.noticed_done.connect(self._on_noticed)
         self._worker.takeout_done.connect(lambda r: self.status.setText(
             f"Google Takeout: dates for {r.dated:,} files, locations for {r.located:,}"))
         self._worker.finished.connect(self._on_finished)
@@ -2593,6 +2614,38 @@ class MainWindow(QMainWindow):
                                 + (f" ({r.failed:,} preview unavailable)" if r.failed else ""))
 
     @unless_closed
+    def _on_noticed(self, n: int) -> None:
+        self.status.setText(f'Lunelis noticed {n} set{"s" if n != 1 else ""} of shots worth building - '
+                            '<a href="page:Library status">see Library status</a>')
+        if self.pages.currentWidget() is self.status_page:
+            self.status_page.refresh()
+
+    def show_photos(self, ids: list, name: str = "Lunelis noticed") -> None:
+        """The library showing just these photos, all selected."""
+        self.open_page("Library")
+        self.set_filter(Filter(ids=tuple(ids), scope_name=name))
+        self.grid.selected = {f for f in ids if self.index.position(f) >= 0}
+        if self.grid.selected:
+            first = min(self.index.position(f) for f in self.grid.selected)
+            self.grid.current = self.grid.anchor = first
+            self.grid.scroll_to(first)
+        self.grid.viewport().update()
+        self.grid.selection_changed.emit(len(self.grid.selected))
+
+    def build_noticed(self, sid: int, kind: str, ids: list) -> None:
+        """Build it: hand the frames to the tool that makes the thing."""
+        from lunelis import noticed
+        self.show_photos(ids)
+        if kind in ("hdr", "panorama"):
+            self._noticed_pending = sid
+            self.merge_photos(kind)
+            if getattr(self, "_merge_thread", None) is None:
+                self._noticed_pending = None          # the dialog was cancelled: still on offer
+        elif kind == "timelapse":
+            self.open_page("Create")
+            self.create_page.open_tool("timelapse")
+            noticed.mark_built(self.conn, sid)
+
     def _on_similar_done(self, groups: int) -> None:
         if self.pages.currentWidget() is self.dupes:
             self.dupes.refresh()
