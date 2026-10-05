@@ -84,6 +84,14 @@ STICK_COUNT_SECONDS = 10         # how long a new USB drive is looked through fo
 EDITS_INLINE = 20                # Paste / Reset on more photos than this saves on a worker
 SEARCH_NOW_LIMIT = 2000          # search-index rows brought up to date before a query; the rest on a worker
 
+def _thread_catalog():
+    """A worker thread's own catalog connection. Not this module's `open_catalog`:
+    tests swap that for their own connection, which another thread may not use
+    (and the worker would close it)."""
+    from lunelis.catalog import schema
+    return schema.open_catalog(paths.DEFAULT_CATALOG_PATH)
+
+
 class LibraryWorker(QObject):
     """scan -> metadata -> thumbnails, on a background thread."""
 
@@ -114,7 +122,7 @@ class LibraryWorker(QObject):
         self.progress.emit(text)
 
     def run(self) -> None:
-        conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+        conn = _thread_catalog()
         stop = lambda: self._cancel  # noqa: E731
         try:
             for root_id in self.root_ids:
@@ -232,7 +240,7 @@ class CatalogBackup(QObject):
         self.now = now
 
     def run(self) -> None:
-        conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+        conn = _thread_catalog()
         try:
             if self.now:
                 from lunelis.settings import Settings
@@ -252,7 +260,7 @@ class XmpWriter(QObject):
     done = Signal(object)            # SyncResult
 
     def run(self) -> None:
-        conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+        conn = _thread_catalog()
         try:
             self.done.emit(sync.export_pending(conn))
         finally:
