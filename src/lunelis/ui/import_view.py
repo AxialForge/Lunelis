@@ -89,6 +89,7 @@ class ImportWorker(QObject):
 
 class ImportView(QWidget):
     imported = Signal(str)                       # destination folder that received files
+    autopilot = Signal(int)                      # import id: sort out the shoot once it's catalogued
 
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
@@ -194,6 +195,13 @@ class ImportView(QWidget):
         self.name.textChanged.connect(self._update_preview)
         name_box.addWidget(self.name)
         fl.addLayout(name_box, 1)
+        from PySide6.QtWidgets import QCheckBox
+        self.autopilot_cb = QCheckBox("Autopilot")
+        self.autopilot_cb.setToolTip("After the import: best frame of each burst, scene tags, an event, edits in "
+                                     "your style, a draft album and a highlight reel - all waiting for you to "
+                                     "review, nothing applied or removed before that")
+        self.autopilot_cb.toggled.connect(lambda on: Settings(self.conn).set("autopilot", on))
+        fl.addWidget(self.autopilot_cb)
         self.go = QPushButton(clicked=self._start)
         self.go.setObjectName("Primary")
         fl.addWidget(self.go)
@@ -214,6 +222,9 @@ class ImportView(QWidget):
 
     def refresh(self) -> None:
         s = Settings(self.conn)
+        self.autopilot_cb.blockSignals(True)
+        self.autopilot_cb.setChecked(s.get("autopilot"))
+        self.autopilot_cb.blockSignals(False)
         self.dest.setText(s.get("import_destination") or "Not chosen yet - the first import asks")
         current = s.get("import_template")
         self.template.blockSignals(True)
@@ -453,6 +464,8 @@ class ImportView(QWidget):
                                                 if s.get("failed") else "") + ".")
             self.message.setText("\n".join(lines))
             if s.get("placed"):
+                if self.autopilot_cb.isChecked():
+                    self.autopilot.emit(import_id)
                 self.imported.emit(self._destination())
             if s["safe_to_format"]:
                 # Done: don't invite importing the same card twice.

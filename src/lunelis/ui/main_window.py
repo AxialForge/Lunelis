@@ -268,6 +268,38 @@ class CatalogBackup(QObject):
             conn.close()
 
 
+class AutopilotWorker(QObject):
+    """Runs every unfinished autopilot (importing/autopilot.py) on its own connection."""
+
+    progress = Signal(str)
+    done = Signal(int)                 # how many runs now wait for review
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._cancel = False
+
+    def cancel(self) -> None:
+        self._cancel = True
+
+    def run(self) -> None:
+        from lunelis.importing import autopilot
+        conn = _thread_catalog()
+        n = 0
+        try:
+            for rid in autopilot.unfinished(conn):
+                if self._cancel:
+                    break
+                r = autopilot.run(conn, rid, paths.THUMBNAIL_CACHE, paths.DATA_DIR, self.progress.emit,
+                                  lambda: self._cancel)
+                n += r["state"] == "review"
+        except Exception:
+            import logging
+            logging.getLogger("lunelis").exception("autopilot failed")
+        finally:
+            conn.close()
+            self.done.emit(n)
+
+
 class XmpWriter(QObject):
     """Writes pending ratings to sidecars (xmp.sync.export_pending) off the GUI thread."""
 
@@ -446,6 +478,8 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.damaged)
         self.importer = ImportView(self.conn)
         self.importer.imported.connect(self._after_import)
+        self.importer.autopilot.connect(self._autopilot_import)
+        self._autopilot_thread: QThread | None = None
         self.pages.addWidget(self.importer)
         self.events_page = EventsView(self.conn)
         self.events_page.show_event.connect(self.show_event)
@@ -504,6 +538,11 @@ class MainWindow(QMainWindow):
         self.map_page = MapView(self.conn)
         self.map_page.show_ids.connect(lambda ids: self.show_photos(ids, "On the map"))
         self.pages.addWidget(self.map_page, scroll=False)
+        from lunelis.ui.autopilot_view import AutopilotView
+        self.review_page = AutopilotView(self.conn)
+        self.review_page.show_ids.connect(self.show_photos)
+        self.review_page.reviewed.connect(self._shoot_reviewed)
+        self.pages.addWidget(self.review_page, scroll=False)
         from lunelis.ui.calendar_view import CalendarView
         self.calendar_page = CalendarView(self.conn)
         self.calendar_page.show_ids.connect(self.show_photos)
@@ -1479,6 +1518,51 @@ class MainWindow(QMainWindow):
                 return
         self.start([root_id])
 
+    # --- autopilot import --------------------------------------------------------------------
+
+    def _autopilot_import(self, import_id: int) -> None:
+        """Recorded now (so a restart carries on); it runs once the scan has catalogued the photos."""
+        from lunelis.importing import autopilot
+        autopilot.create_run(self.conn, import_id)
+
+    def _run_autopilot(self) -> None:
+        from lunelis.importing import autopilot
+        if self._autopilot_thread is not None or getattr(self, "_quitting", False)                 or not autopilot.unfinished(self.conn):
+            return
+        self._autopilot_thread = QThread(self)
+        self._autopilot = AutopilotWorker()
+        self._autopilot.moveToThread(self._autopilot_thread)
+        self._autopilot_thread.started.connect(self._autopilot.run)
+        self._autopilot.progress.connect(lambda t: self.status.setText(f"Autopilot: {t}…"))
+        self._autopilot.done.connect(self._autopilot_done)
+        self._autopilot_thread.start()
+
+    @unless_closed
+    def _autopilot_done(self, reviewable: int) -> None:
+        self._autopilot_thread.quit()
+        self._autopilot_thread.wait()
+        self._autopilot_thread.deleteLater()
+        self._autopilot.deleteLater()
+        self._autopilot_thread = None
+        if reviewable:
+            self.status.set_link("Autopilot: your shoot is ready - ", "review it", "Review your shoot")
+            if self.tray is not None:
+                self.tray.showMessage("Your shoot is ready", "Autopilot has sorted it out - review it in Lunelis.")
+        self._start_thumbnails_if_needed()
+        self.reload()
+
+    def _shoot_reviewed(self) -> None:
+        self._start_thumbnails_if_needed()
+        self.reload()
+
+    def _start_thumbnails_if_needed(self) -> None:
+        """Applied edits cleared some thumbnails: a quick pass remakes just those."""
+        ids = [r[0] for r in self.conn.execute(
+            "SELECT id FROM files WHERE thumbnail_path IS NULL AND thumb_error IS NULL AND missing_since IS NULL")]
+        if ids:
+            from lunelis.raw.thumbnails import generate_pending
+            generate_pending(self.conn, paths.THUMBNAIL_CACHE, only=ids[:500])
+
     def quit_app(self) -> None:
         self._quitting = True
         self.close()
@@ -1923,6 +2007,9 @@ class MainWindow(QMainWindow):
         elif name == "Stats":
             self.pages.setCurrentWidget(self.stats_page)
             self.stats_page.refresh()
+        elif name == "Review your shoot":
+            self.pages.setCurrentWidget(self.review_page)
+            self.review_page.load()
         elif name == "Map":
             self.pages.setCurrentWidget(self.map_page)
             self.map_page.refresh()
@@ -2770,6 +2857,7 @@ class MainWindow(QMainWindow):
         if linked:
             self.status.setText(f"Added {linked:,} imported photos to their event")
         self.reload()
+        self._run_autopilot()
 
     def _set_busy(self, busy: bool) -> None:
         self.add_action.setEnabled(not busy)
@@ -2863,6 +2951,10 @@ class MainWindow(QMainWindow):
         self._dt_timer.stop()
         self._reach_timer.stop()
         self._integrity_timer.stop()
+        if self._autopilot_thread is not None:
+            self._autopilot.cancel()
+            self._autopilot_thread.quit()
+            self._autopilot_thread.wait(30_000)
         if self._jobs_dialog is not None:
             self._jobs_dialog._timer.stop()
             self._jobs_dialog.close()
