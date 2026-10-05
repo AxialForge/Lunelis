@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-04
+
+### Added (Create, round three)
+
+- **Focus stack:** front-to-back sharpness from frames focused at different
+  distances, lined up first.
+- **Star trails:** night frames combined with "lighten".
+- **Median stack:** people walking through a repeated scene taken out.
+- **Panorama and HDR** as Create tools (the same merge as Photo > Merge).
+- Lunelis noticed builds focus stacks and star trails too.
+
 ## [0.31.0] - 2026-10-04
 
 ### Added (family gallery)

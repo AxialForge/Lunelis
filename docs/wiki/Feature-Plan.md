@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.31.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.32.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -177,7 +177,7 @@ and link per album, optional PIN, no accounts, resized copies (originals
 only if you allow it), a TV slideshow mode. LAN-bound, one token per album,
 rate-limited.
 
-### 0.32 - Create tab, round three
+### 0.32 - Create tab, round three ✅ 0.32.0
 
 Focus stacking, star trails and median stacks, and panorama / HDR merges as
 Create tools.

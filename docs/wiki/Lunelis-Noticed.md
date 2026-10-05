@@ -30,8 +30,8 @@ panorama. Build it?"*:
 - **Show photos** shows just those frames in the library, all selected.
 - **Dismiss** takes it away. The same frames are never offered again.
 
-Focus stacks and star trails can be shown and dismissed; building them
-arrives with Create's round three (0.32).
+- **Make the focus stack... / Make the star trails...** opens that Create tool
+  with those frames.
 
 ## Turning it off
 

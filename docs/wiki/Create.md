@@ -142,6 +142,28 @@ inch:
 **Fill** crops the photo to the print's shape (like a lab does); untick it
 for the whole photo with white borders.
 
+## Focus stack, star trails, median stack
+
+Three ways to turn several frames into one picture, each at 2048 px to full
+size, saved as JPEG or TIFF:
+
+- **Focus stack** - frames focused at different distances (macro, landscape
+  foreground to horizon). They're lined up, and every part of the picture
+  comes from the frame that's sharpest there.
+- **Star trails** - night frames from a tripod; each pixel keeps its brightest
+  value, so the stars draw arcs. (Not lined up: the stars are meant to move.)
+- **Median stack** - the same scene shot three or more times; each pixel takes
+  the middle value, so people walking through disappear.
+
+## Panorama and HDR
+
+**Panorama** and **HDR** on the Create page take the photos from the picker
+to the same merge as **Photo > Merge** (blend settings, where to save), and
+the result goes into the library.
+
+[Lunelis noticed](Lunelis-Noticed.md)'s suggestions now build focus stacks and
+star trails too.
+
 ## Stopping
 
 Every tool shows its progress with **Cancel**. Cancelling an animation or
