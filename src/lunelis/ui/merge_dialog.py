@@ -113,6 +113,8 @@ class MergeWorker(QObject):
         except MemoryError:
             self.done.emit(None, self.opts.path, "Not enough memory - try fewer photos, or half size.")
         except Exception as e:
-            self.done.emit(None, self.opts.path, f"{type(e).__name__}: {e}")
+            from lunelis.reach import explain, gone_offline
+            self.done.emit(None, self.opts.path, explain(e, "merging the photos", self.opts.path)
+                           if gone_offline(e, self.opts.path) else f"{type(e).__name__}: {e}")
         finally:
             conn.close()

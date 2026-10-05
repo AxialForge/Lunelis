@@ -230,6 +230,12 @@ class PhotoPicker(QWidget):
 
 # --- making things on a worker -----------------------------------------------------------
 
+def _words(e: BaseException) -> str:
+    """A failure as a sentence; a drive or NAS that stopped answering is named as such."""
+    from lunelis.reach import explain, gone_offline
+    return explain(e, "making it") if gone_offline(e) else str(e)
+
+
 class MakeWorker(QObject):
     progress = Signal(int, int)
     done = Signal(object)
@@ -449,7 +455,7 @@ class AnimationTool(Tool):
         try:
             opts.check(len(ids))
         except ValueError as e:
-            QMessageBox.information(self, "Animation", str(e))
+            QMessageBox.information(self, "Animation", _words(e))
             return
         folder, name = self.out_dir(), engine.stamp("Animation")
         self.result.setText("")
@@ -771,7 +777,7 @@ class CollageTool(Tool):
         try:
             opts.check()
         except ValueError as e:
-            QMessageBox.information(self, "Collage", str(e))
+            QMessageBox.information(self, "Collage", _words(e))
             return
         preset = engine.Preset("Collage", format=self.format.currentData(), quality=92)
         folder, name = self.out_dir(), engine.stamp("Collage")
@@ -867,7 +873,7 @@ class BatchTool(Tool):
         try:
             opts.check()
         except ValueError as e:
-            QMessageBox.information(self, "Batch copies", str(e))
+            QMessageBox.information(self, "Batch copies", _words(e))
             return
         folder = self.out_dir() / engine.stamp("Batch")
         self.result.setText("")
@@ -936,7 +942,7 @@ class ContactSheetTool(Tool):
         try:
             opts.check(len(ids))
         except ValueError as e:
-            QMessageBox.information(self, self.title_text, str(e))
+            QMessageBox.information(self, self.title_text, _words(e))
             return
         folder, name = self.out_dir(), engine.stamp(opts.title or "Contact sheet")
         self.result.setText("")
@@ -992,7 +998,7 @@ class TimelapseTool(Tool):
         try:
             opts.check(len(ids))
         except ValueError as e:
-            QMessageBox.information(self, self.title_text, str(e))
+            QMessageBox.information(self, self.title_text, _words(e))
             return
         folder, name = self.out_dir(), engine.stamp("Timelapse")
         self.result.setText("")
@@ -1067,7 +1073,7 @@ class SlideshowTool(Tool):
         try:
             opts.check(len(ids))
         except ValueError as e:
-            QMessageBox.information(self, self.title_text, str(e))
+            QMessageBox.information(self, self.title_text, _words(e))
             return
         folder, name = self.out_dir(), engine.stamp("Slideshow")
         self.result.setText("")
@@ -1181,7 +1187,7 @@ class PrintTool(Tool):
         try:
             opts.check(len(ids))
         except ValueError as e:
-            QMessageBox.information(self, self.title_text, str(e))
+            QMessageBox.information(self, self.title_text, _words(e))
             return
         folder, name = self.out_dir(), engine.stamp(f"Prints {opts.size}")
         self.result.setText("")

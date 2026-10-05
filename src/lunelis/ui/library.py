@@ -35,7 +35,7 @@ _QUERY = """
            COALESCE(e.captured_at, CASE WHEN f.root_id IN ({untrusted}) THEN NULL ELSE f.mtime END)
                AS sort_date,
            rt.flag, rt.color_label, e.duration_s,
-           sf.stack_id, s.size, s.cover_file_id, ed.rev, f.pair_of
+           sf.stack_id, s.size, s.cover_file_id, ed.rev, f.pair_of, f.root_id
     FROM files f
     JOIN roots r ON r.id = f.root_id
     -- Forced: the planner prefers the exif primary key, which reads the
@@ -54,7 +54,7 @@ VIDEO_FORMATS = {"mp4", "mov", "mpeg-ts"}
 
 # Row layout, as the query returns it.
 ID, THUMB, UNAVAILABLE, EXT, FORMAT, IS_RAW, STARS, SORT_DATE, FLAG, LABEL, DURATION, \
-    STACK, STACK_SIZE, STACK_COVER, EDIT_REV, PAIR = range(16)
+    STACK, STACK_SIZE, STACK_COVER, EDIT_REV, PAIR, ROOT = range(17)
 
 UNRATED = -1          # Filter.min_stars value meaning "no stars"
 
@@ -83,6 +83,7 @@ class Filter:
     folder: tuple | None = None   # (root id, folder rel path): only photos in that folder and below
     smart: str | None = None      # a smart album's rules (JSON, albums/smart.py)
     ranked: bool = False          # show `ids` in their own order (ask / find similar), best first
+    backup: str | None = None     # 'ok' = backed up, 'none' = not backed up (backups/protection.py)
     hide_videos: bool = field(default=False, compare=False)      # Settings > Appearance, not a filter chip
     hide_pairs: bool = field(default=False, compare=False)       # a RAW+JPEG pair's JPEG (pairs.py)
 
@@ -106,6 +107,9 @@ class Filter:
             where.append("COALESCE(f.format, '') NOT IN ('mp4', 'mov', 'mpeg-ts')")
         if self.hide_pairs:
             where.append("NOT (f.pair_of IS NOT NULL AND f.is_raw = 0)")
+        if self.backup:
+            from lunelis.backups.protection import PROTECTED_SQL
+            where.append(PROTECTED_SQL if self.backup == "ok" else f"NOT {PROTECTED_SQL}")
         if self.ids is not None:
             import json
             where.append("f.id IN (SELECT value FROM json_each(?))")

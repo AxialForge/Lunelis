@@ -88,35 +88,47 @@ def _verify_folder(conn, root_id, folder, *, throttle, should_cancel, workers):
     return result
 
 
-def _integrity_folder(conn, root_id, folder, *, throttle, should_cancel, workers):
+def _integrity_folder(conn, root_id, folder, *, throttle, should_cancel, workers, options=None):
     """Re-hash files that have a baseline hash; a mismatch while size and
     date are unchanged is silent corruption (the scanner clears the baseline
     whenever a file is really edited, so a remaining hash still describes
-    the current size/date)."""
+    the current size/date).
+
+    The rolling check (jobs/rolling.py) passes `only_ids`: just those files,
+    and a file with no baseline yet gets one. Every file read gets checked_at."""
     from concurrent.futures import ThreadPoolExecutor
 
+    only = set((options or {}).get("only_ids") or ())
     result = detect.FolderResult()
     rows = [r for r in conn.execute(
         "SELECT f.id, r.path, f.rel_path, f.content_hash FROM files f JOIN roots r ON r.id = f.root_id"
-        f" WHERE f.root_id = ? AND {detect.LIVE} AND f.content_hash IS NOT NULL", (root_id,))
-        if detect._dir_of(r[2]) == folder]
+        f" WHERE f.root_id = ? AND {detect.LIVE}" + ("" if only else " AND f.content_hash IS NOT NULL"),
+        (root_id,))
+        if detect._dir_of(r[2]) == folder and (not only or r[0] in only)]
 
     def work(row):
         fid, root, rel, baseline = row
         digest, n = full_hash(detect._abs(root, rel), throttle, should_cancel)
         return fid, baseline, digest, n
 
-    changed = []
+    changed, baselines, checked = [], [], []
     with ThreadPoolExecutor(max_workers=max(1, min(workers, 4))) as pool:
         for fid, baseline, digest, n in pool.map(work, rows):
             result.bytes_read += n
             result.hashed += 1
-            if digest and digest != baseline:
+            if not digest:
+                continue
+            checked.append((fid,))
+            if baseline is None:
+                baselines.append((digest, fid))
+            elif digest != baseline:
                 changed.append((fid, f"baseline {baseline[:12]}..., now {digest[:12]}..."))
     conn.executemany(
         "INSERT INTO damaged (file_id, problem, detail) VALUES (?, 'changed_on_disk', ?)"
         " ON CONFLICT(file_id) DO UPDATE SET problem = 'changed_on_disk', detail = excluded.detail",
         changed)
+    conn.executemany("UPDATE files SET content_hash = ? WHERE id = ? AND content_hash IS NULL", baselines)
+    conn.executemany("UPDATE files SET checked_at = datetime('now') WHERE id = ?", checked)
     conn.commit()
     result.cancelled = bool(should_cancel and should_cancel())
     return result
@@ -164,7 +176,7 @@ KINDS = {
 }
 
 # Kinds that need the job's options (e.g. which backup set) passed in.
-OPTION_KINDS = {"backup", "backup_verify"}
+OPTION_KINDS = {"backup", "backup_verify", "integrity"}
 
 # Run once when a job's last folder is done (a kind that has an "afterwards").
 FINISHERS = {

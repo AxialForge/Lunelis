@@ -56,6 +56,8 @@ def _figures(conn) -> tuple[list, list]:
     dupes = q("SELECT COUNT(*) FROM duplicate_groups WHERE resolved = 0")
     quarantined = q("SELECT COUNT(*) FROM files WHERE quarantined_at IS NOT NULL")
     backup_sets = q("SELECT COUNT(*) FROM backup_sets")
+    from lunelis.backups.protection import unprotected_count
+    unprotected = unprotected_count(conn)
     last_photo_backup = q("SELECT MAX(last_run_at) FROM backup_sets")
     from lunelis import paths
     from lunelis.catalog import backup
@@ -73,6 +75,7 @@ def _figures(conn) -> tuple[list, list]:
         ("Last catalog backup", snap.strftime("%b %d, %I:%M %p").replace(" 0", " ") if snap else "Never", None),
         ("Photo backups", (f"{backup_sets} · last run {_when(last_photo_backup) if last_photo_backup else 'never'}"
                            if backup_sets else "None set up"), "Backups"),
+        ("Not backed up", f"{unprotected:,}", "Backups" if unprotected else None),
     ]
     rows = conn.execute(
         "SELECT r.id, r.path, r.enabled, r.last_scanned_at,"

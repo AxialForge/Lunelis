@@ -17,7 +17,7 @@ from PySide6.QtGui import QDrag, QFont, QKeyEvent, QMouseEvent, QPainter, QPaint
 from PySide6.QtWidgets import QAbstractScrollArea, QFrame, QLabel, QVBoxLayout
 
 from lunelis.raw.thumbnails import cache_rel_path
-from lunelis.ui.library import LibraryIndex
+from lunelis.ui.library import ROOT, LibraryIndex
 from lunelis.ui.thumbcache import ThumbCache
 from lunelis.ui import theme as themes
 from lunelis.ui.theme import label_color, qcolor
@@ -95,6 +95,8 @@ class PhotoGrid(QAbstractScrollArea):
         self.card = HoverCard(self.viewport())
         self._hover_i = -1
         self._hover_timer = QTimer(self, singleShot=True, interval=HOVER_DELAY_MS, timeout=self._show_card)
+        # Sources that aren't answering right now (set by the window): their tiles say so.
+        self.offline_roots: set[int] = set()
         # An animated GIF under the pointer plays in its tile (one at a time).
         self._anim_i = -1
         self._anim = None
@@ -318,6 +320,13 @@ class PhotoGrid(QAbstractScrollArea):
 
         if tile.flag == "reject":
             p.fillPath(path, qcolor(t.reject_veil))
+        if self.offline_roots and self.index.rows[i][ROOT] in self.offline_roots:
+            # Top-left: the photo's drive or NAS isn't answering - the thumbnail
+            # still shows, and nothing is marked missing.
+            p.setFont(self._badge_font)
+            fm = p.fontMetrics()
+            self._pill(p, QRect(r.left() + 6, r.top() + 6, fm.horizontalAdvance("OFFLINE") + 10, fm.height() + 4),
+                       "OFFLINE")
 
         # Format badge, top-right; a collapsed stack's frame count beside it.
         if tile.badge:

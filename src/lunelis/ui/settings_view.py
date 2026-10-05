@@ -1041,7 +1041,29 @@ class SettingsView(QWidget):
                   help="Hours can run past midnight (22:00 to 06:00 is overnight).")
         self._row(v, "Speed limit", self._spin("job_mb_per_s", 0, 100_000, " MB/s", special="No limit"),
                   help="Caps how fast jobs read, so the NAS stays usable for everything else.")
+        v.addWidget(QLabel("Regular file checks", objectName="SubTitle"))
+        self.integrity_every = QComboBox()
+        for key, label in (("week", "Every week"), ("month", "Every month"), ("off", "Off")):
+            self.integrity_every.addItem(label, key)
+        self.integrity_every.currentIndexChanged.connect(
+            lambda _: self._set("integrity_every", self.integrity_every.currentData()))
+        self._row(v, "Re-read files", self.integrity_every,
+                  self._spin("integrity_gb", 1, 100_000, " GB each time"),
+                  help="A little of the library is read again in idle time - the files checked longest ago "
+                       "first - so damage is caught while a backup still has a good copy.")
+        self.integrity_state = QLabel(objectName="Help")
+        v.addWidget(self.integrity_state)
         return card
+
+    def _load_integrity(self) -> None:
+        from lunelis.jobs import rolling
+        s = Settings(self.conn)
+        self.integrity_every.setCurrentIndex(max(0, self.integrity_every.findData(s.get("integrity_every"))))
+        done, total, oldest = rolling.summary(self.conn)
+        text = f"{done:,} of {total:,} files checked so far"
+        if oldest and done >= total and total:
+            text += f"; the oldest check was {oldest[:10]}"
+        self.integrity_state.setText(text)
 
     def _backups(self) -> QFrame:
         card, v = self._card(
@@ -1224,6 +1246,7 @@ class SettingsView(QWidget):
             self.show_videos.setChecked(s.get("show_videos"))
             self._load_log_look()
             self.noticed_cb.setChecked(s.get("noticed_auto"))
+            self._load_integrity()
             self.hover_info.setChecked(s.get("hover_info"))
             self.sidebar_auto.setChecked(s.get("sidebar_auto"))
             self.stack_bursts.setChecked(s.get("stack_bursts"))

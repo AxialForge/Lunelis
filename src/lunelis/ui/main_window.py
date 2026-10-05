@@ -82,7 +82,8 @@ SCAN_STEPS = ("Scanning folders", "Reading sidecars", "Reading metadata", "Googl
 
 STICK_COUNT_SECONDS = 10         # how long a new USB drive is looked through for photos
 EDITS_INLINE = 20                # Paste / Reset on more photos than this saves on a worker
-SEARCH_NOW_LIMIT = 2000          # search-index rows brought up to date before a query; the rest on a worker
+SEARCH_NOW_LIMIT = 2000
+REACH_CHECK_MS = 60_000          # how often sources are checked for being reachable          # search-index rows brought up to date before a query; the rest on a worker
 
 def _thread_catalog():
     """A worker thread's own catalog connection. Not this module's `open_catalog`:
@@ -604,6 +605,16 @@ class MainWindow(QMainWindow):
         self._dt_state: dict = {}
         self._dt_timer = QTimer(self, interval=20_000, timeout=self._darktable_tick)
         self._dt_timer.start()
+        # Which sources answer right now (a sleeping NAS, an unplugged drive): their
+        # photos stay browsable from the thumbnails, marked OFFLINE.
+        self.offline_roots: dict[int, str] = {}
+        self._reach_timer = QTimer(self, interval=REACH_CHECK_MS, timeout=self.check_sources)
+        self._reach_timer.start()
+        self._later(3000, self.check_sources)
+        # Regular file checks: a little of the library re-read each week, in idle time.
+        self._integrity_timer = QTimer(self, interval=3_600_000, timeout=self._integrity_tick)
+        self._integrity_timer.start()
+        self._later(60_000, self._integrity_tick)
 
         # Tray + memory-card watching (the real app only - not tests/scripts).
         self.tray = None
@@ -1012,6 +1023,8 @@ class MainWindow(QMainWindow):
         h.addWidget(self._filter_button("Label", [("Any label", None), *((n, n) for n in LABELS)], "label"))
         h.addWidget(self._filter_button("Flag", [("Any flag", None), ("Picks", "pick"),
                                                  ("Rejects", "reject")], "flag"))
+        h.addWidget(self._filter_button("Backup", [("Any", None), ("Backed up", "ok"),
+                                                   ("Not backed up", "none")], "backup"))
         from lunelis.ui.tag_editor import TagFilter
         self.tag_filter = TagFilter(self.conn)
         self.tag_filter.chosen.connect(self.show_tag)
@@ -2339,6 +2352,8 @@ class MainWindow(QMainWindow):
             parts.append((f.label, "label", None))
         if f.flag:
             parts.append(("Picks" if f.flag == "pick" else "Rejects", "flag", None))
+        if f.backup:
+            parts.append(("Backed up" if f.backup == "ok" else "Not backed up", "backup", None))
         if f.event_id is not None:
             parts.append((f"Event: {f.event_name or f.event_id}", "event_id", None))
         if f.album_id is not None:
@@ -2614,6 +2629,37 @@ class MainWindow(QMainWindow):
                                 + (f" ({r.failed:,} preview unavailable)" if r.failed else ""))
 
     @unless_closed
+    def _integrity_tick(self) -> None:
+        from lunelis.jobs import rolling
+        if rolling.due(self.conn) and rolling.start(self.conn):
+            self.runner.poke()
+
+    def check_sources(self) -> None:
+        """Ask every enabled source whether it answers, off the GUI thread."""
+        roots = self.conn.execute("SELECT id, path FROM roots WHERE enabled = 1").fetchall()
+
+        def ask():
+            from lunelis.reach import reachable
+            return {rid: path for rid, path in roots if not reachable(path)}
+        if not hasattr(self, "_reach_bg"):
+            from lunelis.ui.background import Background
+            self._reach_bg = Background(self, self.conn)
+        self._reach_bg.run("reach", ask, self._sources_checked, db=False)
+
+    def _sources_checked(self, offline: dict) -> None:
+        if offline == self.offline_roots:
+            return
+        newly = [p for r, p in offline.items() if r not in self.offline_roots]
+        back = [p for r, p in self.offline_roots.items() if r not in offline]
+        self.offline_roots = offline
+        self.grid.offline_roots = set(offline)
+        self.grid.viewport().update()
+        self.detail.offline_paths = set(offline.values())
+        if newly:
+            self.status.setText(f"{', '.join(newly)} isn't answering - its photos stay browsable, marked OFFLINE")
+        elif back:
+            self.status.setText(f"{', '.join(back)} is back")
+
     def _on_noticed(self, n: int) -> None:
         self.status.setText(f'Lunelis noticed {n} set{"s" if n != 1 else ""} of shots worth building - '
                             '<a href="page:Library status">see Library status</a>')

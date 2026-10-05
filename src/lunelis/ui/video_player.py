@@ -301,7 +301,9 @@ class VideoPlayer(QWidget):
         self.busy = False
         self._update_marks()
         if isinstance(r, Exception):
-            self.note.setText(f"Trim failed: {r}")
+            from lunelis.reach import explain, gone_offline
+            self.note.setText(explain(r, "trimming the clip", self.path) if gone_offline(r)
+                              else f"Trim failed: {r}")
             return
         from pathlib import Path
         p = Path(r.path)

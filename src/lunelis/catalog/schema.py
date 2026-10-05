@@ -709,6 +709,16 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    32,
+    "rolling integrity checks (when each file was last re-read); backups looked up per file",
+    """
+    ALTER TABLE files ADD COLUMN checked_at TEXT;
+    CREATE INDEX IF NOT EXISTS idx_files_checked ON files(checked_at);
+    CREATE INDEX IF NOT EXISTS idx_backup_files_file ON backup_files(file_id);
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 

@@ -130,7 +130,11 @@ class ExportWorker(QObject):
                         export_one(conn, fid, self.opts, n=made + 1)
                         made += 1
                     except Exception as e:
-                        errors.append(f"{fmt[1] if fmt else fid}: {type(e).__name__}: {e}")
+                        from lunelis.reach import explain, gone_offline
+                        if gone_offline(e, self.opts.folder):
+                            errors.append(f"{fmt[1] if fmt else fid}: {explain(e, 'exporting', self.opts.folder)}")
+                        else:
+                            errors.append(f"{fmt[1] if fmt else fid}: {type(e).__name__}: {e}")
                 self.progress.emit(i, len(self.file_ids))
         finally:
             conn.close()

@@ -111,6 +111,7 @@ class PhotoInfo:
     damaged: str | None
     mtime: str | None
     motion_video: int | None = None    # an Android motion photo's embedded video, in bytes
+    protection: str = ""               # the Backup line (backups/protection.py), filled by load()
 
     @property
     def path(self) -> str:
@@ -192,4 +193,7 @@ def load(conn: sqlite3.Connection, file_id: int) -> PhotoInfo | None:
     if row is None:
         return None
     r = tuple(row)
-    return PhotoInfo(r[0], r[1], r[2], r[3], r[4], r[5], bool(r[6]), r[7], *r[8:])
+    info = PhotoInfo(r[0], r[1], r[2], r[3], r[4], r[5], bool(r[6]), r[7], *r[8:])
+    from lunelis.backups.protection import of
+    info.protection = of(conn, file_id).text()
+    return info

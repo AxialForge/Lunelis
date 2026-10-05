@@ -546,7 +546,7 @@ class InfoPanel(QScrollArea):
         self.fields: dict[str, QLabel] = {}
         for key, heading in (("when", "Taken"), ("camera", "Camera"), ("lens", "Lens"), ("exposure", "Exposure"),
                              ("dimensions", "Size"), ("event", "Event"), ("location", "Location"),
-                             ("albums", "Albums"), ("status", "Condition"), ("path", "File"),
+                             ("albums", "Albums"), ("status", "Condition"), ("backup", "Backup"), ("path", "File"),
                              ("sidecar", "Sidecar")):
             h = self._heading(heading)
             lab = QLabel()
@@ -677,6 +677,7 @@ class InfoPanel(QScrollArea):
         put("location", f'{info.lat:.5f}, {info.lon:.5f}  ·  <a href="{url}">Open map</a>' if url else "")
         from lunelis.damage.check import PROBLEM_TEXT
         put("status", PROBLEM_TEXT.get(info.damaged, info.damaged) if info.damaged else "")
+        put("backup", info.protection)
         put("path", photoinfo.breakable(info.path))
         put("sidecar", info.sidecar or "")
 
@@ -763,6 +764,7 @@ class DetailView(QWidget):
         self.view_stack.addWidget(self.canvas)
         self.player = None
         self._movie = None                 # an animated GIF playing on the canvas
+        self.offline_paths: set[str] = set()   # source folders not answering (set by the window)
         self.split.addWidget(self.view_stack)
         self.strip = Filmstrip(self.strip_thumbs)
         self.strip.picked.connect(self.go)
@@ -945,6 +947,14 @@ class DetailView(QWidget):
             return
         i = self.info
         if i is None:
+            return
+        if i.root in self.offline_paths:
+            # Its drive or NAS isn't answering: the thumbnail, and why.
+            self._stop_motion()
+            thumb = self.big_thumbs.get(i.file_id, cache_rel_path(i.file_id))
+            self.canvas.show_pixmap(thumb, sharp=False,
+                                    message=f"{i.root} isn't answering - this is the thumbnail. The photo is "
+                                            "safe there and nothing is marked missing.")
             return
         if i.is_video:
             self._play_video(i)
