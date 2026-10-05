@@ -195,6 +195,7 @@ class EditSession(QObject):
 
 class EditCanvas(PhotoCanvas):
     crop_changed = Signal(tuple, bool)     # (x0, y0, x1, y1) of the shown image, final (mouse released)
+    spot_clicked = Signal(float, float, bool)   # retouch: frame x, y, Alt held
     HANDLE = 10
 
     def __init__(self, parent=None) -> None:
@@ -207,6 +208,8 @@ class EditCanvas(PhotoCanvas):
         self.setMouseTracking(True)
         from lunelis.ui.mask_tool import MaskTool
         self.mask = MaskTool(self)               # active while a mask is selected (kind set)
+        self.retouch_kind: str | None = None     # heal | clone | redeye while that tool is on
+        self.spots: list[tuple[float, float, float]] = []    # (x, y, r) in frame fractions, drawn while retouching
 
     def set_crop(self, crop: tuple | None, aspect: float | None = None) -> None:
         self.crop, self.aspect = crop, aspect
@@ -222,6 +225,15 @@ class EditCanvas(PhotoCanvas):
 
     def paintEvent(self, e) -> None:
         super().paintEvent(e)
+        if self.crop is None and self.retouch_kind and self.pix is not None and self.spots:
+            p = QPainter(self)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setPen(QPen(QColor(255, 255, 255, 200), 1.5))
+            long_px = self.mask._long()
+            for x, y, r in self.spots:
+                c = self.mask.to_screen(x, y)
+                p.drawEllipse(c, r * long_px, r * long_px)
+            p.end()
         if self.crop is None and self.mask.kind is not None and self.pix is not None:
             self.mask.paint(QPainter(self))
             return
@@ -265,6 +277,10 @@ class EditCanvas(PhotoCanvas):
     def mousePressEvent(self, e) -> None:
         if e.button() == Qt.MouseButton.MiddleButton:
             return super().mousePressEvent(e)          # the middle button pans, in every mode
+        if self.crop is None and self.retouch_kind and e.button() == Qt.MouseButton.LeftButton:
+            x, y = self.mask.to_frame(e.position())
+            self.spot_clicked.emit(x, y, bool(e.modifiers() & Qt.KeyboardModifier.AltModifier))
+            return
         if self.crop is None and self.mask.press(e):
             return
         if self.crop is None:
@@ -506,6 +522,16 @@ class DevelopPanel(QScrollArea):
     aspect_changed = Signal(object)
     auto = Signal()
     my_look = Signal()                     # suggest an edit in your style (edit/look.py)
+    retouch_tool = Signal(object)          # heal | clone | redeye | None
+    retouch_size = Signal(float)           # % of the long side
+    retouch_undo = Signal()
+    copy_chosen = Signal(object)           # copy id | None (the original)
+    copy_new = Signal()
+    copy_delete = Signal()
+    copy_export = Signal()
+    proof = Signal(bool)                   # soft-proof against Settings' proof profile
+    presets_export = Signal()
+    presets_import = Signal()
     look_apply = Signal()
     reset = Signal()
     before = Signal(bool)
@@ -556,12 +582,32 @@ class DevelopPanel(QScrollArea):
         self.before_b = QPushButton("Before", checkable=True)
         self.before_b.setToolTip("Show the original (\\ key)")
         self.before_b.toggled.connect(self.before.emit)
+        self.proof_b = QPushButton("Proof", checkable=True)
+        self.proof_b.setToolTip("Soft proof: how it prints with the profile chosen in Settings > Edit; colours "
+                                "it can't print show magenta")
+        self.proof_b.toggled.connect(self.proof.emit)
         self.look_b = QPushButton("My look", clicked=lambda: self.my_look.emit())
         self.look_b.setToolTip("Suggest an edit in the style of your own edits - shown first, applied only "
                                "if you say so")
-        for b in (self.auto_b, self.look_b, self.reset_b, self.before_b):
+        for b in (self.auto_b, self.look_b, self.reset_b, self.before_b, self.proof_b):
             row.addWidget(b)
         v.addLayout(row)
+        vrow = QHBoxLayout()
+        vrow.addWidget(QLabel("Version"))
+        self.copy_box = QComboBox()
+        self.copy_box.setToolTip("Virtual copies: other edits of this photo, without copying the file")
+        self.copy_box.activated.connect(lambda _i: self.copy_chosen.emit(self.copy_box.currentData()))
+        vrow.addWidget(self.copy_box, 1)
+        self.copy_new_b = QPushButton("New copy", clicked=lambda: self.copy_new.emit())
+        self.copy_new_b.setToolTip("Start another edit of this photo from this one")
+        vrow.addWidget(self.copy_new_b)
+        self.copy_more = QToolButton(text="⋯", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        m = QMenu(self.copy_more)
+        self.copy_export_a = m.addAction("Export this copy…", lambda: self.copy_export.emit())
+        self.copy_delete_a = m.addAction("Delete this copy", lambda: self.copy_delete.emit())
+        self.copy_more.setMenu(m)
+        vrow.addWidget(self.copy_more)
+        v.addLayout(vrow)
         # The suggestion, waiting for an answer.
         self.look_box = QFrame(objectName="Card")
         lv = QVBoxLayout(self.look_box)
@@ -597,6 +643,12 @@ class DevelopPanel(QScrollArea):
         self.unpack_b.setToolTip("Move the filter's values into the sliders below to fine-tune each one")
         row.addWidget(self.save_filter_b)
         row.addWidget(self.unpack_b)
+        pre = QToolButton(text="Presets", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        pm = QMenu(pre)
+        pm.addAction("Import presets…", lambda: self.presets_import.emit())
+        pm.addAction("Export my filters…", lambda: self.presets_export.emit())
+        pre.setMenu(pm)
+        row.addWidget(pre)
         v.addLayout(row)
 
         v.addWidget(self._heading("Crop & rotate"))
@@ -624,6 +676,7 @@ class DevelopPanel(QScrollArea):
         self.straighten.moved.connect(lambda _k, val, final: self.angle.emit(val, final))
         v.addWidget(self.straighten)
 
+        self._build_retouch(v)
         self._build_masks(v)
         self._build_lens(v)
 
@@ -644,6 +697,51 @@ class DevelopPanel(QScrollArea):
                 v.addWidget(self.curves)
         v.addStretch(1)
         self._fold_sections(v)
+
+    def _build_retouch(self, v) -> None:
+        v.addWidget(self._heading("Retouch"))
+        row = QHBoxLayout()
+        row.setSpacing(4)
+        self.retouch_buttons = {}
+        for kind, label, tip in (("heal", "Heal", "Click a spot to blend it away with what's around it"),
+                                 ("clone", "Clone", "Alt+click where to copy from, then click where to paint"),
+                                 ("redeye", "Red-eye", "Click each red eye")):
+            b = QPushButton(label, checkable=True)
+            b.setToolTip(tip)
+            b.toggled.connect(lambda on, k=kind: self._retouch_toggled(k, on))
+            self.retouch_buttons[kind] = b
+            row.addWidget(b)
+        v.addLayout(row)
+        self.spot_size = ParamSlider("spot", "Size", 0.2, 10, 0.1)
+        self.spot_size.set_value(1.5)
+        self.spot_size.moved.connect(lambda _k, val, final: final and self.retouch_size.emit(val))
+        v.addWidget(self.spot_size)
+        row = QHBoxLayout()
+        self.spot_count = QLabel(objectName="Help")
+        row.addWidget(self.spot_count, 1)
+        self.spot_undo_b = QPushButton("Remove last spot", clicked=lambda: self.retouch_undo.emit())
+        row.addWidget(self.spot_undo_b)
+        v.addLayout(row)
+
+    def _retouch_toggled(self, kind: str, on: bool) -> None:
+        if on:
+            for k, b in self.retouch_buttons.items():
+                if k != kind and b.isChecked():
+                    b.blockSignals(True)
+                    b.setChecked(False)
+                    b.blockSignals(False)
+            self.retouch_tool.emit(kind)
+        elif not any(b.isChecked() for b in self.retouch_buttons.values()):
+            self.retouch_tool.emit(None)
+
+    def show_copies(self, copies: list, current) -> None:
+        self.copy_box.clear()
+        self.copy_box.addItem("Original", None)
+        for cid, name in copies:
+            self.copy_box.addItem(name, cid)
+        self.copy_box.setCurrentIndex(max(0, self.copy_box.findData(current)))
+        self.copy_export_a.setEnabled(current is not None)
+        self.copy_delete_a.setEnabled(current is not None)
 
     def _build_masks(self, v) -> None:
         from PySide6.QtWidgets import QCheckBox, QListWidget
@@ -921,6 +1019,24 @@ class EditMode(QObject):
         panel.aspect_changed.connect(self._aspect_changed)
         panel.auto.connect(self.auto)
         panel.my_look.connect(self.my_look)
+        panel.retouch_tool.connect(self.set_retouch)
+        panel.retouch_size.connect(lambda v: setattr(self, "spot_size", v / 100))
+        panel.retouch_undo.connect(self.undo_spot)
+        canvas.spot_clicked.connect(self.add_spot)
+        panel.copy_chosen.connect(self.switch_copy)
+        panel.copy_new.connect(self.new_copy)
+        panel.copy_delete.connect(self.delete_copy)
+        panel.copy_export.connect(self.export_copy)
+        panel.proof.connect(self.set_proof)
+        panel.presets_export.connect(self.export_presets)
+        panel.presets_import.connect(self.import_presets)
+        self.spot_size = 0.015
+        self._clone = None                     # clone: ("source", x, y) waiting, then ("offset", dx, dy)
+        self.copy_id = None
+        self.proofing = False
+        self._screen, self._proof_path = "off", None
+        self._copy_signals = _CopySignals()
+        self._copy_signals.done.connect(self._copy_exported)
         panel.look_apply.connect(self.apply_look)
         self._look_signals = _LookSignals()
         self._look_signals.done.connect(self._look_done)
@@ -975,8 +1091,15 @@ class EditMode(QObject):
         self.ai_maps, self._ai_busy = {}, set()
         self.stack = self.saved_stack = store.get(self.conn, info.file_id)
         self.history, self.pos = [self.stack], 0
+        self.copy_id = None
+        self.panel.show_copies(store.copies_of(self.conn, info.file_id), None)
         from lunelis.settings import Settings
         self._live = Settings(self.conn).get("edit_live_quality")
+        self._screen = Settings(self.conn).get("monitor_profile")
+        self._proof_path = Settings(self.conn).get("proof_profile")
+        self.panel.proof_b.setEnabled(bool(self._proof_path))
+        if not self._proof_path:
+            self.panel.proof_b.setChecked(False)
         self.panel.restore_sections(self.conn)
         self.panel.set_filters([(None, None, False)] + [(n, None, not b) for n, _, b in store.filters(self.conn)],
                                self.stack.filter)
@@ -999,6 +1122,9 @@ class EditMode(QObject):
         self.set_before(False)
         changed = self.save()
         fid = self.info.file_id
+        if self.copy_id is not None:
+            changed = False                       # a copy has no thumbnail of its own; the original's stays
+            self.stack = store.get(self.conn, fid)
         if changed or (not self.stack.is_identity() and not render.proxy_path(self.edit_cache, fid).exists()):
             if self.stack.is_identity():
                 job = _Outputs(self._out_signals.done, fid, clear=(
@@ -1016,7 +1142,11 @@ class EditMode(QObject):
         self._save_timer.stop()
         if self.info is None or self.stack == self.saved_stack:
             return False
-        store.save(self.conn, self.info.file_id, self.stack)
+        if self.copy_id is not None:
+            if self.copy_id >= 0:
+                store.save_copy(self.conn, self.copy_id, self.stack)
+        else:
+            store.save(self.conn, self.info.file_id, self.stack)
         self.saved_stack = self.stack
         return True
 
@@ -1075,9 +1205,177 @@ class EditMode(QObject):
             return
         self.has_render = True
         size_changed = self.canvas.pix is None or self.canvas.pix.size() != img.size()
+        img = self._for_screen(img)
         self.canvas.show_pixmap(QPixmap.fromImage(img), sharp=True)
         if size_changed and self._mask() is not None:
             self._update_overlay()
+
+    # --- colour on screen: monitor profile, soft proof ---
+
+    def _for_screen(self, img: QImage) -> QImage:
+        if not (self.proofing and self._proof_path) and self._screen == "off":
+            return img
+        from PIL import Image
+        from lunelis.edit import icc
+        a = img.convertToFormat(QImage.Format.Format_RGB888)
+        bpl = a.bytesPerLine()
+        arr = np.frombuffer(a.constBits(), np.uint8, bpl * a.height()).reshape(a.height(), bpl)[:, :a.width() * 3]
+        pil = Image.fromarray(np.ascontiguousarray(arr.reshape(a.height(), a.width(), 3)), "RGB")
+        try:
+            if self.proofing and self._proof_path:
+                pil = icc.proof(pil, self._proof_path)
+            pil = icc.to_screen(pil, self._screen)
+        except Exception as e:                  # a broken profile: say so, show the plain picture
+            self.panel.status.setText(f"Colour profile problem: {e}")
+            return img
+        return to_qimage(np.asarray(pil, np.float32) / 255.0)
+
+    def set_proof(self, on: bool) -> None:
+        self.proofing = on
+        self.panel.status.setText("Soft proof: magenta shows colours this profile can't reproduce" if on else "")
+        self._render()
+
+    # --- retouch ---
+
+    def set_retouch(self, kind) -> None:
+        self.canvas.retouch_kind = kind
+        self._clone = None
+        self.canvas.mask.crop = self.stack.geometry.crop
+        if kind and self.mask_index >= 0:
+            self.select_mask(-1)
+        self._show_spots()
+        self.panel.status.setText({"heal": "Click a spot to heal it", "clone": "Alt+click where to copy from",
+                                   "redeye": "Click each red eye"}.get(kind or "", ""))
+
+    def _show_spots(self) -> None:
+        self.canvas.spots = [(sp.x, sp.y, sp.r) for sp in self.stack.retouch]
+        n = len(self.stack.retouch)
+        self.panel.spot_count.setText(f"{n} spot{'s' if n != 1 else ''}" if n else "No spots")
+        self.panel.spot_undo_b.setEnabled(bool(n))
+        self.canvas.update()
+
+    def add_spot(self, x: float, y: float, alt: bool) -> None:
+        from lunelis.edit.retouch import Spot
+        kind = self.canvas.retouch_kind
+        if not kind or self.session.disp is None:
+            return
+        r = self.spot_size
+        if kind == "clone":
+            if alt:
+                self._clone = ("source", x, y)
+                self.panel.status.setText("Now click where to paint")
+                return
+            if self._clone is None:
+                self.panel.status.setText("Alt+click where to copy from first")
+                return
+            if self._clone[0] == "source":
+                self._clone = ("offset", self._clone[1] - x, self._clone[2] - y)
+            spot = Spot("clone", x, y, r, x + self._clone[1], y + self._clone[2])
+        elif kind == "heal":
+            spot = Spot("heal", x, y, r, *self._heal_source(x, y, r))
+        else:
+            spot = Spot("redeye", x, y, r)
+        self._set(replace(self.stack, retouch=self.stack.retouch + (spot,)))
+        self._show_spots()
+
+    def _heal_source(self, x: float, y: float, r: float) -> tuple:
+        """Chosen once, on the picture as shown, so preview and export use the same patch."""
+        from lunelis.edit import retouch
+        a = pipeline.apply_geometry(self.session.disp, self.stack.geometry)
+        h, w = a.shape[:2]
+        crop = self.stack.geometry.crop
+        cx, cy, long_px = retouch._px(x, y, crop, w, h)
+        sx, sy = retouch.choose_source(a, cx, cy, max(1.0, r * long_px))
+        fw, fh = w / max(1e-6, crop[2] - crop[0]), h / max(1e-6, crop[3] - crop[1])
+        return sx / fw + crop[0], sy / fh + crop[1]
+
+    def undo_spot(self) -> None:
+        if self.stack.retouch:
+            self._set(replace(self.stack, retouch=self.stack.retouch[:-1]))
+            self._show_spots()
+
+    # --- virtual copies ---
+
+    def switch_copy(self, copy_id) -> None:
+        if self.info is None or copy_id == self.copy_id:
+            return
+        self.save()
+        self.copy_id = copy_id
+        self.stack = self.saved_stack = (store.get_copy(self.conn, copy_id) if copy_id is not None
+                                         else store.get(self.conn, self.info.file_id))
+        self.history, self.pos = [self.stack], 0
+        self.panel.show_copies(store.copies_of(self.conn, self.info.file_id), copy_id)
+        self._show_panel()
+        self._show_spots()
+        self._render()
+
+    def new_copy(self) -> None:
+        if self.info is None:
+            return
+        self.save()
+        cid = store.add_copy(self.conn, self.info.file_id, self.stack)
+        self.switch_copy(cid)
+
+    def delete_copy(self) -> None:
+        if self.info is None or self.copy_id is None:
+            return
+        store.delete_copy(self.conn, self.copy_id)
+        self.copy_id = -1                         # gone: switching away saves nothing
+        self.saved_stack = self.stack
+        self.switch_copy(None)
+
+    def export_copy(self) -> None:
+        """This copy as a new file (Export's dialog, its settings)."""
+        if self.info is None or self.copy_id is None:
+            return
+        self.save()
+        from lunelis.ui.export_dialog import ExportDialog
+        dlg = ExportDialog(self.conn, 1, self.panel)
+        if not dlg.exec() or dlg.options is None:
+            return
+        self.start_copy_export(dlg.options)
+
+    def start_copy_export(self, opts) -> None:
+        self.panel.status.setText("Exporting this copy…")
+        QThreadPool.globalInstance().start(_CopyExport(self._copy_signals, self.info.file_id, self.stack, opts))
+
+    def _copy_exported(self, path: str, error: str) -> None:
+        if getattr(self, "closed", False):
+            return
+        import os
+        self.last_copy_export = path
+        self.panel.status.setText(f"Couldn't export: {error}" if error else f"Saved {os.path.basename(path)}")
+
+    # --- presets as files ---
+
+    def export_presets(self) -> None:
+        import json
+        from PySide6.QtWidgets import QFileDialog
+        doc = store.export_filters(self.conn)
+        if not doc["presets"]:
+            self.panel.status.setText("You have no filters of your own to export yet.")
+            return
+        path, _ = QFileDialog.getSaveFileName(self.panel, "Export your filters", "My Lunelis presets.json",
+                                              "Lunelis presets (*.json)")
+        if path:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(doc, f, indent=1)
+            self.panel.status.setText(f"Exported {len(doc['presets'])} filter(s)")
+
+    def import_presets(self) -> None:
+        import json
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self.panel, "Import presets", "", "Lunelis presets (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as f:
+                added, skipped = store.import_filters(self.conn, json.load(f))
+        except (OSError, ValueError) as e:
+            self.panel.status.setText(f"Couldn't import: {e}")
+            return
+        self._filter_previews()
+        self.panel.status.setText(f"Imported {added} preset(s)" + (f"; {len(skipped)} already there" if skipped else ""))
 
     def _outputs_done(self, file_id: int, ok: bool) -> None:
         if getattr(self, "closed", False):
@@ -1493,6 +1791,29 @@ class _AutoJob(QRunnable):
         except Exception:
             adjust = None
         self.s.done.emit(self.file_id, adjust)
+
+
+class _CopySignals(QObject):
+    done = Signal(str, str)                # path, error
+
+
+class _CopyExport(QRunnable):
+    def __init__(self, signals, file_id: int, stack, opts) -> None:
+        super().__init__()
+        self.s, self.file_id, self.stack, self.opts = signals, file_id, stack, opts
+
+    def run(self) -> None:
+        from lunelis import paths
+        from lunelis.catalog.schema import open_catalog
+        from lunelis.edit.export import export_one
+        try:
+            conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+            try:
+                self.s.done.emit(export_one(conn, self.file_id, self.opts, stack=self.stack), "")
+            finally:
+                conn.close()
+        except Exception as e:
+            self.s.done.emit("", str(e))
 
 
 class _LookSignals(QObject):

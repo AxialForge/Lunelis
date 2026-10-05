@@ -39,6 +39,7 @@ from lunelis.ui.thumbcache import ThumbCache
 from lunelis.xmp.sidecar import LABELS
 from lunelis.ui.background import unless_closed
 
+SCREEN = "off"               # Settings monitor_profile: the photo view's colours go through it (edit/icc.py)
 PREVIEW_EDGE = 2560          # plenty for a 1440p/4K window without decoding 60 MP
 PREVIEW_CACHE = 8
 
@@ -83,6 +84,9 @@ class _PreviewLoad(QRunnable):
                                                            lens.info_for_id(self.file_id) if stack.lens else None))
             else:
                 img = render(self.path, self.orientation, edge=PREVIEW_EDGE).convert("RGB")
+            if SCREEN != "off":
+                from lunelis.edit import icc
+                img = icc.to_screen(img, SCREEN)
             data = img.tobytes()
             q = QImage(data, img.width, img.height, 3 * img.width, QImage.Format.Format_RGB888).copy()
         except Exception:
@@ -694,6 +698,9 @@ class DetailView(QWidget):
     def __init__(self, conn, parent=None, workspace: bool = False) -> None:
         super().__init__(parent)
         self.conn = conn
+        global SCREEN
+        from lunelis.settings import Settings as _Settings
+        SCREEN = _Settings(conn).get("monitor_profile")
         # workspace = the Edit page's view: always editing, no way "back".
         self.workspace = workspace
         self.index = LibraryIndex()

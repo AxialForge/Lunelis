@@ -352,7 +352,42 @@ class SettingsView(QWidget):
         self._row(v, "While dragging a slider", self.live)
         unfold = QPushButton("Unfold every section", clicked=lambda: self._set("edit_sections_closed", []))
         self._row(v, "Edit panel", unfold, help="Sections you fold stay folded; this opens them all again.")
+        v.addWidget(QLabel("Colour", objectName="SubTitle"))
+        self.monitor = QComboBox()
+        self.monitor.addItem("Off - show sRGB as it is", "off")
+        self.monitor.addItem("Use Windows' display profile", "system")
+        self.monitor.currentIndexChanged.connect(lambda _: self._set("monitor_profile", self.monitor.currentData()))
+        self._row(v, "Monitor profile", self.monitor,
+                  help="With a calibrated monitor, the photo view and Edit show colours through its profile "
+                       "(Windows > Colour Management). Edits and exports are unaffected.")
+        self.proof_label = QLabel(objectName="Count")
+        self._row(v, "Soft-proof profile", self.proof_label,
+                  QPushButton("Choose…", clicked=self._choose_proof),
+                  QPushButton("Clear", clicked=lambda: (self._set("proof_profile", None), self._load_colour())),
+                  help="A printer / paper profile (.icc) from your lab or printer maker. Edit > Proof then "
+                       "shows how a photo will print, with colours it can't reproduce in magenta.")
         return card
+
+    def _load_colour(self) -> None:
+        s = Settings(self.conn)
+        self.monitor.setCurrentIndex(max(0, self.monitor.findData(s.get("monitor_profile"))))
+        proof = s.get("proof_profile")
+        self.proof_label.setText(os.path.basename(proof) if proof else "None chosen")
+
+    def _choose_proof(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "Choose a printer or paper profile", "",
+                                              "ICC profiles (*.icc *.icm)")
+        if not path:
+            return
+        try:
+            from PIL import ImageCms
+            ImageCms.getOpenProfile(path)
+        except Exception as e:
+            self.saved.setText(f"Not saved: that isn't a colour profile ({e})")
+            return
+        self._set("proof_profile", path)
+        self._load_colour()
 
     def _scene_tags(self) -> QFrame:
         card, v = self._card("Scene tags", "A model that runs only on this PC looks at your photos' thumbnails "
@@ -975,6 +1010,7 @@ class SettingsView(QWidget):
         self.date_fmt.setCurrentIndex(max(0, self.date_fmt.findData(s.get("date_format"))))
         self.confirm_quit.setChecked(bool(s.get("confirm_quit")))
         self.live.setCurrentIndex(max(0, self.live.findData(s.get("edit_live_quality"))))
+        self._load_colour()
         self.edit_filter.clear()
         for i in range(self.import_filter.count()):
             self.edit_filter.addItem(self.import_filter.itemText(i), self.import_filter.itemData(i))
