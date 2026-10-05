@@ -158,3 +158,106 @@ def test_regular_checks_can_be_turned_off(lib):
     conn, *_ = lib
     Settings(conn).set("integrity_every", "off")
     assert not rolling.due(conn)
+
+
+# --- map -----------------------------------------------------------------------------------------
+
+def test_mercator_round_trip_and_clusters():
+    from lunelis.ui import map_view as M
+    x, y = M.lonlat_to_world(-81.69, 41.50, 10)
+    lon, lat = M.world_to_lonlat(x, y, 10)
+    assert lon == pytest.approx(-81.69) and lat == pytest.approx(41.50)
+    pts = [(1, 41.50, -81.69), (2, 41.5001, -81.6901), (3, 36.11, -115.17)]
+    groups = sorted(len(ids) for _, _, ids in M.clusters(pts, 4))
+    assert groups == [1, 2]                                        # Cleveland pair, Las Vegas alone
+    assert sorted(len(ids) for _, _, ids in M.clusters(pts, 18)) == [1, 1, 1]
+
+
+def _located(conn, ids):
+    for name, (lat, lon) in {"P0.jpg": (41.5, -81.69), "P1.jpg": (41.5001, -81.6901), "P2.jpg": (0, 0)}.items():
+        conn.execute("INSERT OR REPLACE INTO exif (file_id, gps_lat, gps_lon) VALUES (?, ?, ?)", (ids[name], lat, lon))
+    conn.commit()
+
+
+def test_the_map_makes_no_network_request_until_turned_on(lib, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from lunelis.settings import Settings
+    from lunelis.ui import map_view as M
+    conn, ids, *_ = lib
+    _located(conn, ids)
+    view = M.MapView(conn)
+    try:
+        view.canvas.tiles_dir = tmp_path / "tiles"
+        view.resize(800, 600)
+        view.refresh()
+        view.bg.wait()
+        assert view.count.text() == "2 photos with a location"          # 0,0 is "no fix"
+        view.canvas.grab()
+        assert view.canvas.net is None and not view.canvas._asked
+        picked = []
+        view.show_ids.connect(picked.append)
+        x, y, members = view.canvas._clusters[0]
+        ox, oy = view.canvas._origin()
+        from PySide6.QtCore import QPointF
+        assert sorted(view.canvas.cluster_at(QPointF(x - ox, y - oy))) == sorted(members)
+        view.canvas.picked.emit(members)
+        assert picked == [members]
+        # Turned on: tiles are asked for, but a cached one is used without asking.
+        z = int(view.canvas.z)
+        tx, ty = int(x // M.TILE) % (2 ** z), int(y // M.TILE)
+        tile = view.canvas._tile_path(z, tx, ty)
+        tile.parent.mkdir(parents=True)
+        from PySide6.QtGui import QImage
+        img = QImage(256, 256, QImage.Format.Format_RGB32)
+        img.fill(0x88aa88)
+        img.save(str(tile))
+        asked = []
+        view._toggle_online()
+        assert Settings(conn).get("map_online") is True and view.canvas.net is not None
+        monkeypatch.setattr(view.canvas.net, "get", lambda req: asked.append(req.url().toString()))
+        view.canvas.grab()
+        assert asked and all("tile.openstreetmap.org" in u for u in asked)
+        assert not any(u.endswith(f"/{z}/{tx}/{ty}.png") for u in asked)  # cached
+    finally:
+        view.deleteLater()
+
+
+# --- on this day ---------------------------------------------------------------------------------
+
+def test_on_this_day_groups_earlier_years(lib):
+    from datetime import date
+    from lunelis.ui.calendar_view import day_keys, on_this_day
+    conn, ids, *_ = lib
+    for name, when in {"P0.jpg": "2019-10-04T09:00:00", "P1.jpg": "2023-10-04T23:30:00",
+                       "P2.jpg": "2023-10-06T08:00:00", "P3.jpg": "2024-03-01T12:00:00"}.items():
+        conn.execute("INSERT OR REPLACE INTO exif (file_id, captured_at) VALUES (?, ?)", (ids[name], when))
+    conn.commit()
+    assert on_this_day(conn, date(2026, 10, 4)) == [(2023, [ids["P1.jpg"]]), (2019, [ids["P0.jpg"]])]
+    assert on_this_day(conn, date(2026, 10, 4), spread=3)[0] == (2023, [ids["P1.jpg"], ids["P2.jpg"]])
+    assert day_keys(date(2028, 3, 1), 1) == ["02-29", "03-01", "03-02"]
+
+
+def test_the_on_this_day_page(lib):
+    from datetime import date
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.calendar_view import CalendarView
+    conn, ids, *_ = lib
+    conn.execute("INSERT OR REPLACE INTO exif (file_id, captured_at) VALUES (?, '2021-07-04T10:00:00')", (ids["P2.jpg"],))
+    conn.commit()
+    view = CalendarView(conn)
+    try:
+        shown = []
+        view.show_ids.connect(lambda ids_, name: shown.append((ids_, name)))
+        view.set_day(date(2026, 7, 4))
+        view.bg.wait()
+        [(year, got, show_b)] = view.year_rows
+        assert year == 2021 and got == [ids["P2.jpg"]]
+        show_b.click()
+        assert shown == [([ids["P2.jpg"]], "July 4, 2021")]
+        view.set_day(date(2026, 7, 5))
+        view.bg.wait()
+        assert view.year_rows == [] and view.summary.text() == ""
+    finally:
+        view.deleteLater()

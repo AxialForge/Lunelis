@@ -1,0 +1,359 @@
+"""
+The Map page (sidebar > Photos > Map): photos placed by their GPS.
+
+- Photos with a location become dots, grouped into numbered circles where
+  they crowd; click a circle to see those photos in the library.
+- Drag to move, the mouse wheel (or + / -) to zoom; "Fit" shows everything.
+- **Online map tiles are opt-in.** Until you turn them on (Settings key
+  `map_online`), the page draws the dots on a plain grid of latitude and
+  longitude and makes no network request at all. Turned on, tiles come from
+  OpenStreetMap (credited on the map), are cached in the data folder
+  (`map_tiles`) and are never fetched again once cached.
+- Nothing about your photos is sent anywhere: only tile numbers are asked for.
+"""
+from __future__ import annotations
+
+import math
+from pathlib import Path
+
+from PySide6.QtCore import QPointF, QRectF, Qt, QUrl, Signal
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+
+from lunelis.ui import theme
+from lunelis.ui.background import Background, unless_closed
+
+TILE = 256
+MAX_ZOOM = 18
+TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+CLUSTER_PX = 44
+
+
+def lonlat_to_world(lon: float, lat: float, z: float) -> tuple[float, float]:
+    """Web Mercator pixel coordinates at zoom z."""
+    lat = max(-85.05112878, min(85.05112878, lat))
+    n = TILE * (2 ** z)
+    x = (lon + 180.0) / 360.0 * n
+    s = math.sin(math.radians(lat))
+    y = (0.5 - math.log((1 + s) / (1 - s)) / (4 * math.pi)) * n
+    return x, y
+
+
+def world_to_lonlat(x: float, y: float, z: float) -> tuple[float, float]:
+    n = TILE * (2 ** z)
+    lon = x / n * 360.0 - 180.0
+    lat = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
+    return lon, lat
+
+
+def clusters(points: list[tuple[int, float, float]], z: float, cell: int = CLUSTER_PX) -> list[tuple[float, float, list[int]]]:
+    """(world x, world y, file ids): points binned by screen cell at zoom z."""
+    bins: dict[tuple[int, int], list] = {}
+    for fid, lat, lon in points:
+        x, y = lonlat_to_world(lon, lat, z)
+        bins.setdefault((int(x // cell), int(y // cell)), []).append((fid, x, y))
+    out = []
+    for members in bins.values():
+        cx = sum(m[1] for m in members) / len(members)
+        cy = sum(m[2] for m in members) / len(members)
+        out.append((cx, cy, [m[0] for m in members]))
+    return out
+
+
+def located(conn) -> list[tuple[int, float, float]]:
+    return [tuple(r) for r in conn.execute(
+        "SELECT f.id, e.gps_lat, e.gps_lon FROM files f JOIN exif e ON e.file_id = f.id"
+        " JOIN roots r ON r.id = f.root_id WHERE r.enabled = 1 AND f.missing_since IS NULL"
+        " AND f.excluded = 0 AND f.quarantined_at IS NULL AND e.gps_lat IS NOT NULL AND e.gps_lon IS NOT NULL"
+        " AND NOT (e.gps_lat = 0 AND e.gps_lon = 0)")]
+
+
+class MapCanvas(QWidget):
+    picked = Signal(list)                  # file ids under a clicked circle
+
+    def __init__(self, tiles_dir: Path, parent=None) -> None:
+        super().__init__(parent)
+        self.tiles_dir = tiles_dir
+        self.points: list[tuple[int, float, float]] = []
+        self.z = 2.0
+        self.cx, self.cy = lonlat_to_world(0, 20, self.z)       # the world point at the middle
+        self.online = False
+        self.net = None                    # made only when online tiles are turned on
+        self._tiles: dict[tuple[int, int, int], QImage] = {}
+        self._asked: set[tuple[int, int, int]] = set()
+        self._drag: QPointF | None = None
+        self._moved = False
+        self._clusters: list[tuple[float, float, list[int]]] = []
+        self.setMouseTracking(True)
+        self.setMinimumSize(200, 150)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    # --- data and view ---------------------------------------------------------------------
+
+    def set_points(self, points) -> None:
+        self.points = list(points)
+        self._recluster()
+        self.update()
+
+    def fit(self) -> None:
+        if not self.points:
+            return
+        lats = [p[1] for p in self.points]
+        lons = [p[2] for p in self.points]
+        w, h = max(1, self.width() - 80), max(1, self.height() - 80)
+        z = MAX_ZOOM
+        while z > 1:
+            x0, y0 = lonlat_to_world(min(lons), max(lats), z)
+            x1, y1 = lonlat_to_world(max(lons), min(lats), z)
+            if x1 - x0 <= w and y1 - y0 <= h:
+                break
+            z -= 1
+        self.z = float(min(z, 15))
+        x0, y0 = lonlat_to_world(min(lons), max(lats), self.z)
+        x1, y1 = lonlat_to_world(max(lons), min(lats), self.z)
+        self.cx, self.cy = (x0 + x1) / 2, (y0 + y1) / 2
+        self._recluster()
+        self.update()
+
+    def zoom(self, steps: int, at: QPointF | None = None) -> None:
+        nz = max(1, min(MAX_ZOOM, int(self.z) + steps))
+        if nz == self.z:
+            return
+        at = at or QPointF(self.width() / 2, self.height() / 2)
+        wx = self.cx + at.x() - self.width() / 2
+        wy = self.cy + at.y() - self.height() / 2
+        k = 2 ** (nz - self.z)
+        self.cx = wx * k - (at.x() - self.width() / 2)
+        self.cy = wy * k - (at.y() - self.height() / 2)
+        self.z = float(nz)
+        self._recluster()
+        self.update()
+
+    def _recluster(self) -> None:
+        self._clusters = clusters(self.points, self.z)
+
+    def set_online(self, on: bool) -> None:
+        self.online = on
+        if on and self.net is None:
+            from PySide6.QtNetwork import QNetworkAccessManager
+            self.net = QNetworkAccessManager(self)
+            self.net.finished.connect(self._tile_arrived)
+        self.update()
+
+    # --- tiles -----------------------------------------------------------------------------
+
+    def _tile_path(self, z: int, x: int, y: int) -> Path:
+        return self.tiles_dir / str(z) / str(x) / f"{y}.png"
+
+    def tile(self, z: int, x: int, y: int) -> QImage | None:
+        key = (z, x, y)
+        if key in self._tiles:
+            return self._tiles[key]
+        p = self._tile_path(z, x, y)
+        if p.exists():
+            img = QImage(str(p))
+            if not img.isNull():
+                self._tiles[key] = img
+                return img
+        if self.online and self.net is not None and key not in self._asked:
+            self._asked.add(key)
+            from PySide6.QtNetwork import QNetworkRequest
+            from lunelis import paths
+            req = QNetworkRequest(QUrl(TILE_URL.format(z=z, x=x, y=y)))
+            req.setRawHeader(b"User-Agent", f"Lunelis/{paths.version()} (+https://github.com/AxialForge/Lunelis)".encode())
+            req.setAttribute(QNetworkRequest.Attribute.User, f"{z}/{x}/{y}")
+            self.net.get(req)
+        return None
+
+    @unless_closed
+    def _tile_arrived(self, reply) -> None:
+        from PySide6.QtNetwork import QNetworkReply, QNetworkRequest
+        key = reply.request().attribute(QNetworkRequest.Attribute.User)
+        data = bytes(reply.readAll())
+        ok = reply.error() == QNetworkReply.NetworkError.NoError
+        reply.deleteLater()
+        if not ok or not key:
+            return
+        z, x, y = (int(v) for v in str(key).split("/"))
+        img = QImage.fromData(data)
+        if img.isNull():
+            return
+        p = self._tile_path(z, x, y)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+        self._tiles[(z, x, y)] = img
+        self.update()
+
+    # --- painting --------------------------------------------------------------------------
+
+    def _origin(self) -> tuple[float, float]:
+        return self.cx - self.width() / 2, self.cy - self.height() / 2
+
+    def paintEvent(self, e) -> None:
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.fillRect(self.rect(), QColor(t.canvas))
+        ox, oy = self._origin()
+        z = int(self.z)
+        n = 2 ** z
+        drew_tiles = False
+        if self.online or self.tiles_dir.exists():
+            for tx in range(int(ox // TILE), int((ox + self.width()) // TILE) + 1):
+                for ty in range(max(0, int(oy // TILE)), min(n, int((oy + self.height()) // TILE) + 1)):
+                    img = self.tile(z, tx % n, ty) if (self.online or self._tile_path(z, tx % n, ty).exists()) else None
+                    if img is not None:
+                        p.drawImage(QRectF(tx * TILE - ox, ty * TILE - oy, TILE, TILE), img)
+                        drew_tiles = True
+        if not drew_tiles:
+            self._graticule(p, ox, oy)
+        accent = QColor(t.accent)
+        font = QFont(self.font())
+        font.setBold(True)
+        p.setFont(font)
+        for x, y, ids in self._clusters:
+            sx, sy = x - ox, y - oy
+            if not (-40 < sx < self.width() + 40 and -40 < sy < self.height() + 40):
+                continue
+            r = 7 if len(ids) == 1 else min(26, 11 + 3 * math.log2(len(ids)))
+            p.setPen(QPen(QColor("white"), 2))
+            p.setBrush(accent)
+            p.drawEllipse(QPointF(sx, sy), r, r)
+            if len(ids) > 1:
+                p.setPen(QColor("white"))
+                p.drawText(QRectF(sx - r, sy - r, 2 * r, 2 * r), Qt.AlignmentFlag.AlignCenter,
+                           f"{len(ids)}" if len(ids) < 1000 else f"{len(ids) // 1000}k")
+        if drew_tiles:
+            p.setPen(QColor(t.text_muted))
+            p.drawText(self.rect().adjusted(0, 0, -8, -6), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom,
+                       "© OpenStreetMap contributors")
+        p.end()
+
+    def _graticule(self, p: QPainter, ox: float, oy: float) -> None:
+        t = theme.current()
+        p.setPen(QPen(QColor(t.border), 1))
+        step = 30 if self.z < 4 else 10 if self.z < 7 else 1 if self.z < 11 else 0.1
+        lon0, lat1 = world_to_lonlat(ox, oy, self.z)
+        lon1, lat0 = world_to_lonlat(ox + self.width(), oy + self.height(), self.z)
+        lon = math.floor(lon0 / step) * step
+        while lon <= lon1:
+            x, _ = lonlat_to_world(lon, 0, self.z)
+            p.drawLine(QPointF(x - ox, 0), QPointF(x - ox, self.height()))
+            lon += step
+        lat = math.floor(lat0 / step) * step
+        while lat <= lat1:
+            _, y = lonlat_to_world(0, lat, self.z)
+            p.drawLine(QPointF(0, y - oy), QPointF(self.width(), y - oy))
+            lat += step
+
+    # --- mouse -----------------------------------------------------------------------------
+
+    def cluster_at(self, pos: QPointF) -> list[int] | None:
+        ox, oy = self._origin()
+        best, dist = None, 1e9
+        for x, y, ids in self._clusters:
+            d = math.hypot(x - ox - pos.x(), y - oy - pos.y())
+            r = 7 if len(ids) == 1 else min(26, 11 + 3 * math.log2(len(ids)))
+            if d <= r + 3 and d < dist:
+                best, dist = ids, d
+        return best
+
+    def mousePressEvent(self, e) -> None:
+        self._drag = e.position()
+        self._moved = False
+
+    def mouseMoveEvent(self, e) -> None:
+        if self._drag is not None and e.buttons() & Qt.MouseButton.LeftButton:
+            d = e.position() - self._drag
+            if abs(d.x()) + abs(d.y()) > 3:
+                self._moved = True
+            self.cx -= d.x()
+            self.cy -= d.y()
+            self._drag = e.position()
+            self.update()
+            return
+        ids = self.cluster_at(e.position())
+        self.setToolTip(f"{len(ids)} photo{'s' if len(ids) != 1 else ''} - click to see them" if ids else "")
+        self.setCursor(Qt.CursorShape.PointingHandCursor if ids else Qt.CursorShape.OpenHandCursor)
+
+    def mouseReleaseEvent(self, e) -> None:
+        if not self._moved:
+            ids = self.cluster_at(e.position())
+            if ids:
+                self.picked.emit(list(ids))
+        self._drag = None
+
+    def wheelEvent(self, e) -> None:
+        self.zoom(1 if e.angleDelta().y() > 0 else -1, e.position())
+
+    def keyPressEvent(self, e) -> None:
+        if e.key() in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
+            self.zoom(1)
+        elif e.key() == Qt.Key.Key_Minus:
+            self.zoom(-1)
+        else:
+            super().keyPressEvent(e)
+
+
+class MapView(QWidget):
+    show_ids = Signal(list)
+
+    def __init__(self, conn, parent=None) -> None:
+        super().__init__(parent)
+        from lunelis import paths
+        self.conn = conn
+        self.bg = Background(self, conn)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        head = QWidget(objectName="Toolbar")
+        head.setFixedHeight(64)
+        h = QHBoxLayout(head)
+        h.setContentsMargins(24, 0, 24, 0)
+        h.addWidget(QLabel("Map", objectName="PageTitle"))
+        h.addSpacing(12)
+        self.count = QLabel(objectName="Count")
+        h.addWidget(self.count)
+        h.addStretch(1)
+        self.online_b = QPushButton("Show map tiles (online)")
+        self.online_b.setToolTip("Map pictures come from OpenStreetMap over the internet. Only tile numbers are "
+                                 "asked for - nothing about your photos is sent.")
+        self.online_b.clicked.connect(self._toggle_online)
+        h.addWidget(self.online_b)
+        h.addWidget(QPushButton("Fit", clicked=lambda: self.canvas.fit()))
+        outer.addWidget(head)
+        self.note = QLabel(objectName="Help")
+        self.note.setContentsMargins(24, 6, 24, 6)
+        self.note.setWordWrap(True)
+        outer.addWidget(self.note)
+        self.canvas = MapCanvas(paths.DATA_DIR / "map_tiles")
+        self.canvas.picked.connect(self.show_ids.emit)
+        outer.addWidget(self.canvas, 1)
+        self._fitted = False
+
+    def refresh(self) -> None:
+        from lunelis.settings import Settings
+        on = Settings(self.conn).get("map_online")
+        self.canvas.set_online(on)
+        self._update_online(on)
+        self.bg.run("points", located, self._points)
+
+    def _points(self, pts) -> None:
+        self.canvas.set_points(pts)
+        self.count.setText(f"{len(pts):,} photo{'s' if len(pts) != 1 else ''} with a location")
+        if not self._fitted and pts:
+            self._fitted = True
+            self.canvas.fit()
+
+    def _update_online(self, on: bool) -> None:
+        self.online_b.setText("Hide map tiles" if on else "Show map tiles (online)")
+        self.note.setText("" if on else "Dots on a plain grid of latitude and longitude. Map pictures need the "
+                                        "internet (OpenStreetMap) - nothing is fetched until you turn them on.")
+        self.note.setVisible(not on)
+
+    def _toggle_online(self) -> None:
+        from lunelis.settings import Settings
+        on = not Settings(self.conn).get("map_online")
+        Settings(self.conn).set("map_online", on)
+        self.canvas.set_online(on)
+        self._update_online(on)

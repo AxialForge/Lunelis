@@ -66,7 +66,7 @@ RATE_CONFIRM = 500                         # ask before rating / labelling / fla
 # Sidebar sections (collapsible). Pages appear here once they're built -
 # no greyed-out placeholders.
 NAV = [
-    ("Photos", ["Library", "Albums", "Tags", "Edit", "Stats"]),
+    ("Photos", ["Library", "Albums", "Tags", "Edit", "Map", "On this day", "Stats"]),
     ("Create", ["Create"]),
     ("Bring in & organize", ["Import", "Migrate", "Duplicates", "Damaged files"]),
     ("Keep safe", ["Library status", "Backups", "Quarantine"]),
@@ -500,6 +500,14 @@ class MainWindow(QMainWindow):
         from lunelis.ui.stats_view import StatsView
         self.stats_page = StatsView(self.conn)
         self.pages.addWidget(self.stats_page, scroll=False)          # scrolls itself
+        from lunelis.ui.map_view import MapView
+        self.map_page = MapView(self.conn)
+        self.map_page.show_ids.connect(lambda ids: self.show_photos(ids, "On the map"))
+        self.pages.addWidget(self.map_page, scroll=False)
+        from lunelis.ui.calendar_view import CalendarView
+        self.calendar_page = CalendarView(self.conn)
+        self.calendar_page.show_ids.connect(self.show_photos)
+        self.pages.addWidget(self.calendar_page, scroll=False)
         from lunelis.ui.create_page import CreatePage
         self.create_page = CreatePage(self.conn)
         self.pages.addWidget(self.create_page, scroll=False)        # fills the window; wraps its text
@@ -1915,6 +1923,12 @@ class MainWindow(QMainWindow):
         elif name == "Stats":
             self.pages.setCurrentWidget(self.stats_page)
             self.stats_page.refresh()
+        elif name == "Map":
+            self.pages.setCurrentWidget(self.map_page)
+            self.map_page.refresh()
+        elif name == "On this day":
+            self.pages.setCurrentWidget(self.calendar_page)
+            self.calendar_page.refresh()
         elif name == "Create":
             self.create_page.set_library_context(list(self.grid.selected), self.filter, self.sort.currentData())
             self.pages.setCurrentWidget(self.create_page)

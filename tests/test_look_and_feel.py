@@ -53,7 +53,7 @@ def test_switching_theme_restyles_live(window, app):
 
 def test_sidebar_sections_fold_and_remember(window):
     nav = window._nav
-    assert set(nav) == {"Library", "Albums", "Tags", "Import", "Migrate", "Duplicates", "Damaged files", "Edit", "Stats", "Create", "Library status", "Backups",
+    assert set(nav) == {"Library", "Albums", "Tags", "Import", "Migrate", "Duplicates", "Damaged files", "Edit", "Map", "On this day", "Stats", "Create", "Library status", "Backups",
                         "Quarantine", "Settings"}                            # no greyed-out placeholders any more
     heads = [b for b in window.findChildren(type(nav["Library"]), "NavSection")]
     organise = next(h for h in heads if "ORGANIZE" in h.text())

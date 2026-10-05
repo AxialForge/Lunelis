@@ -80,7 +80,8 @@ DEFAULTS: dict[str, Any] = {
     "noticed_auto": True,
     "integrity_every": "week",           # regular file checks: off | week | month (jobs/rolling.py)
     "integrity_gb": 20,                  # how much is re-read each time
-    "integrity_last": None,              # when the last regular check was planned (ISO)                # look for brackets, panoramas... after each scan                 # 1 once log clips' thumbnails were remade with the preview look
+    "integrity_last": None,
+    "map_online": False,                 # the Map page fetches OpenStreetMap tiles (off: dots on a plain grid)              # when the last regular check was planned (ISO)                # look for brackets, panoramas... after each scan                 # 1 once log clips' thumbnails were remade with the preview look
     "date_format": "long",               # long | iso | day_first | short (photoinfo.DATE_FORMATS)
     "confirm_quit": True,                # ask before quitting while an export, merge or job runs
     "edit_live_quality": "fast",         # fast (half size while dragging) | sharp
