@@ -40,6 +40,25 @@ second copy gets " (2)". The picture and sound are copied, not re-encoded, so
 it's quick and nothing is lost - which means the copy starts on the
 **keyframe** just before your start mark (usually within a second).
 
+### S-Log3 footage
+
+Sony's S-Log3 picture profile records a flat, grey-looking picture that's
+meant to be graded later. Lunelis recognises S-Log3 clips from the camera's
+XML sidecar (`C0001M01.XML` next to `C0001.MP4`, which Lunelis copies with
+the clip when importing a card) and shows them through a **look** instead:
+
+- **Built-in look** (the default): S-Log3 turned into normal Rec.709 video,
+  for S-Gamut3.Cine and S-Gamut3 alike. Mid grey stays mid grey; bright skies
+  roll off gently instead of clipping.
+- **Your own LUT:** any 3D `.cube` LUT that takes S-Log3 as its input (the
+  ones Sony and most colourists publish do).
+- **Off:** clips are shown as recorded.
+
+Choose in **Settings > Appearance > S-Log3 videos**. The look is used in the
+player and in the thumbnails (changing it remakes the thumbnails of S-Log3
+clips). In the player, **Show log** shows the clip as recorded for a moment,
+to compare. The video files themselves are never changed.
+
 ### Animated GIFs
 
 GIFs are in the library too. An animated one plays when you open it, and

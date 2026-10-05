@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-04
+
+### Added (S-Log previews)
+
+- **S-Log3 clips look right without grading:** found from the camera's XML
+  sidecar and shown through a built-in look to Rec.709 (S-Gamut3.Cine and
+  S-Gamut3) in the player and the thumbnails.
+- **Your own LUTs:** pick any 3D `.cube` LUT instead, or turn the look off,
+  in Settings > Appearance > S-Log3 videos.
+- **Show log** in the player shows the clip as recorded, to compare.
+
+### Changed
+
+- Thumbnails of S-Log3 clips are remade once with the new look.
+
 ## [0.23.0] - 2026-10-04
 
 ### Added (video and GIF playback)

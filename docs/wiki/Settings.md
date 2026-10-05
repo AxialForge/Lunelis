@@ -48,6 +48,9 @@ darktable · Updates · Advanced**.
   Medium 180, Large 260, Extra large 360, or Custom), and whether videos
   show in the library. Changing the sort or the Grid size slider in the
   library also updates these.
+- **S-Log3 videos:** how S-Log3 clips are shown - the built-in look (to
+  Rec.709), your own `.cube` LUT, or off (as recorded). See
+  [Videos](Videos-and-Google-Takeout.md#s-log3-footage).
 - **Start new photos with** (Import tab): a filter every newly imported
   photo gets as its starting edit. See [Editing](Editing.md#filters).
 - **Burst stacks:** whether bursts show as one tile, how far apart frames

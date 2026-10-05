@@ -77,7 +77,7 @@ In short:
 | 0.20 | Scene-aware tagging with a review queue - done in v0.20.0 |
 | 0.21 | Ask your library; your shooting stats - done in v0.21.0 |
 | 0.22 | Create tab round two - done in v0.22.0 |
-| 0.23 / 0.24 | Video and GIF playback (done in v0.23.0); S-Log previews |
+| 0.23 / 0.24 | Video and GIF playback (done in v0.23.0); S-Log previews (done in v0.24.0) |
 | 0.25 | Lunelis noticed |
 | 0.26 | Offline-NAS view, protection indicator, map and calendar |
 | 0.27 / 0.28 | Learn My Look; Autopilot Import |
