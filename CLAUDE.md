@@ -947,6 +947,30 @@ pairing); each lands as a new migration when its step arrives.
   GitHub Release. Unsigned (no paid
   code signing): SmartScreen "More info > Run anyway" once per version.
 
+## Face rules (recognize/faces.py, ui/people_view.py, the photo view overlay)
+
+- Models: OpenCV zoo YuNet + SFace, URLs pinned to opencv_zoo commit
+  47534e27..., SHA-256 pinned; run through cv2.FaceDetectorYN /
+  FaceRecognizerSF (no extra package). Detection runs on
+  `thumbnails.render(path, orientation, 1600)` (a RAW's embedded preview):
+  ~0.07 s per photo. Boxes are FRACTIONS of the upright image.
+- States live in `faces`: found (person NULL, maybe `cluster`), suggested
+  (`suggested_person_id` + `suggestion`), named (`person_id` + confirmed 1),
+  ignored. ONLY confirmed faces tag the photo (People|<name>) -
+  `_sync_tags` keeps the tag equal to "has a confirmed face of that person"
+  after every confirm / reject / ignore / merge / delete; never add or
+  remove People tags any other way.
+- "Not this person" goes to face_rejections; suggest() skips those pairs.
+  Re-scans (a new model) delete only auto, unconfirmed faces of that photo;
+  named and hand-drawn (`source = 'user'`) faces stay, and a found face
+  overlapping a kept one (IoU > 0.4) isn't added twice.
+- Thresholds: suggest at cosine 0.40, group at 0.45 (incremental: each new
+  face joins the nearest group centroid or starts one - no O(n^2) pass).
+- Face crops (160 px) are cached in <data>/cache/faces/<id // 1000>/<id>.jpg
+  at scan time; the People page reads only those.
+- Tests use a FakeBackend (colour = identity); the real models are
+  checked by hand on real photos (never committed - the repo is public).
+
 ## Installer and first-run setup (0.34)
 
 - `packaging/installer/lunelis.iss` (Inno Setup 6, free): a PER-USER install

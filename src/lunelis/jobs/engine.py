@@ -154,6 +154,11 @@ def _scene_tags_folder(conn, root_id, folder, **kw):
     return job_folder(conn, root_id, folder, **kw)
 
 
+def _faces_folder(conn, root_id, folder, **kw):
+    from lunelis.recognize.faces import job_folder
+    return job_folder(conn, root_id, folder, **kw)
+
+
 def _backup_finish(conn, job_id):
     from lunelis.backups.core import finish
     finish(conn, job_id)
@@ -173,6 +178,7 @@ KINDS = {
     "backup": _backup_folder,
     "backup_verify": _backup_verify_folder,
     "scene_tags": _scene_tags_folder,
+    "faces": _faces_folder,
 }
 
 # Kinds that need the job's options (e.g. which backup set) passed in.

@@ -97,6 +97,8 @@ class SettingsView(QWidget):
     backup_now = Signal()
     scene_job = Signal()             # Tag the library (a scene_tags job)
     open_suggestions = Signal()      # the Tags page's Scene suggestions
+    faces_job = Signal()             # Find faces in the library (a faces job)
+    open_people = Signal()           # the People page
     restart = Signal()
     theme_changed = Signal(str)      # Appearance: apply it now
     view_changed = Signal()          # Appearance: library defaults changed
@@ -143,7 +145,7 @@ class SettingsView(QWidget):
             "General": [self._startup, self._tray],
             "Edit": [self._editing, self._ai_models, self._edit_caches],
             "Appearance": [self._appearance, self._library_view],
-            "Library": [self._sources, self._thumbnails, self._scene_tags, self._helpers],
+            "Library": [self._sources, self._thumbnails, self._scene_tags, self._faces, self._helpers],
             "Import": [self._import],
             "Ratings & sidecars": [self._sidecars],
             "Duplicates & jobs": [self._duplicates_and_jobs],
@@ -422,6 +424,9 @@ class SettingsView(QWidget):
         self.scene_auto = QCheckBox("Look at new photos after each scan")
         self.scene_auto.toggled.connect(lambda on: self._set("scene_tags_auto", on))
         v.addWidget(self.scene_auto)
+        self.scene_accept, self.scene_threshold = self._auto_row(
+            v, "Accept a suggestion by itself when the model is at least", "scene_auto_accept",
+            "scene_auto_threshold", "Off: every suggestion waits for you on the Tags page.")
         row = QHBoxLayout()
         self.scene_job_b = QPushButton("Tag the library…", clicked=self.scene_job.emit)
         self.scene_job_b.setToolTip("A background job: pausable, and runs only when you choose (Jobs, Ctrl+J)")
@@ -432,6 +437,123 @@ class SettingsView(QWidget):
         v.addLayout(row)
         return card
 
+    def _auto_row(self, v: QVBoxLayout, text: str, key: str, threshold_key: str, help: str):
+        """A "do it by itself above N %" checkbox with its percentage."""
+        cb = QCheckBox(text)
+        pct = QSpinBox()
+        pct.setRange(30, 99)
+        pct.setSuffix(" % sure")
+        cb.toggled.connect(lambda on: (self._set(key, on), pct.setEnabled(on)))
+        pct.valueChanged.connect(lambda n: self._set(threshold_key, n / 100))
+        row = QHBoxLayout()
+        row.addWidget(cb)
+        row.addWidget(pct)
+        row.addStretch(1)
+        v.addLayout(row)
+        hl = QLabel(help, objectName="Help")
+        hl.setWordWrap(True)
+        v.addWidget(hl)
+        return cb, pct
+
+    def _faces(self) -> QFrame:
+        card, v = self._card("Faces", "Two small models that run only on this PC find the faces in your photos and "
+                                      "group the ones that look alike. Name a face once and Lunelis suggests that "
+                                      "person in other photos; each photo with a named face gets a People tag. "
+                                      "Nothing is sent anywhere.")
+        from lunelis.recognize import faces
+        self.faces_status = QLabel(objectName="Help")
+        self.faces_status.setWordWrap(True)
+        self.faces_b = QPushButton(clicked=self._faces_model_action)
+        self._row(v, f"Face models ({faces.TOTAL / 1e6:,.0f} MB, YuNet and SFace from OpenCV)", self.faces_status,
+                  self.faces_b)
+        self.faces_auto = QCheckBox("Look for faces in new photos after each scan")
+        self.faces_auto.toggled.connect(lambda on: self._set("faces_auto", on))
+        v.addWidget(self.faces_auto)
+        self.faces_confirm, self.faces_threshold = self._auto_row(
+            v, "Name a face by itself when it's at least", "faces_auto_confirm", "faces_auto_threshold",
+            "Off: a likely match shows as \"Ann?\" and waits on the People page until you say yes. "
+            "On: sure matches are named (and tagged) straight away; fix any mistake on the People page.")
+        row = QHBoxLayout()
+        self.faces_job_b = QPushButton("Find faces in the library…", clicked=self.faces_job.emit)
+        self.faces_job_b.setToolTip("A background job: pausable, and runs only when you choose (Jobs, Ctrl+J)")
+        row.addWidget(self.faces_job_b)
+        row.addWidget(QPushButton("Open the People page", clicked=self.open_people.emit))
+        row.addStretch(1)
+        v.addLayout(row)
+        return card
+
+    def _load_faces(self) -> None:
+        from lunelis.recognize import faces
+        s = Settings(self.conn)
+        have = faces.available()
+        self.faces_b.setText("Remove" if have else "Download and turn on")
+        for w in (self.faces_job_b, self.faces_auto, self.faces_confirm):
+            w.setEnabled(have)
+        self.faces_auto.setChecked(bool(s.get("faces_auto")))
+        self.faces_confirm.setChecked(bool(s.get("faces_auto_confirm")))
+        self.faces_threshold.setValue(round(float(s.get("faces_auto_threshold")) * 100))
+        self.faces_threshold.setEnabled(have and bool(s.get("faces_auto_confirm")))
+        if not have:
+            self.faces_status.setText("Off")
+            return
+        c = faces.counts(self.conn)
+        self.faces_status.setText(f"On - {c['scanned']:,} photos looked at, {c['faces']:,} faces, "
+                                  f"{c['people']:,} people, {c['waiting']:,} waiting for a yes")
+
+    def _faces_model_action(self) -> None:
+        from lunelis.recognize import faces
+        if faces.available():
+            if QMessageBox.question(self, "Remove the face models", "Remove the face models? Names you've given "
+                                    "and People tags stay; new photos aren't looked at until you download them "
+                                    "again.") == QMessageBox.StandardButton.Yes:
+                faces.remove()
+                self._set("faces_auto", False)
+            self._load_faces()
+            return
+        if QMessageBox.question(
+                self, "Turn on faces",
+                f"Download the face models ({faces.TOTAL / 1e6:,.0f} MB, from OpenCV's model collection on "
+                "GitHub)?\n\nThey run only on this PC; your photos and faces never leave it. Each file is checked "
+                "against its known fingerprint before it's used.") != QMessageBox.StandardButton.Yes:
+            return
+        from PySide6.QtCore import QRunnable, QThreadPool
+        from PySide6.QtWidgets import QProgressDialog
+        dlg = QProgressDialog("Downloading the face models…", "Cancel", 0, 100, self)
+        dlg.setWindowTitle("Faces")
+        dlg.setMinimumDuration(0)
+
+        class Job(QRunnable):
+            def __init__(self, sig):
+                super().__init__()
+                self.sig, self.stop = sig, False
+
+            def cancel(self):
+                self.stop = True
+
+            def run(self):
+                try:
+                    faces.download(lambda d, t: self.sig.progress.emit(d, t), lambda: self.stop)
+                    self.sig.downloaded.emit("faces", True, "")
+                except Exception as e:
+                    self.sig.downloaded.emit("faces", False, str(e))
+        from lunelis.ui.develop import _AiSignals
+        self._faces_sig = sig = _AiSignals()
+        job = Job(sig)
+        queued = Qt.ConnectionType.QueuedConnection
+        sig.progress.connect(lambda d, t: dlg.setValue(int(d * 100 / max(1, t))), queued)
+
+        def done(_k, ok, message):
+            dlg.close()
+            self._faces_sig = None
+            if not ok and message != "cancelled":
+                QMessageBox.warning(self, "Faces", f"The download didn't work: {message}")
+            elif ok:
+                self._set("faces_auto", True)
+            self._load_faces()
+        sig.downloaded.connect(done, queued)
+        dlg.canceled.connect(job.cancel)
+        QThreadPool.globalInstance().start(job)
+
     def _load_scene_tags(self) -> None:
         from lunelis.recognize import clip
         have = clip.available()
@@ -439,6 +561,10 @@ class SettingsView(QWidget):
         self.scene_job_b.setEnabled(have)
         self.scene_auto.setEnabled(have)
         self.scene_auto.setChecked(bool(Settings(self.conn).get("scene_tags_auto")))
+        self.scene_accept.setEnabled(have)
+        self.scene_accept.setChecked(bool(Settings(self.conn).get("scene_auto_accept")))
+        self.scene_threshold.setValue(round(float(Settings(self.conn).get("scene_auto_threshold")) * 100))
+        self.scene_threshold.setEnabled(have and bool(Settings(self.conn).get("scene_auto_accept")))
         if not have:
             self.scene_status.setText("Off")
             return
@@ -1314,6 +1440,7 @@ class SettingsView(QWidget):
             self.pair_raw.setChecked(s.get("pair_raw_jpeg"))
             self._load_thumbnails()
             self._load_scene_tags()
+            self._load_faces()
             self.version_label.setText(f"Lunelis {paths.version()}" + (" (from source)" if not paths.FROZEN else ""))
             self.auto_update.setChecked(s.get("update_check"))
         finally:

@@ -83,7 +83,9 @@ In short:
 | 0.27 / 0.28 | Learn My Look (done in v0.27.0); Autopilot Import (done in v0.28.0) |
 | 0.29 - 0.32 | Editing suite (done in v0.29.0), sensor dust map (done in v0.30.0), family gallery (done in v0.31.0), Create round three (done in v0.32.0) |
 | 0.33 | Hardening after the October audit - done in v0.33.0 |
-| 0.34 | Installer and first-run setup - done in v0.34.0 |
+| 0.34 | Installer and first-run setup - done in v0.34.1 |
+| 0.35 | Faces: found, grouped, named, corrected; face overlay - done in v0.35.0 |
+| 0.36 | Places: offline place tags, pins on the map for photos without GPS |
 
 ## Later
 

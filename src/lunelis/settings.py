@@ -59,6 +59,13 @@ DEFAULTS: dict[str, Any] = {
     "stack_bursts": True,
     "pair_raw_jpeg": True,               # a RAW+JPEG shot shows as one photo (pairs.py)
     "scene_tags_auto": False,            # look at new photos (scene tags) after each scan - on once the model is in
+    "scene_auto_accept": False,          # accept a scene suggestion by itself when the model is at least this sure:
+    "scene_auto_threshold": 0.9,
+    # Faces (recognize/faces.py): found and recognised on this PC.
+    "faces_auto": False,                 # look for faces in new photos after each scan - on once the models are in
+    "faces_auto_confirm": False,         # name a face by itself when it's at least this alike a known person:
+    "faces_auto_threshold": 0.6,
+    "faces_overlay": False,              # the photo view shows face boxes and names (F)
     "burst_gap_seconds": 1.0,            # frames at most this far apart (sub-second times) are one burst
     "burst_min_frames": 3,               # fewer shots than this isn't a burst
     # Appearance.
@@ -109,6 +116,9 @@ JOB_WHEN = ("now", "idle", "window")
 def validate(key: str, value: Any) -> None:
     """Refuse values that would break something later, with a message a
     person can act on (the Settings screen shows it next to the field)."""
+    if key in ("scene_auto_threshold", "faces_auto_threshold") and not (
+            isinstance(value, (int, float)) and 0.3 <= value <= 0.99):
+        raise ValueError("Choose a value between 30 % and 99 %.")
     if key == "sidecar_mode" and value not in SIDECAR_MODES:
         raise ValueError(f"sidecar_mode must be one of {SIDECAR_MODES}")
     if key in ("sidebar_compact", "sidebar_auto") and not isinstance(value, bool):

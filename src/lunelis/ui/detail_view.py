@@ -24,7 +24,7 @@ import time
 from collections import OrderedDict
 
 from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, QRunnable, Qt, QThreadPool, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
 )
@@ -190,6 +190,8 @@ class PhotoCanvas(QWidget):
 
     step = Signal(int)                 # previous / next photo (wheel tilt, or the "step" wheel mode)
     wants_detail = Signal()
+    face_menu = Signal(int, QPoint)    # a face box was clicked (face id, global position)
+    face_drawn = Signal(list)          # Ctrl+drag drew a new face box ([x, y, w, h] fractions)
     MAX_ZOOM = 4.0
     TILT_REPEAT = 0.3                  # s: a held tilt sends a stream of events; one photo per this
 
@@ -204,6 +206,10 @@ class PhotoCanvas(QWidget):
         self._pan: QPointF | None = None
         self._asked = False
         self._last_tilt = 0.0
+        # Face overlay (F): [(face id, [x, y, w, h], label, state)] - state named | suggested | unknown.
+        self.faces: list[tuple[int, list[float], str, str]] = []
+        self.show_faces = False
+        self._draw: tuple[QPointF, QPointF] | None = None
         self.setMinimumSize(200, 100)                 # short windows (the 900 x 350 minimum) still fit
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -331,6 +337,62 @@ class PhotoCanvas(QWidget):
             p.setPen(qcolor(t.text_faint))
             p.drawText(self.rect().adjusted(0, 0, -12, -8), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom,
                        self.message or "Loading full size…")
+        if self.show_faces:
+            self._paint_faces(p)
+
+    def face_rect(self, box: list[float]) -> QRectF:
+        r = self._fit_rect()
+        return QRectF(r.x() + box[0] * r.width(), r.y() + box[1] * r.height(),
+                      box[2] * r.width(), box[3] * r.height())
+
+    def _paint_faces(self, p: QPainter) -> None:
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        accent = qcolor(themes.current().accent)
+        colours = {"named": accent, "suggested": QColor(240, 190, 60), "unknown": QColor(255, 255, 255)}
+        f = p.font()
+        f.setPointSizeF(max(8.0, f.pointSizeF()))
+        p.setFont(f)
+        fm = p.fontMetrics()
+        for _fid, box, label, state in self.faces:
+            r = self.face_rect(box)
+            c = colours.get(state, colours["unknown"])
+            pen = QPen(c, 2)
+            if state == "suggested":
+                pen.setStyle(Qt.PenStyle.DashLine)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRoundedRect(r, 4, 4)
+            if label:
+                w = fm.horizontalAdvance(label) + 10
+                tag = QRectF(r.center().x() - w / 2, r.bottom() + 3, w, fm.height() + 4)
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QColor(0, 0, 0, 170))
+                p.drawRoundedRect(tag, 4, 4)
+                p.setPen(c)
+                p.drawText(tag, Qt.AlignmentFlag.AlignCenter, label)
+        if self._draw is not None:
+            p.setPen(QPen(QColor(255, 255, 255), 1.5, Qt.PenStyle.DashLine))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(QRectF(self._draw[0], self._draw[1]).normalized())
+
+    def face_at(self, pos: QPointF) -> int | None:
+        for fid, box, _label, _state in reversed(self.faces):
+            if self.face_rect(box).adjusted(-4, -4, 4, 4).contains(pos):
+                return fid
+        return None
+
+    def _face_press(self, e) -> bool:
+        """With the overlay on: a click on a box opens its menu; Ctrl+drag draws a new box."""
+        if not self.show_faces or self.pix is None or e.button() != Qt.MouseButton.LeftButton:
+            return False
+        if e.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._draw = (e.position(), e.position())
+            return True
+        fid = self.face_at(e.position())
+        if fid is not None:
+            self.face_menu.emit(fid, e.globalPosition().toPoint())
+            return True
+        return False
 
     def resizeEvent(self, e) -> None:
         self._clamp()
@@ -363,11 +425,17 @@ class PhotoCanvas(QWidget):
         self.toggle_zoom(e.position())
 
     def mousePressEvent(self, e) -> None:
+        if self._face_press(e):
+            return
         if self.scale is not None and e.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
             self._pan = e.position()
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
 
     def mouseMoveEvent(self, e) -> None:
+        if self._draw is not None:
+            self._draw = (self._draw[0], e.position())
+            self.update()
+            return
         if self._pan is not None and self.pix is not None and self.scale is not None:
             d = e.position() - self._pan
             self._pan = e.position()
@@ -377,6 +445,19 @@ class PhotoCanvas(QWidget):
             self.update()
 
     def mouseReleaseEvent(self, e) -> None:
+        if self._draw is not None:
+            a, b = self._draw
+            self._draw = None
+            self.update()
+            r, box = self._fit_rect(), QRectF(a, b).normalized()
+            if box.width() > 8 and box.height() > 8 and r.width() and r.height():
+                x0 = max(0.0, (box.left() - r.x()) / r.width())
+                y0 = max(0.0, (box.top() - r.y()) / r.height())
+                x1 = min(1.0, (box.right() - r.x()) / r.width())
+                y1 = min(1.0, (box.bottom() - r.y()) / r.height())
+                if x1 > x0 and y1 > y0:
+                    self.face_drawn.emit([x0, y0, x1 - x0, y1 - y0])
+            return
         if self._pan is not None:
             self._pan = None
             self.setCursor(Qt.CursorShape.OpenHandCursor if self.scale is not None else Qt.CursorShape.ArrowCursor)
@@ -701,6 +782,8 @@ class DetailView(QWidget):
     current_changed = Signal(int)      # file id now shown (the app's rating target)
     show_event = Signal(int, str)
     edited = Signal(int)               # a photo's edit was saved and its thumbnail re-rendered
+    faces_changed = Signal()           # a face was named or corrected here (People tags changed)
+    show_person = Signal(int)          # "All photos of Ann" from a face's menu
 
     def __init__(self, conn, parent=None, workspace: bool = False) -> None:
         super().__init__(parent)
@@ -750,6 +833,11 @@ class DetailView(QWidget):
         self.edit_b.setToolTip("Edit this photo (E) - the original is never changed")
         self.edit_b.toggled.connect(self.set_editing)
         h.addWidget(self.edit_b)
+        self.faces_b = QPushButton("Faces", checkable=True)
+        self.faces_b.setToolTip("Show the faces in this photo and who they are (F). Click a face to name or "
+                                "correct it; Ctrl+drag draws one Lunelis missed.")
+        self.faces_b.toggled.connect(self.set_faces_overlay)
+        h.addWidget(self.faces_b)
         self.prev_b = QPushButton("‹", clicked=lambda: self.go(self.pos - 1))
         self.prev_b.setToolTip("Previous (Left)")
         self.counter = QLabel(objectName="ToolLabel")
@@ -767,8 +855,14 @@ class DetailView(QWidget):
         self.canvas = EditCanvas()
         self.canvas.wants_detail.connect(self._load_full)
         self.canvas.step.connect(lambda d: self.go(self.pos + d))
+        self.canvas.face_menu.connect(self._face_menu)
+        self.canvas.face_drawn.connect(self._face_drawn)
         from lunelis.settings import Settings as _S
         self.canvas.wheel_mode = _S(conn).get("wheel_action")
+        self.faces_b.blockSignals(True)
+        self.faces_b.setChecked(bool(_S(conn).get("faces_overlay")))    # remembered between sessions
+        self.faces_b.blockSignals(False)
+        self.canvas.show_faces = self.faces_b.isChecked()
         from PySide6.QtWidgets import QSplitter
         self.split = QSplitter(Qt.Orientation.Vertical)
         self.split.setChildrenCollapsible(False)
@@ -844,6 +938,7 @@ class DetailView(QWidget):
         self._full_for = None
         self._full_pix = None                  # one full-size picture in memory at a time
         self.strip.set_position(self.index, pos)
+        self.load_faces()
         self.counter.setText(f"{pos + 1:,} of {n:,}")
         self.prev_b.setEnabled(pos > 0)
         self.next_b.setEnabled(pos < n - 1)
@@ -909,6 +1004,7 @@ class DetailView(QWidget):
             return
         self.editing = on
         self.side.setCurrentWidget(self.develop if on else self.panel)
+        self.canvas.show_faces = self.faces_b.isChecked() and not on     # editing: the edit tools own the canvas
         if on:
             self.edit.start(self.info)
         else:
@@ -1087,9 +1183,91 @@ class DetailView(QWidget):
 
     # --- keys ------------------------------------------------------------------------------
 
+    # --- faces (recognize/faces.py) ---------------------------------------------------------
+
+    def set_faces_overlay(self, on: bool) -> None:
+        if self.faces_b.isChecked() != on:
+            self.faces_b.setChecked(on)               # comes back here through toggled
+            return
+        try:
+            from lunelis.settings import Settings
+            Settings(self.conn).set("faces_overlay", bool(on))
+        except Exception:
+            pass
+        self.canvas.show_faces = on and not self.editing
+        self.load_faces()
+
+    def load_faces(self) -> None:
+        self.canvas.faces = []
+        if self.info is not None and self.faces_b.isChecked() and not self.info.is_video:
+            from lunelis.recognize import faces
+            for f in faces.faces_of(self.conn, self.info.file_id):
+                if f.name:
+                    self.canvas.faces.append((f.id, f.box, f.name, "named"))
+                elif f.suggested:
+                    self.canvas.faces.append((f.id, f.box, f"{f.suggested}?", "suggested"))
+                else:
+                    self.canvas.faces.append((f.id, f.box, "", "unknown"))
+        self.canvas.update()
+
+    def _face_changed(self) -> None:
+        self.load_faces()
+        self.refresh_info()                            # the People tag shows in the Info panel
+        self.faces_changed.emit()
+
+    def _ask_name(self, title: str) -> str | None:
+        from PySide6.QtWidgets import QInputDialog
+        from lunelis.recognize import faces
+        names = [p.name for p in faces.people(self.conn)]
+        name, ok = QInputDialog.getItem(self, title, "Who is this? Pick someone or type a new name:",
+                                        names or [""], 0, True)
+        name = (name or "").strip()
+        return name if ok and name else None
+
+    def _face_menu(self, face_id: int, at) -> None:
+        from PySide6.QtWidgets import QMenu
+        from lunelis.recognize import faces
+        f = next((x for x in faces.faces_of(self.conn, self.info.file_id) if x.id == face_id), None) \
+            if self.info else None
+        if f is None:
+            return
+        m = QMenu(self)
+        if f.suggested and not f.name:
+            m.addAction(f"Yes, this is {f.suggested}", lambda: (faces.confirm(self.conn, [f.id], f.suggested_id),
+                                                                self._face_changed()))
+        m.addAction("Rename…" if f.name else "Name…", lambda: self._name_face(f.id))
+        if f.name or f.suggested:
+            m.addAction(f"Not {f.name or f.suggested}", lambda: (faces.reject(self.conn, [f.id]), self._face_changed()))
+        if f.source == "user":
+            m.addAction("Remove this box", lambda: (faces.delete_face(self.conn, f.id), self._face_changed()))
+        else:
+            m.addAction("Not a face", lambda: (faces.ignore(self.conn, [f.id]), self._face_changed()))
+        if f.name:
+            m.addSeparator()
+            m.addAction(f"All photos of {f.name}…", lambda: self.show_person.emit(f.person_id))
+        m.exec(at)
+
+    def _name_face(self, face_id: int) -> None:
+        from lunelis.recognize import faces
+        name = self._ask_name("Name this face")
+        if name:
+            faces.name_faces(self.conn, [face_id], name)
+            self._face_changed()
+
+    def _face_drawn(self, box: list) -> None:
+        if self.info is None:
+            return
+        from lunelis.recognize import faces
+        name = self._ask_name("A face Lunelis missed")
+        faces.add_face(self.conn, self.info.file_id, box, name)
+        self._face_changed()
+
     def keyPressEvent(self, e) -> None:
         k, mods = e.key(), e.modifiers()
         ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        if k == Qt.Key.Key_F and not ctrl and not self.editing and not (mods & Qt.KeyboardModifier.ShiftModifier):
+            self.set_faces_overlay(not self.faces_b.isChecked())
+            return
         if k == Qt.Key.Key_E and not ctrl:
             self.set_editing(not self.editing)
             return

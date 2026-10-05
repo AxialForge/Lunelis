@@ -793,6 +793,38 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    38,
+    "faces: suggestions, unnamed groups, ignored faces, hand-drawn boxes, scans and \"not this person\"",
+    """
+    ALTER TABLE faces ADD COLUMN suggested_person_id INTEGER REFERENCES people(id) ON DELETE SET NULL;
+    ALTER TABLE faces ADD COLUMN suggestion REAL;          -- how alike the suggested person is (cosine)
+    ALTER TABLE faces ADD COLUMN cluster INTEGER;          -- an unnamed group of alike faces
+    ALTER TABLE faces ADD COLUMN ignored INTEGER NOT NULL DEFAULT 0;   -- "not a face" / a stranger
+    ALTER TABLE faces ADD COLUMN source TEXT NOT NULL DEFAULT 'auto'; -- auto | user (drawn by hand)
+    ALTER TABLE faces ADD COLUMN model TEXT;
+    ALTER TABLE faces ADD COLUMN created_at TEXT;
+    CREATE INDEX IF NOT EXISTS faces_by_file ON faces(file_id);
+    CREATE INDEX IF NOT EXISTS faces_by_person ON faces(person_id);
+    CREATE INDEX IF NOT EXISTS faces_by_suggestion ON faces(suggested_person_id);
+    CREATE INDEX IF NOT EXISTS faces_by_cluster ON faces(cluster);
+    ALTER TABLE people ADD COLUMN cover_face_id INTEGER;
+    ALTER TABLE people ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+    CREATE UNIQUE INDEX IF NOT EXISTS people_by_name ON people(name COLLATE NOCASE) WHERE name IS NOT NULL;
+    CREATE TABLE IF NOT EXISTS face_scans (
+        file_id INTEGER PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+        model TEXT NOT NULL,
+        faces INTEGER NOT NULL,
+        scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS face_rejections (     -- "not this person": never suggested again
+        face_id INTEGER NOT NULL REFERENCES faces(id) ON DELETE CASCADE,
+        person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+        PRIMARY KEY (face_id, person_id)
+    );
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 

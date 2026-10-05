@@ -150,6 +150,15 @@ def run(report: str | None, samples: list[str] | None = None) -> int:
         return f"{name}; OpenCV {cv2.__version__}"
     check("Lens profiles (lensfun) + OpenCV", lenses)
 
+    def face_runtime():
+        # The face models are downloaded later; the build must carry OpenCV's face classes to run them.
+        import cv2
+        for name in ("FaceDetectorYN", "FaceRecognizerSF"):
+            if not hasattr(cv2, name):
+                raise RuntimeError(f"OpenCV has no {name}")
+        return "FaceDetectorYN, FaceRecognizerSF"
+    check("Faces runtime (OpenCV)", face_runtime)
+
     def window():
         from PySide6.QtWidgets import QApplication
         app = QApplication.instance() or QApplication([sys.argv[0]])

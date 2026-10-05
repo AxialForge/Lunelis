@@ -199,6 +199,22 @@ Installed once: updates stay in the app and keep the uninstaller; the
 uninstaller removes the start-up entry and offers to put the library data in
 the Recycle Bin.
 
+### 0.35 - faces ✅ 0.35.0
+
+Faces found (YuNet) and recognised (SFace) on this PC with OpenCV's free
+models; alike faces grouped; name once and Lunelis suggests the person
+elsewhere; a named face tags its photo People|<name>. The People page
+(people, To confirm, Unnamed groups, Ignored) is where mistakes are put
+right; the photo view's face overlay (F) names and corrects faces in place
+and Ctrl+drag adds missed ones. Optional auto-confirm above a confidence,
+for faces and for scene tags.
+
+### 0.36 - places
+
+Every photo with GPS gets Places|Country|Region|City from a built-in,
+offline place list (GeoNames); photos without GPS get a location by
+dropping a pin on the Map, one photo or many at once.
+
 ## Someday 💤
 
 | Feature | Notes |

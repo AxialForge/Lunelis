@@ -183,3 +183,16 @@ def test_settings_card_shows_the_model_state(tmp_path, monkeypatch):
     monkeypatch.setattr(clip, "available", lambda: True)
     view._load_scene_tags()
     assert view.scene_b.text() == "Remove" and view.scene_job_b.isEnabled() and view.scene_status.text().startswith("On")
+
+
+def test_sure_suggestions_become_tags_only_when_turned_on(lib):
+    from lunelis.settings import Settings
+    conn, ids, rid, data = lib
+    scenes.tag_files(conn, list(ids.values()), FakeModel(), data)
+    assert tags.tags_of(conn, ids["beach1.jpg"]) == []               # off: suggestions wait
+    Settings(conn).set("scene_auto_accept", True)
+    Settings(conn).set("scene_auto_threshold", 0.3)
+    assert scenes.auto_accept(conn) >= 2
+    assert "Scene|Beach" in tags.tags_of(conn, ids["beach1.jpg"])
+    with pytest.raises(ValueError):
+        Settings(conn).set("scene_auto_threshold", 1.5)

@@ -295,6 +295,7 @@ begin
     + 'known fingerprint before using it. Nothing about your photos is sent anywhere. Everything else '
     + 'works without them, and Settings can download them later.', False, False);
   ModelsPage.Add('Scene tags: suggests what is in each photo, and powers Find similar (155 MB)');
+  ModelsPage.Add('Faces: finds the people in your photos so you can name them once (39 MB)');
   ModelsPage.Add('Subject masks: select the person or thing in one click when editing (44 MB)');
   ModelsPage.Add('Sky masks: select the sky in one click when editing (176 MB)');
 end;
@@ -380,7 +381,7 @@ begin
     S := S + NewLine + 'Data folder:' + NewLine + Space + DataPage.Values[0] + NewLine;
     if StartPage.Values[0] then S := S + NewLine + 'Tray: on' else S := S + NewLine + 'Tray: off';
     if StartPage.Values[1] then S := S + NewLine + 'Start with Windows: on';
-    if ModelsPage.Values[0] or ModelsPage.Values[1] or ModelsPage.Values[2] then
+    if ModelsPage.Values[0] or ModelsPage.Values[1] or ModelsPage.Values[2] or ModelsPage.Values[3] then
       S := S + NewLine + 'Optional downloads: chosen models download after Lunelis starts';
   end;
   if MemoTasksInfo <> '' then S := S + NewLine + NewLine + MemoTasksInfo;
@@ -405,6 +406,7 @@ begin
   if ModelsPage.Values[0] then Models := Models + '"scene"';
   if ModelsPage.Values[1] then begin if Models <> '' then Models := Models + ', '; Models := Models + '"subject"'; end;
   if ModelsPage.Values[2] then begin if Models <> '' then Models := Models + ', '; Models := Models + '"sky"'; end;
+  if ModelsPage.Values[3] then begin if Models <> '' then Models := Models + ', '; Models := Models + '"faces"'; end;
   Data := DataPage.Values[0];
   if SameFolder(Data, DefaultDataDir) then Data := '';
   Json := '{"version": 1, "data_dir": ' + JsonStr(Data)

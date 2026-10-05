@@ -52,6 +52,7 @@ KEYS: dict[str, list[tuple[str, str]]] = {
         ("Mouse wheel", "Zoom around the pointer (Settings > General can make it change photo)"),
         ("Middle-button drag", "Pan the photo"),
         ("E", "Open or close the Edit panel"),
+        ("F", "Show or hide the faces and their names (click a face to name or correct it; Ctrl+drag adds one)"),
         ("Esc, Backspace", "Back to the library"),
     ],
     "Edit panel": [

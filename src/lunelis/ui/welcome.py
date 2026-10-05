@@ -203,7 +203,8 @@ class WelcomeDialog(QDialog):
         except Exception:                          # a broken model table must not stop the Welcome window
             sizes = {}
         self.model_cbs = {}
-        for key, label in (("scene", "Scene tags - suggests what's in each photo, and powers Find similar"),
+        for key, label in (("faces", "Faces - finds the people in your photos so you can name them once"),
+                           ("scene", "Scene tags - suggests what's in each photo, and powers Find similar"),
                            ("subject", "Subject masks - select the person or thing in one click when editing"),
                            ("sky", "Sky masks - select the sky in one click when editing")):
             cb = QCheckBox(f"{label} ({_mb(sizes[key])})" if key in sizes else label)

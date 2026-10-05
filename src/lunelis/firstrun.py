@@ -36,7 +36,7 @@ from lunelis import paths
 
 SETUP_FILE = paths.LOCATION_FILE.parent / "setup.json"
 APPLIED_FILE = SETUP_FILE.with_name("setup.applied.json")
-MODELS = ("subject", "sky", "scene")
+MODELS = ("subject", "sky", "scene", "faces")
 
 
 @dataclass
@@ -142,6 +142,10 @@ def download_model(kind: str, on_progress=None, should_cancel=None) -> None:
         from lunelis.recognize import clip
         if not clip.available():
             clip.download(on_progress, should_cancel)
+    elif kind == "faces":
+        from lunelis.recognize import faces
+        if not faces.available():
+            faces.download(on_progress, should_cancel)
     else:
         from lunelis.edit import ai
         if not ai.available(kind):
@@ -151,5 +155,6 @@ def download_model(kind: str, on_progress=None, should_cancel=None) -> None:
 def model_sizes() -> dict[str, int]:
     """Bytes per optional model, for the Welcome window."""
     from lunelis.edit import ai
-    from lunelis.recognize import clip
-    return {"subject": ai.MODELS["subject"].size, "sky": ai.MODELS["sky"].size, "scene": clip.TOTAL}
+    from lunelis.recognize import clip, faces
+    return {"subject": ai.MODELS["subject"].size, "sky": ai.MODELS["sky"].size, "scene": clip.TOTAL,
+            "faces": faces.TOTAL}

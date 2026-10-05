@@ -192,7 +192,18 @@ def tag_files(conn: sqlite3.Connection, file_ids: list[int], rec=None, data_dir=
         suggested += suggest(conn, dict(zip(ok, pick(score(vecs, lv), labs))))
         embedded += len(ok)
         conn.commit()
+    auto_accept(conn)
     return embedded, suggested
+
+
+def auto_accept(conn: sqlite3.Connection) -> int:
+    """With Settings scene_auto_accept on: suggestions at least scene_auto_threshold sure become tags."""
+    from lunelis.settings import Settings
+    s = Settings(conn)
+    if not s.get("scene_auto_accept"):
+        return 0
+    threshold = float(s.get("scene_auto_threshold"))
+    return sum(accept_above(conn, tag, threshold) for tag, _, _ in queue(conn, threshold))
 
 
 def pending_in_folder(conn: sqlite3.Connection, root_id: int, folder: str, model: str) -> list[int]:

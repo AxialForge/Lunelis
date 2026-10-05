@@ -66,7 +66,7 @@ RATE_CONFIRM = 500                         # ask before rating / labelling / fla
 # Sidebar sections (collapsible). Pages appear here once they're built -
 # no greyed-out placeholders.
 NAV = [
-    ("Photos", ["Library", "Albums", "Tags", "Edit", "Map", "On this day", "Stats"]),
+    ("Photos", ["Library", "Albums", "People", "Tags", "Edit", "Map", "On this day", "Stats"]),
     ("Create", ["Create"]),
     ("Bring in & organize", ["Import", "Migrate", "Duplicates", "Damaged files"]),
     ("Keep safe", ["Library status", "Backups", "Quarantine", "Sensor dust"]),
@@ -82,8 +82,8 @@ SCAN_STEPS = ("Scanning folders", "Reading sidecars", "Reading metadata", "Googl
 
 STICK_COUNT_SECONDS = 10         # how long a new USB drive is looked through for photos
 EDITS_INLINE = 20                # Paste / Reset on more photos than this saves on a worker
-SEARCH_NOW_LIMIT = 2000
-REACH_CHECK_MS = 60_000          # how often sources are checked for being reachable          # search-index rows brought up to date before a query; the rest on a worker
+SEARCH_NOW_LIMIT = 2000          # search-index rows brought up to date before a query; the rest on a worker
+REACH_CHECK_MS = 60_000          # how often sources are checked for being reachable
 
 def _thread_catalog():
     """A worker thread's own catalog connection. Not this module's `open_catalog`:
@@ -200,6 +200,8 @@ class LibraryWorker(QObject):
             if not self._cancel:
                 self._scene_tags(conn, stop)
             if not self._cancel:
+                self._faces(conn, stop)
+            if not self._cancel:
                 self._noticed(conn, stop)
             if not self._cancel:
                 self._say(8, "Checking for damaged files…")
@@ -226,6 +228,21 @@ class LibraryWorker(QObject):
                 return
             self._say(7, f"Looking at scenes… {start:,} / {len(todo):,}", start, len(todo))
             scenes.tag_files(conn, todo[start:start + 64], rec, paths.DATA_DIR, stop)
+
+    def _faces(self, conn, stop) -> None:
+        from lunelis.settings import Settings
+        if not Settings(conn).get("faces_auto"):
+            return
+        from lunelis.recognize import faces
+        be = faces.backend()
+        if be is None:
+            return
+        todo = faces.pending(conn, be.model_id)
+        for start in range(0, len(todo), 50):
+            if stop():
+                return
+            self._say(7, f"Looking for faces… {start:,} / {len(todo):,}", start, len(todo))
+            faces.scan_files(conn, todo[start:start + 50], be, stop)
 
     def _noticed(self, conn, stop) -> None:
         from lunelis.settings import Settings
@@ -510,6 +527,8 @@ class MainWindow(QMainWindow):
         self.detail.show_event.connect(self.show_event)
         self.detail.edited.connect(self._photo_edited)
         self.detail.tags_changed.connect(lambda: self.filter.tag and self.reload())
+        self.detail.faces_changed.connect(lambda: self.filter.tag and self.reload())
+        self.detail.show_person.connect(self._show_person)
         self.pages.addWidget(self.detail, scroll=False)             # fills the window
         self.grid.activated.connect(self.open_detail)
         from lunelis.ui import photoinfo
@@ -539,6 +558,14 @@ class MainWindow(QMainWindow):
         from lunelis.ui.stats_view import StatsView
         self.stats_page = StatsView(self.conn)
         self.pages.addWidget(self.stats_page, scroll=False)          # scrolls itself
+        from lunelis.ui.people_view import PeopleView
+        self.people_page = PeopleView(self.conn)
+        self.people_page.show_ids.connect(lambda ids, name: self.show_photos(ids, name))
+        self.people_page.open_photo.connect(self.open_detail)
+        self.people_page.find_faces.connect(self._find_faces)
+        self.people_page.open_settings.connect(self._open_faces_settings)
+        self.people_page.changed.connect(lambda: self.reload_later())
+        self.pages.addWidget(self.people_page, scroll=False)
         from lunelis.ui.map_view import MapView
         self.map_page = MapView(self.conn)
         self.map_page.show_ids.connect(lambda ids: self.show_photos(ids, "On the map"))
@@ -575,6 +602,8 @@ class MainWindow(QMainWindow):
         self.settings_page.rescan.connect(self._rescan_roots)
         self.settings_page.add_source.connect(self.add_folder)
         self.settings_page.scene_job.connect(self._tag_the_library)
+        self.settings_page.faces_job.connect(self._find_faces)
+        self.settings_page.open_people.connect(lambda: self.open_page("People"))
         self.settings_page.open_suggestions.connect(self._open_suggestions)
         self.settings_page.rewrite_sidecars.connect(self._xmp_timer.start)
         self.settings_page.tray_changed.connect(self.set_tray_enabled)
@@ -1400,7 +1429,8 @@ class MainWindow(QMainWindow):
         """Fetch the chosen optional models one after another, in the background."""
         from PySide6.QtCore import QRunnable, QThreadPool
         from lunelis import firstrun
-        names = {"scene": "scene model", "subject": "subject-mask model", "sky": "sky-mask model"}
+        names = {"scene": "scene model", "subject": "subject-mask model", "sky": "sky-mask model",
+                 "faces": "face models"}
         sig = _ModelSignals(self)
         self._model_sig = sig
 
@@ -1420,6 +1450,8 @@ class MainWindow(QMainWindow):
         def one_done(kind: str, ok: bool, message: str) -> None:
             if ok and kind == "scene":
                 Settings(self.conn).set("scene_tags_auto", True)
+            if ok and kind == "faces":
+                Settings(self.conn).set("faces_auto", True)
             self.status.setText(f"The {names[kind]} is ready" if ok else
                                 f"The {names[kind]} didn't download: {message} (Settings can try again)")
         sig.done.connect(one_done, queued)
@@ -2154,6 +2186,9 @@ class MainWindow(QMainWindow):
         elif name == "Sensor dust":
             self.pages.setCurrentWidget(self.dust_page)
             self.dust_page.refresh()
+        elif name == "People":
+            self.pages.setCurrentWidget(self.people_page)
+            self.people_page.refresh()
         elif name == "Map":
             self.pages.setCurrentWidget(self.map_page)
             self.map_page.refresh()
@@ -2254,6 +2289,32 @@ class MainWindow(QMainWindow):
         engine.create_job(self.conn, "scene_tags", "Scene tags", roots, {"schedule": schedule})
         self._job_queued()
         self.status.setText("Scene tags: looking through the library in the background (Jobs, Ctrl+J)")
+
+    def _find_faces(self) -> None:
+        """Faces in every photo the face models haven't looked at: a background job."""
+        from lunelis.jobs import engine
+        from lunelis.recognize import faces
+        if not faces.available():
+            self._open_faces_settings()
+            return
+        roots = [(rid, None) for rid, in self.conn.execute("SELECT id FROM roots WHERE enabled = 1")]
+        if not roots:
+            return
+        s = Settings(self.conn)
+        schedule = {"mode": s.get("job_default_when"), "idle_minutes": s.get("job_idle_minutes"),
+                    "start_hour": s.get("job_window_start_hour"), "end_hour": s.get("job_window_end_hour")}
+        engine.create_job(self.conn, "faces", "Faces", roots, {"schedule": schedule})
+        self._job_queued()
+        self.status.setText("Faces: looking through the library in the background (Jobs, Ctrl+J)")
+
+    def _show_person(self, pid: int) -> None:
+        self.close_detail()
+        self.open_page("People")
+        self.people_page.open_person(pid)
+
+    def _open_faces_settings(self) -> None:
+        self.open_page("Settings")
+        self.settings_page.show_tab("Library")
 
     def _open_suggestions(self) -> None:
         self.open_page("Tags")

@@ -37,6 +37,8 @@ _PATHS = {
     "stats": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     "dust": '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><circle cx="9" cy="10" r="1.3"/>'
             '<circle cx="15" cy="14" r="1.8"/><circle cx="16" cy="9" r=".8"/>',
+    "people": '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/>'
+              '<circle cx="16.5" cy="9" r="2.4"/><path d="M15.5 14.2a4.5 4.5 0 0 1 5 5.3"/>',
     "map": '<path d="M9 4.5L3.5 6.5v13L9 17.5l6 2 5.5-2v-13L15 6.5z"/><path d="M9 4.5v13M15 6.5v13"/>',
     "calendar": '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'
                 '<path d="M12 13.5v3h2.5"/>',
@@ -51,7 +53,7 @@ NAV_ICONS = {"Library": "library", "Albums": "albums", "Tags": "tags", "Import":
              "Duplicates": "duplicates", "Damaged files": "damaged", "Backups": "backups",
              "Quarantine": "quarantine", "Settings": "settings", "Library status": "status",
              "Edit": "edit", "Create": "create", "Stats": "stats", "Map": "map", "On this day": "calendar",
-             "Sensor dust": "dust"}
+             "Sensor dust": "dust", "People": "people"}
 
 
 def _pixmap(name: str, color: str, size: int) -> QPixmap:

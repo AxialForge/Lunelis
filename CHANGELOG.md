@@ -6,6 +6,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-05
+
+### Added (faces)
+
+- **Faces, found and named on this PC:** two small free models (OpenCV's
+  YuNet and SFace, about 39 MB, downloaded when you turn faces on and
+  checked against pinned fingerprints) find the faces in each photo and
+  group the ones that look alike. Nothing leaves the PC.
+- **Name once:** name a face or a whole group and Lunelis suggests that
+  person in your other photos ("Ann?"). Every photo with a named face gets
+  a People|<name> tag - in the Tag filter, search, smart albums and sidecars.
+- **People page** (sidebar > Photos > People): everyone you've named; To
+  confirm (yes / no to suggestions); Unnamed groups; Ignored faces. Put
+  mistakes right with Not <name>, Move to..., Not a face, Rename (a used
+  name merges two people) and Forget this person - the tags follow.
+- **Face overlay** in the photo view (F, or the Faces button): a box and a
+  name on every face, any number per photo; click a face to name, confirm
+  or correct it; Ctrl+drag draws a face Lunelis missed.
+- **Faces job** (Settings > Library > Faces > Find faces in the library),
+  and new photos looked at after each scan.
+- **Name / accept by itself, if you want:** Settings can confirm faces, and
+  accept scene suggestions, above a confidence you choose. Off by default.
+- The installer and the Welcome window offer the face models too.
+
+### Fixed
+
+- Three settings / constant comments that had been pushed onto the wrong
+  lines in the source.
+
 ## [0.34.1] - 2026-10-05
 
 ### Fixed

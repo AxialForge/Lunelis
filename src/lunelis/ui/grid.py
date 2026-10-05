@@ -25,8 +25,8 @@ from lunelis.ui.theme import label_color, qcolor
 PAD_X, PAD_Y, GAP, RADIUS = 24, 20, 10, 8
 MIN_TILE, MAX_TILE, DEFAULT_TILE = 100, 400, 180   # 180 = the mockup's 6 columns at 1440px
 PX_STEP = 64                 # thumbnail decode size is quantised so a window resize doesn't reload
-HOVER_DELAY_MS = 450
-GIF_HOVER_MS = 250           # still this long over an animated GIF -> it plays in its tile         # still this long over a photo -> its info card
+HOVER_DELAY_MS = 450         # still this long over a photo -> its info card
+GIF_HOVER_MS = 250           # still this long over an animated GIF -> it plays in its tile
 RESIZE_SETTLE_MS = 180       # while the size slider moves, tiles are scaled; decode once it stops
 
 
