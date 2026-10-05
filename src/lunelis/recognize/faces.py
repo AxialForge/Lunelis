@@ -15,7 +15,8 @@ How a face moves through the catalog (faces table):
     found     person_id NULL, confirmed 0          (maybe in an unnamed `cluster`)
     suggested suggested_person_id + suggestion      ("Ann?" - waiting for a yes)
     named     person_id + confirmed 1               -> the photo gets People|Ann
-    ignored   ignored 1                             ("not a face", or a stranger)
+    ignored   ignored 1                             ("not a face")
+    stranger  ignored 2                             (someone you don't know)  -> People|Unknown
 
 Only confirmed faces tag their photo, so a wrong guess never reaches a
 sidecar. "Not this person" is remembered (face_rejections) and that person
@@ -44,6 +45,8 @@ from lunelis.tags import model as tags
 
 MODEL_ID = "yunet-2023mar+sface-2021dec"
 ROOT = "People"                       # person tags: People|Ann
+UNKNOWN = "Unknown"                   # People|Unknown: a photo with a stranger in it
+NOT_A_FACE, STRANGER = 1, 2           # faces.ignored
 BASE = "https://github.com/opencv/opencv_zoo/raw/47534e27c9851bb1128ccc0102f1145e27f23f98/models/"
 DETECT_EDGE = 1600                    # faces are found in a 1600 px copy of the photo
 MIN_FACE = 0.025                      # smaller than 2.5 % of the long side: too small to know
@@ -306,6 +309,8 @@ def person_id(conn: sqlite3.Connection, name: str, create: bool = True) -> int |
     name = " ".join((name or "").replace(tags.SEP, " ").split())
     if not name:
         raise ValueError("A person needs a name.")
+    if name.casefold() == UNKNOWN.casefold():
+        raise ValueError("\"Unknown\" is kept for strangers - mark the face as a stranger instead.")
     row = conn.execute("SELECT id FROM people WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
     if row:
         return row[0]
@@ -445,6 +450,22 @@ def _sync_tags(conn: sqlite3.Connection, file_ids, pid: int) -> None:
         tags.remove(conn, lose, tag_for(name), commit=False)
 
 
+def unknown_tag() -> str:
+    return f"{ROOT}{tags.SEP}{UNKNOWN}"
+
+
+def _sync_unknown(conn: sqlite3.Connection, file_ids) -> None:
+    """A photo carries People|Unknown exactly when it has a face marked as a stranger."""
+    have, lose = [], []
+    for fid in set(file_ids):
+        s = conn.execute("SELECT 1 FROM faces WHERE file_id = ? AND ignored = ? LIMIT 1", (fid, STRANGER)).fetchone()
+        (have if s else lose).append(fid)
+    if have:
+        tags.add(conn, have, [unknown_tag()], commit=False)
+    if lose and tags.tag_id(conn, unknown_tag(), create=False) is not None:
+        tags.remove(conn, lose, unknown_tag(), commit=False)
+
+
 def _files_of(conn: sqlite3.Connection, face_ids) -> dict[int, list[int]]:
     """{previous person (or None): [file ids]} for these faces."""
     out: dict = {}
@@ -467,6 +488,7 @@ def confirm(conn: sqlite3.Connection, face_ids, pid: int) -> int:
                      f" ({','.join('?' * len(chunk))})", [pid, *chunk])
     files = [f for fs in before.values() for f in fs]
     _sync_tags(conn, files, pid)
+    _sync_unknown(conn, files)
     for old, fs in before.items():
         if old is not None and old != pid:
             _sync_tags(conn, fs, old)
@@ -511,22 +533,46 @@ def reject(conn: sqlite3.Connection, face_ids) -> int:
     return len(face_ids)
 
 
-def ignore(conn: sqlite3.Connection, face_ids, ignored: bool = True) -> int:
-    """"Not a face" / a stranger: kept out of suggestions, groups and tags."""
+def ignore(conn: sqlite3.Connection, face_ids, ignored: bool = True, stranger: bool = False) -> int:
+    """"Not a face" (ignored), or a stranger (People|Unknown on the photo): either
+    way kept out of suggestions and groups. ignored=False brings faces back."""
     face_ids = list(face_ids)
     before = _files_of(conn, face_ids)
+    state = (STRANGER if stranger else NOT_A_FACE) if ignored else 0
     for chunk in _chunks(face_ids):
         conn.execute(f"UPDATE faces SET ignored = ?, person_id = NULL, confirmed = 0, suggested_person_id = NULL,"
                      f" suggestion = NULL, cluster = NULL WHERE id IN ({','.join('?' * len(chunk))})",
-                     [1 if ignored else 0, *chunk])
+                     [state, *chunk])
     for old, fs in before.items():
         if old is not None:
             _sync_tags(conn, fs, old)
+    _sync_unknown(conn, [f for fs in before.values() for f in fs])
     conn.commit()
     if not ignored:
         suggest(conn, face_ids)
         group(conn, face_ids)
     return len(face_ids)
+
+
+def mark_strangers(conn: sqlite3.Connection, face_ids) -> int:
+    """People you don't know: their photos get People|Unknown."""
+    return ignore(conn, face_ids, stranger=True)
+
+
+def unnamed_in(conn: sqlite3.Connection, file_ids) -> list[int]:
+    """Faces in these photos that nobody has named or set aside."""
+    ids = list(file_ids)
+    out: list[int] = []
+    for chunk in _chunks(ids):
+        out += [r[0] for r in conn.execute(
+            f"SELECT id FROM faces WHERE confirmed = 0 AND ignored = 0 AND file_id IN ({','.join('?' * len(chunk))})",
+            chunk)]
+    return out
+
+
+def rest_are_strangers(conn: sqlite3.Connection, file_ids) -> int:
+    """A shoot in a public place: everyone not named in these photos is a stranger."""
+    return mark_strangers(conn, unnamed_in(conn, file_ids))
 
 
 def ungroup(conn: sqlite3.Connection, face_ids) -> int:
@@ -547,6 +593,8 @@ def rename_person(conn: sqlite3.Connection, pid: int, new: str) -> int:
     new = " ".join((new or "").replace(tags.SEP, " ").split())
     if not new:
         raise ValueError("A person needs a name.")
+    if new.casefold() == UNKNOWN.casefold():
+        raise ValueError("\"Unknown\" is kept for strangers.")
     other = person_id(conn, new, create=False)
     if other is not None and other != pid:
         merge_people(conn, pid, other)
@@ -649,8 +697,9 @@ class Face:
     suggested: str | None
     suggestion: float | None
     cluster: int | None
-    ignored: bool
+    ignored: bool                     # set aside: not a face, or a stranger
     source: str
+    stranger: bool = False
 
 
 FACE_SQL = ("SELECT fa.id, fa.file_id, fa.bbox_json, fa.person_id, p.name, fa.suggested_person_id, s.name,"
@@ -661,11 +710,13 @@ FACE_SQL = ("SELECT fa.id, fa.file_id, fa.bbox_json, fa.person_id, p.name, fa.su
 
 def _face(r) -> Face:
     return Face(r[0], r[1], json.loads(r[2]), r[3] if r[4] is not None else None, r[4], r[5], r[6], r[7], r[8],
-                bool(r[9]), r[10])
+                bool(r[9]), r[10], r[9] == STRANGER)
 
 
-def faces_of(conn: sqlite3.Connection, file_id: int, with_ignored: bool = False) -> list[Face]:
-    sql = FACE_SQL + " WHERE fa.file_id = ?" + ("" if with_ignored else " AND fa.ignored = 0")
+def faces_of(conn: sqlite3.Connection, file_id: int, with_ignored: bool = False,
+             with_strangers: bool = False) -> list[Face]:
+    sql = FACE_SQL + " WHERE fa.file_id = ?" + (
+        "" if with_ignored else f" AND fa.ignored IN (0, {STRANGER})" if with_strangers else " AND fa.ignored = 0")
     return [_face(r) for r in conn.execute(sql + " ORDER BY json_extract(fa.bbox_json, '$[0]')", (file_id,))]
 
 
@@ -689,7 +740,8 @@ def faces_in_group(conn, cluster: int, limit: int | None = None) -> list[Face]:
 
 
 def ignored_faces(conn, limit: int | None = None) -> list[Face]:
-    return faces_where(conn, "fa.ignored = 1", (), limit)
+    """Strangers and "not a face", newest first."""
+    return faces_where(conn, "fa.ignored IN (1, 2)", (), limit)
 
 
 @dataclass
@@ -739,6 +791,7 @@ def counts(conn: sqlite3.Connection) -> dict[str, int]:
         "waiting": one("SELECT COUNT(*) FROM faces WHERE suggested_person_id IS NOT NULL AND confirmed = 0"
                        " AND ignored = 0"),
         "people": one("SELECT COUNT(*) FROM people WHERE name IS NOT NULL"),
+        "strangers": one(f"SELECT COUNT(*) FROM faces WHERE ignored = {STRANGER}"),
     }
 
 

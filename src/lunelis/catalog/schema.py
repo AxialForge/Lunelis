@@ -834,6 +834,25 @@ MIGRATIONS.append((
     _faces_v38,
 ))
 
+MIGRATIONS.append((
+    39,
+    "places: pins dropped on the map, and the place tag each photo was given (and from where)",
+    """
+    CREATE TABLE IF NOT EXISTS locations (      -- a pin wins over the photo's own GPS; files never change
+        file_id INTEGER PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+        lat REAL NOT NULL,
+        lon REAL NOT NULL,
+        set_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS photo_places (   -- the Places|... tag Lunelis gave, from these coordinates
+        file_id INTEGER PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+        place TEXT NOT NULL,
+        lat REAL,
+        lon REAL
+    );
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 

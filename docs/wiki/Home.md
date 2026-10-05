@@ -15,6 +15,7 @@ Nothing leaves your computer, and Lunelis never modifies your photos.
 | [Importing from a memory card](Importing.md) | Card import, folder templates, staging, "safe to format" |
 | [Sources and scanning](Sources-and-Scanning.md) | What gets cataloged, NAS folders, moved and missing files |
 | [Search](Search.md) | The search box: names, tags, cameras, places, dates, and special words |
+| [Places](Places.md) | Place tags from the built-in place list, pins on the Map for photos without GPS, unknown places |
 | [People](People.md) | Faces found and grouped on this PC, names, the People page for corrections, and the face overlay (F) |
 | [Tags](Tags.md) | Keywords, nested tags, the Tag filter, and tags in XMP for darktable/Lightroom |
 | [Albums](Albums.md) | Your albums, events and automatic albums (Favorites, Videos, per camera...) |

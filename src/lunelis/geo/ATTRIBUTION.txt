@@ -1,0 +1,3 @@
+places.tsv.gz is made from GeoNames data (https://www.geonames.org) - cities15000,
+admin1CodesASCII and countryInfo - licensed under Creative Commons Attribution 4.0
+(https://creativecommons.org/licenses/by/4.0/). Rebuilt with packaging/build_places.py.

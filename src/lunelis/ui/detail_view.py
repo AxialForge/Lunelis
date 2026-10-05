@@ -348,7 +348,8 @@ class PhotoCanvas(QWidget):
     def _paint_faces(self, p: QPainter) -> None:
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         accent = qcolor(themes.current().accent)
-        colours = {"named": accent, "suggested": QColor(240, 190, 60), "unknown": QColor(255, 255, 255)}
+        colours = {"named": accent, "suggested": QColor(240, 190, 60), "unknown": QColor(255, 255, 255),
+                   "stranger": QColor(160, 160, 170)}
         f = p.font()
         f.setPointSizeF(max(8.0, f.pointSizeF()))
         p.setFont(f)
@@ -357,8 +358,8 @@ class PhotoCanvas(QWidget):
             r = self.face_rect(box)
             c = colours.get(state, colours["unknown"])
             pen = QPen(c, 2)
-            if state == "suggested":
-                pen.setStyle(Qt.PenStyle.DashLine)
+            if state in ("suggested", "stranger"):
+                pen.setStyle(Qt.PenStyle.DashLine if state == "suggested" else Qt.PenStyle.DotLine)
             p.setPen(pen)
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawRoundedRect(r, 4, 4)
@@ -765,7 +766,11 @@ class InfoPanel(QScrollArea):
         put("event", f'<a href="event:{info.event_id}:{escape(info.event)}">{escape(info.event)}</a>'
             if info.event else "", rich=True)
         url = info.map_url()
-        put("location", f'{info.lat:.5f}, {info.lon:.5f}  ·  <a href="{escape(url)}">Open map</a>' if url else "",
+        place = ""
+        if url:
+            from lunelis.geo import places
+            place = escape(places.lookup(info.lat, info.lon).label) + (" (pinned on the map)" if info.pinned else "")                 + "<br>"
+        put("location", f'{place}{info.lat:.5f}, {info.lon:.5f}  ·  <a href="{escape(url)}">Open map</a>' if url else "",
             rich=True)
         from lunelis.damage.check import PROBLEM_TEXT
         put("status", PROBLEM_TEXT.get(info.damaged, info.damaged) if info.damaged else "")
@@ -1201,8 +1206,10 @@ class DetailView(QWidget):
         self.canvas.faces = []
         if self.info is not None and self.faces_b.isChecked() and not self.info.is_video:
             from lunelis.recognize import faces
-            for f in faces.faces_of(self.conn, self.info.file_id):
-                if f.name:
+            for f in faces.faces_of(self.conn, self.info.file_id, with_strangers=True):
+                if f.stranger:
+                    self.canvas.faces.append((f.id, f.box, "Stranger", "stranger"))
+                elif f.name:
                     self.canvas.faces.append((f.id, f.box, f.name, "named"))
                 elif f.suggested:
                     self.canvas.faces.append((f.id, f.box, f"{f.suggested}?", "suggested"))
@@ -1222,13 +1229,18 @@ class DetailView(QWidget):
         name, ok = QInputDialog.getItem(self, title, "Who is this? Pick someone or type a new name:",
                                         names or [""], 0, True)
         name = (name or "").strip()
+        if ok and name.casefold() == "unknown":
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Strangers", "\"Unknown\" is kept for strangers: choose Stranger "
+                                    "instead, and the photo is tagged People > Unknown.")
+            return None
         return name if ok and name else None
 
     def _face_menu(self, face_id: int, at) -> None:
         from PySide6.QtWidgets import QMenu
         from lunelis.recognize import faces
-        f = next((x for x in faces.faces_of(self.conn, self.info.file_id) if x.id == face_id), None) \
-            if self.info else None
+        f = next((x for x in faces.faces_of(self.conn, self.info.file_id, with_strangers=True)
+                  if x.id == face_id), None) if self.info else None
         if f is None:
             return
         m = QMenu(self)
@@ -1238,10 +1250,20 @@ class DetailView(QWidget):
         m.addAction("Rename…" if f.name else "Name…", lambda: self._name_face(f.id))
         if f.name or f.suggested:
             m.addAction(f"Not {f.name or f.suggested}", lambda: (faces.reject(self.conn, [f.id]), self._face_changed()))
+        if f.stranger:
+            m.addAction("Not a stranger", lambda: (faces.ignore(self.conn, [f.id], ignored=False),
+                                                   self._face_changed()))
+        else:
+            m.addAction("Stranger (tag the photo People > Unknown)",
+                        lambda: (faces.mark_strangers(self.conn, [f.id]), self._face_changed()))
         if f.source == "user":
             m.addAction("Remove this box", lambda: (faces.delete_face(self.conn, f.id), self._face_changed()))
         else:
             m.addAction("Not a face", lambda: (faces.ignore(self.conn, [f.id]), self._face_changed()))
+        if faces.unnamed_in(self.conn, [f.file_id]):
+            m.addSeparator()
+            m.addAction("Everyone not named here is a stranger",
+                        lambda: (faces.rest_are_strangers(self.conn, [f.file_id]), self._face_changed()))
         if f.name:
             m.addSeparator()
             m.addAction(f"All photos of {f.name}…", lambda: self.show_person.emit(f.person_id))

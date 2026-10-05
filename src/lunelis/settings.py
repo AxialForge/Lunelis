@@ -66,6 +66,9 @@ DEFAULTS: dict[str, Any] = {
     "faces_auto_confirm": False,         # name a face by itself when it's at least this alike a known person:
     "faces_auto_threshold": 0.6,
     "faces_overlay": False,              # the photo view shows face boxes and names (F)
+    # Places (geo/places.py): from the built-in list, offline.
+    "places_auto": True,                 # give photos with a location a Places tag after each scan
+    "places_tag_no_location": False,     # photos without one get Places|No location
     "burst_gap_seconds": 1.0,            # frames at most this far apart (sub-second times) are one burst
     "burst_min_frames": 3,               # fewer shots than this isn't a burst
     # Appearance.

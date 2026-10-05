@@ -209,11 +209,15 @@ right; the photo view's face overlay (F) names and corrects faces in place
 and Ctrl+drag adds missed ones. Optional auto-confirm above a confidence,
 for faces and for scene tags.
 
-### 0.36 - places
+### 0.36 - places and unknown tags ✅ 0.36.0
 
-Every photo with GPS gets Places|Country|Region|City from a built-in,
-offline place list (GeoNames); photos without GPS get a location by
-dropping a pin on the Map, one photo or many at once.
+Every photo with a location gets Places|Country|Region|City from a built-in,
+offline place list (GeoNames, ~32,000 towns); far from a town it's
+Places|Country|Unknown or Places|Unknown, and (optionally) photos without a
+location get Places|No location. Photos without GPS get a location by
+dropping a pin on the Map - one photo or many, from the Photo menu or by
+dragging them onto the map. Faces gain "Stranger": people you don't know
+put People|Unknown on the photo, one face, a group or a whole shoot at once.
 
 ## Someday 💤
 

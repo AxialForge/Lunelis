@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lunelis"
-version = "0.35.0"
+version = "0.36.0"
 description = "Local, Windows-first photo library: RAW + standard formats, EXIF, ratings, albums, non-destructive editing."
 requires-python = ">=3.13"
 license = "MIT"
@@ -33,7 +33,7 @@ lunelis = "lunelis.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-lunelis = ["darktable/*.lua", "importing/*.json", "create/*.json", "recognize/*.json"]
+lunelis = ["darktable/*.lua", "importing/*.json", "create/*.json", "recognize/*.json", "geo/*.gz", "geo/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

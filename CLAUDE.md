@@ -971,6 +971,24 @@ pairing); each lands as a new migration when its step arrives.
 - Tests use a FakeBackend (colour = identity); the real models are
   checked by hand on real photos (never committed - the repo is public).
 
+## Place rules (geo/places.py, the Map's pins)
+
+- The place list `geo/places.tsv.gz` is BUILT by packaging/build_places.py
+  from GeoNames (cities15000 + admin1 + countryInfo, CC BY 4.0) and committed;
+  rebuild only to refresh. PPLX (city districts) and historical / abandoned
+  places are left out, else Rome came out as "Esquilino". Nearest place
+  within 40 km wins on distance minus 5 km per tenfold population (the city
+  beats its suburb; a small town far from a city keeps its name).
+- Effective location = pin (`locations`) else EXIF GPS (0,0 = none). Pins
+  never touch files or sidecars. `photo_places` records the Places tag
+  Lunelis gave and the coordinates it came from: a tag is only (re)written
+  when those change, so a place tag the user removed by hand stays removed.
+- Unknown tags: Places|<Country>|Unknown, Places|Unknown, and
+  Places|No location (setting, off by default - it would tag most of a
+  no-GPS library). Faces: ignored = 2 is a stranger -> People|Unknown on the
+  photo, kept equal to "has a stranger face" by `_sync_unknown`; the name
+  "Unknown" is refused for people.
+
 ## Installer and first-run setup (0.34)
 
 - `packaging/installer/lunelis.iss` (Inno Setup 6, free): a PER-USER install

@@ -10,6 +10,11 @@ The Map page (sidebar > Photos > Map): photos placed by their GPS.
   OpenStreetMap (credited on the map), are cached in the data folder
   (`map_tiles`) and are never fetched again once cached.
 - Nothing about your photos is sent anywhere: only tile numbers are asked for.
+- **Pins for photos without GPS** (geo/places.py): Photo > Set location on
+  the map... (or Place photos here on this page) puts the map in placing
+  mode - click where they were taken. Photos dragged from the library and
+  dropped on the map are placed where they land. Either way Lunelis asks
+  first, showing the place it found, and the files themselves never change.
 """
 from __future__ import annotations
 
@@ -61,15 +66,20 @@ def clusters(points: list[tuple[int, float, float]], z: float, cell: int = CLUST
 
 
 def located(conn) -> list[tuple[int, float, float]]:
-    return [tuple(r) for r in conn.execute(
-        "SELECT f.id, e.gps_lat, e.gps_lon FROM files f JOIN exif e ON e.file_id = f.id"
-        " JOIN roots r ON r.id = f.root_id WHERE r.enabled = 1 AND f.missing_since IS NULL"
-        " AND f.excluded = 0 AND f.quarantined_at IS NULL AND e.gps_lat IS NOT NULL AND e.gps_lon IS NOT NULL"
-        " AND NOT (e.gps_lat = 0 AND e.gps_lon = 0)")]
+    """Every photo with a location: its own GPS, or a pin dropped on this map."""
+    from lunelis.geo import places
+    return places.located(conn)
+
+
+def _count_unlocated(conn) -> int:
+    from lunelis.geo import places
+    return len(places.without_location(conn))
 
 
 class MapCanvas(QWidget):
     picked = Signal(list)                  # file ids under a clicked circle
+    placed = Signal(float, float)          # placing mode: the spot clicked (lat, lon)
+    dropped = Signal(list, float, float)   # photos dragged from the library onto the map (ids, lat, lon)
 
     def __init__(self, tiles_dir: Path, parent=None) -> None:
         super().__init__(parent)
@@ -84,6 +94,8 @@ class MapCanvas(QWidget):
         self._drag: QPointF | None = None
         self._moved = False
         self._clusters: list[tuple[float, float, list[int]]] = []
+        self.placing = False                  # the next click drops a pin
+        self.setAcceptDrops(True)
         self.setMouseTracking(True)
         self.setMinimumSize(200, 150)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -248,6 +260,12 @@ class MapCanvas(QWidget):
 
     # --- mouse -----------------------------------------------------------------------------
 
+    def lat_lon_at(self, pos: QPointF) -> tuple[float, float]:
+        ox, oy = self._origin()
+        lon, lat = world_to_lonlat(ox + pos.x(), oy + pos.y(), self.z)
+        lon = (lon + 180.0) % 360.0 - 180.0
+        return max(-85.0, min(85.0, lat)), lon
+
     def cluster_at(self, pos: QPointF) -> list[int] | None:
         ox, oy = self._origin()
         best, dist = None, 1e9
@@ -272,11 +290,19 @@ class MapCanvas(QWidget):
             self._drag = e.position()
             self.update()
             return
+        if self.placing:
+            self.setCursor(Qt.CursorShape.CrossCursor)
+            self.setToolTip("Click where the photos were taken")
+            return
         ids = self.cluster_at(e.position())
         self.setToolTip(f"{len(ids)} photo{'s' if len(ids) != 1 else ''} - click to see them" if ids else "")
         self.setCursor(Qt.CursorShape.PointingHandCursor if ids else Qt.CursorShape.OpenHandCursor)
 
     def mouseReleaseEvent(self, e) -> None:
+        if not self._moved and self.placing and e.button() == Qt.MouseButton.LeftButton:
+            self._drag = None
+            self.placed.emit(*self.lat_lon_at(e.position()))
+            return
         if not self._moved:
             ids = self.cluster_at(e.position())
             if ids:
@@ -285,6 +311,24 @@ class MapCanvas(QWidget):
 
     def wheelEvent(self, e) -> None:
         self.zoom(1 if e.angleDelta().y() > 0 else -1, e.position())
+
+    def dragEnterEvent(self, e) -> None:
+        from lunelis.ui.grid import PhotoGrid
+        if e.mimeData().hasFormat(PhotoGrid.DRAG_MIME):
+            e.acceptProposedAction()
+
+    def dragMoveEvent(self, e) -> None:
+        self.dragEnterEvent(e)
+
+    def dropEvent(self, e) -> None:
+        import json
+        from lunelis.ui.grid import PhotoGrid
+        if not e.mimeData().hasFormat(PhotoGrid.DRAG_MIME):
+            return
+        ids = [int(x) for x in json.loads(bytes(e.mimeData().data(PhotoGrid.DRAG_MIME)).decode("ascii"))]
+        e.acceptProposedAction()
+        if ids:
+            self.dropped.emit(ids, *self.lat_lon_at(e.position()))
 
     def keyPressEvent(self, e) -> None:
         if e.key() in (Qt.Key.Key_Plus, Qt.Key.Key_Equal):
@@ -297,6 +341,8 @@ class MapCanvas(QWidget):
 
 class MapView(QWidget):
     show_ids = Signal(list)
+    show_unlocated = Signal(list)          # "Without a location": those photos in the library
+    places_changed = Signal()              # pins dropped (place tags changed)
 
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
@@ -321,13 +367,29 @@ class MapView(QWidget):
         self.online_b.clicked.connect(self._toggle_online)
         h.addWidget(self.online_b)
         h.addWidget(QPushButton("Fit", clicked=lambda: self.canvas.fit()))
+        self.unlocated_b = QPushButton("Without a location", clicked=self._show_unlocated)
+        self.unlocated_b.setToolTip("The photos with no GPS and no pin, in the library - select some, then "
+                                    "Photo > Set location on the map, or drag them onto the Map in the sidebar")
+        h.addWidget(self.unlocated_b)
         outer.addWidget(head)
+        # Placing mode: "Click where these 12 photos were taken".
+        self.place_bar = QWidget(objectName="Toolbar")
+        pb = QHBoxLayout(self.place_bar)
+        pb.setContentsMargins(24, 6, 24, 6)
+        self.place_label = QLabel(objectName="SectionTitle")
+        pb.addWidget(self.place_label, 1)
+        pb.addWidget(QPushButton("Cancel", clicked=self.stop_placing))
+        self.place_bar.hide()
+        outer.addWidget(self.place_bar)
+        self._placing: list[int] = []
         self.note = QLabel(objectName="Help")
         self.note.setContentsMargins(24, 6, 24, 6)
         self.note.setWordWrap(True)
         outer.addWidget(self.note)
         self.canvas = MapCanvas(paths.DATA_DIR / "map_tiles")
         self.canvas.picked.connect(self.show_ids.emit)
+        self.canvas.placed.connect(lambda lat, lon: self._place(self._placing, lat, lon))
+        self.canvas.dropped.connect(self._place)
         outer.addWidget(self.canvas, 1)
         self._fitted = False
 
@@ -341,9 +403,56 @@ class MapView(QWidget):
     def _points(self, pts) -> None:
         self.canvas.set_points(pts)
         self.count.setText(f"{len(pts):,} photo{'s' if len(pts) != 1 else ''} with a location")
+        self.bg.run("unlocated", _count_unlocated, lambda n: self.unlocated_b.setText(f"Without a location ({n:,})"))
         if not self._fitted and pts:
             self._fitted = True
             self.canvas.fit()
+
+    # --- pins ---------------------------------------------------------------------------------
+
+    def start_placing(self, ids: list[int]) -> None:
+        """Placing mode: the next click on the map pins these photos."""
+        self._placing = list(ids)
+        if not self._placing:
+            return
+        n = len(self._placing)
+        self.place_label.setText(f"Click on the map where {'this photo was' if n == 1 else f'these {n:,} photos were'}"
+                                 " taken. Zoom and drag as usual; Cancel stops.")
+        self.place_bar.show()
+        self.canvas.placing = True
+        self.canvas.setFocus()
+
+    def stop_placing(self) -> None:
+        self._placing = []
+        self.place_bar.hide()
+        self.canvas.placing = False
+        self.canvas.setCursor(Qt.CursorShape.OpenHandCursor)
+
+    def _place(self, ids: list[int], lat: float, lon: float) -> None:
+        from PySide6.QtWidgets import QMessageBox
+        from lunelis.geo import places
+        if not ids:
+            return
+        place = places.lookup(lat, lon)
+        n = len(ids)
+        already = len(places.pinned(self.conn, ids)) + sum(
+            1 for fid in ids if (loc := places.location_of(self.conn, fid)) and loc[2] == "gps")
+        text = (f"Put {'this photo' if n == 1 else f'these {n:,} photos'} at {place.label}?\n\n"
+                f"({lat:.4f}, {lon:.4f}) - they'll be tagged {place.tag.replace('|', ' > ')}. The files "
+                "themselves don't change.")
+        if already:
+            text += f"\n\n{already:,} of them already have a location; this pin replaces it."
+        if QMessageBox.question(self, "Set location", text) != QMessageBox.StandardButton.Yes:
+            return
+        places.set_location(self.conn, ids, lat, lon)
+        self.stop_placing()
+        self.places_changed.emit()
+        self.refresh()
+        self.count.setText(f"Placed {n:,} photo{'s' if n != 1 else ''} at {place.label}")
+
+    def _show_unlocated(self) -> None:
+        from lunelis.geo import places
+        self.show_unlocated.emit(places.without_location(self.conn))
 
     def _update_online(self, on: bool) -> None:
         self.online_b.setText("Hide map tiles" if on else "Show map tiles (online)")

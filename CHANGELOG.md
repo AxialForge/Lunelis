@@ -6,6 +6,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-05
+
+### Added (places and unknown tags)
+
+- **Place tags, offline:** every photo with a location gets Places > Country
+  > Region > Town from a list of ~32,000 towns built into Lunelis (GeoNames,
+  CC BY 4.0) - nothing is looked up online. A big city wins over its suburbs
+  (Paris, not its arrondissement); a small town keeps its own name.
+- **Unknown places:** far from any town it's Places > Country > Unknown, at
+  sea Places > Unknown; optionally (Settings > Library > Places) photos with
+  no location at all get Places > No location.
+- **Pins on the map:** Photo > Set location on the map (Ctrl+Shift+L) - click
+  where one photo or many were taken, or drag photos from the library onto
+  the Map and drop them on the spot. Lunelis shows the place it found and asks
+  first; the files never change. A pin wins over the camera's GPS; Photo >
+  Remove the pinned location takes it off. Map > Without a location (N) shows
+  the photos that still need one.
+- **Strangers:** a face you don't know is a Stranger and puts People >
+  Unknown on the photo - one face (photo view or People page), an unnamed
+  group, or a whole shoot (Photo > Unnamed faces in these photos are
+  strangers). Strangers are never grouped or suggested as someone you know.
+- The Info panel shows the place (and whether it's a pin) above the
+  coordinates.
+
 ## [0.35.0] - 2026-10-05
 
 ### Added (faces)

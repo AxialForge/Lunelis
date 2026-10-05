@@ -145,7 +145,8 @@ class SettingsView(QWidget):
             "General": [self._startup, self._tray],
             "Edit": [self._editing, self._ai_models, self._edit_caches],
             "Appearance": [self._appearance, self._library_view],
-            "Library": [self._sources, self._thumbnails, self._scene_tags, self._faces, self._helpers],
+            "Library": [self._sources, self._thumbnails, self._scene_tags, self._faces, self._places,
+                        self._helpers],
             "Import": [self._import],
             "Ratings & sidecars": [self._sidecars],
             "Duplicates & jobs": [self._duplicates_and_jobs],
@@ -481,6 +482,42 @@ class SettingsView(QWidget):
         row.addStretch(1)
         v.addLayout(row)
         return card
+
+    def _places(self) -> QFrame:
+        card, v = self._card("Places", "Photos with a location (from the camera, or a pin you dropped on the Map) "
+                                       "get a place tag - Places > Italy > Lazio > Rome - from a list of 32,000 "
+                                       "towns built into Lunelis. Nothing is looked up online. Far from any town "
+                                       "it's Places > Italy > Unknown, at sea Places > Unknown.")
+        self.places_auto = QCheckBox("Give photos a place tag after each scan")
+        self.places_auto.toggled.connect(lambda on: self._set("places_auto", on))
+        v.addWidget(self.places_auto)
+        self.places_none = QCheckBox("Tag photos without any location Places > No location")
+        self.places_none.setToolTip("Handy for finding the photos that still need a pin. Off by default: on a "
+                                    "library from cameras without GPS it tags most photos.")
+        self.places_none.toggled.connect(self._places_none_changed)
+        v.addWidget(self.places_none)
+        row = QHBoxLayout()
+        row.addWidget(QPushButton("Name places now", clicked=self._name_places))
+        self.places_status = QLabel(objectName="Help")
+        row.addWidget(self.places_status, 1)
+        v.addLayout(row)
+        hl = QLabel("Place names: GeoNames (geonames.org), CC BY 4.0.", objectName="Help")
+        v.addWidget(hl)
+        return card
+
+    def _load_places(self) -> None:
+        s = Settings(self.conn)
+        self.places_auto.setChecked(bool(s.get("places_auto")))
+        self.places_none.setChecked(bool(s.get("places_tag_no_location")))
+
+    def _places_none_changed(self, on: bool) -> None:
+        if self._set("places_tag_no_location", on):
+            self._name_places()
+
+    def _name_places(self) -> None:
+        from lunelis.geo import places
+        n = places.tag_pending(self.conn)
+        self.places_status.setText(f"{n:,} photo{'s' if n != 1 else ''} tagged or updated" if n else "All up to date")
 
     def _load_faces(self) -> None:
         from lunelis.recognize import faces
@@ -1441,6 +1478,7 @@ class SettingsView(QWidget):
             self._load_thumbnails()
             self._load_scene_tags()
             self._load_faces()
+            self._load_places()
             self.version_label.setText(f"Lunelis {paths.version()}" + (" (from source)" if not paths.FROZEN else ""))
             self.auto_update.setChecked(s.get("update_check"))
         finally:

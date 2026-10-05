@@ -202,6 +202,8 @@ class LibraryWorker(QObject):
             if not self._cancel:
                 self._faces(conn, stop)
             if not self._cancel:
+                self._places(conn, stop)
+            if not self._cancel:
                 self._noticed(conn, stop)
             if not self._cancel:
                 self._say(8, "Checking for damaged files…")
@@ -228,6 +230,16 @@ class LibraryWorker(QObject):
                 return
             self._say(7, f"Looking at scenes… {start:,} / {len(todo):,}", start, len(todo))
             scenes.tag_files(conn, todo[start:start + 64], rec, paths.DATA_DIR, stop)
+
+    def _places(self, conn, stop) -> None:
+        from lunelis.settings import Settings
+        if not Settings(conn).get("places_auto"):
+            return
+        from lunelis.geo import places
+        todo = places.pending(conn)
+        if todo:
+            self._say(7, f"Naming places… {len(todo):,} photos")
+            places.tag_files(conn, todo, stop)
 
     def _faces(self, conn, stop) -> None:
         from lunelis.settings import Settings
@@ -569,6 +581,8 @@ class MainWindow(QMainWindow):
         from lunelis.ui.map_view import MapView
         self.map_page = MapView(self.conn)
         self.map_page.show_ids.connect(lambda ids: self.show_photos(ids, "On the map"))
+        self.map_page.show_unlocated.connect(lambda ids: self.show_photos(ids, "Without a location"))
+        self.map_page.places_changed.connect(lambda: self.reload_later())
         self.pages.addWidget(self.map_page, scroll=False)
         from lunelis.ui.autopilot_view import AutopilotView
         self.review_page = AutopilotView(self.conn)
@@ -791,6 +805,13 @@ class MainWindow(QMainWindow):
         self.photo_menu.addAction(self.archive_action)
         self.addAction(self.archive_action)
         self.photo_menu.aboutToShow.connect(self._update_archive_action)
+        self.photo_menu.addSeparator()
+        a = QAction("Set &location on the map…", self, shortcut="Ctrl+Shift+L", triggered=self.set_location)
+        self.photo_menu.addAction(a)
+        self.addAction(a)
+        self.photo_menu.addAction(QAction("Remove the pinned location", self, triggered=self.clear_location))
+        self.photo_menu.addAction(QAction("Unnamed &faces in these photos are strangers", self,
+                                          triggered=self.rest_are_strangers))
         help_menu = self.menuBar().addMenu("&Help")
         a = QAction("&Keyboard shortcuts", self, shortcut="?", triggered=self.show_shortcuts)
         help_menu.addAction(a)
@@ -896,8 +917,9 @@ class MainWindow(QMainWindow):
                 b.setIconSize(QSize(20, 20))
                 b.setChecked(label == "Library")
                 b.clicked.connect(lambda _=False, name=label: self.show_page(name))
-                if label == "Albums":
-                    self._spring = SpringLoad(b, lambda: self.open_page("Albums"))
+                if label in ("Albums", "Map"):
+                    # Photos held over the entry open the page, to drop on an album / on the map.
+                    setattr(self, f"_spring_{label.lower()}", SpringLoad(b, lambda n=label: self.open_page(n)))
                 group.addButton(b)
                 nv.addWidget(b)
                 items.append(b)
@@ -2437,6 +2459,35 @@ class MainWindow(QMainWindow):
     def move_archive(self) -> None:
         self.open_page("Migrate")
         self.migrate_page.prefill_archive()
+
+    def set_location(self) -> None:
+        """The Map in placing mode for the selection (photos without GPS, or a better spot)."""
+        ids = self._targets()
+        if not ids:
+            self.status.setText("Select the photos to place first")
+            return
+        self.close_detail()
+        self.open_page("Map")
+        self.map_page.start_placing(ids)
+
+    def clear_location(self) -> None:
+        from lunelis.geo import places
+        ids = self._targets()
+        n = places.clear_location(self.conn, ids) if ids else 0
+        self.status.setText(f"Took the pin off {n:,} photo{'s' if n != 1 else ''}" if n else
+                            "None of these photos has a pin (a location from the camera stays)")
+        if n:
+            self.reload_later()
+
+    def rest_are_strangers(self) -> None:
+        """A shoot in a public place: everyone not named in the selection is a stranger (People > Unknown)."""
+        from lunelis.recognize import faces
+        ids = self._targets()
+        n = faces.rest_are_strangers(self.conn, ids) if ids else 0
+        self.status.setText(f"{n:,} face{'s' if n != 1 else ''} marked as strangers - tagged People > Unknown"
+                            if n else "No unnamed faces in these photos")
+        if n:
+            self.reload_later()
 
     def toggle_archive(self) -> None:
         """Archive the selection; if it's all archived already, bring it back."""

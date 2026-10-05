@@ -53,6 +53,7 @@ KEYS: dict[str, list[tuple[str, str]]] = {
         ("Middle-button drag", "Pan the photo"),
         ("E", "Open or close the Edit panel"),
         ("F", "Show or hide the faces and their names (click a face to name or correct it; Ctrl+drag adds one)"),
+        ("Ctrl+Shift+L", "Set the location on the map (a pin, for photos without GPS)"),
         ("Esc, Backspace", "Back to the library"),
     ],
     "Edit panel": [

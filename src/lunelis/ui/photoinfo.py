@@ -37,15 +37,16 @@ INFO_SQL = """
 SELECT f.id, f.filename, r.path, f.rel_path, f.size_bytes, f.format, f.is_raw, f.sidecar,
        e.captured_at, e.captured_offset, e.date_source, e.camera_make, e.camera_model, e.lens,
        e.focal_length_mm, e.aperture, e.shutter_speed, e.iso, e.exposure_comp, e.flash_fired,
-       e.gps_lat, e.gps_lon, e.width_px, e.height_px, e.orientation, e.duration_s,
+       COALESCE(l.lat, e.gps_lat), COALESCE(l.lon, e.gps_lon), e.width_px, e.height_px, e.orientation, e.duration_s,
        COALESCE(rt.stars, 0), rt.flag, rt.color_label,
        ev.id, ev.name,
-       d.problem, f.mtime, f.motion_video
+       d.problem, f.mtime, f.motion_video, l.file_id IS NOT NULL
 FROM files f JOIN roots r ON r.id = f.root_id
 LEFT JOIN exif e ON e.file_id = f.id
 LEFT JOIN ratings rt ON rt.file_id = f.id
 LEFT JOIN event_files ef ON ef.file_id = f.id LEFT JOIN events ev ON ev.id = ef.event_id
 LEFT JOIN damaged d ON d.file_id = f.id
+LEFT JOIN locations l ON l.file_id = f.id
 WHERE f.id = ?
 """
 
@@ -111,6 +112,7 @@ class PhotoInfo:
     damaged: str | None
     mtime: str | None
     motion_video: int | None = None    # an Android motion photo's embedded video, in bytes
+    pinned: bool = False               # the location is a pin dropped on the Map, not the camera's GPS
     protection: str = ""               # the Backup line (backups/protection.py), filled by load()
 
     @property
@@ -193,7 +195,7 @@ def load(conn: sqlite3.Connection, file_id: int) -> PhotoInfo | None:
     if row is None:
         return None
     r = tuple(row)
-    info = PhotoInfo(r[0], r[1], r[2], r[3], r[4], r[5], bool(r[6]), r[7], *r[8:])
+    info = PhotoInfo(r[0], r[1], r[2], r[3], r[4], r[5], bool(r[6]), r[7], *r[8:-1], pinned=bool(r[-1]))
     from lunelis.backups.protection import of
     info.protection = of(conn, file_id).text()
     return info

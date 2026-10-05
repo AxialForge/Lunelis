@@ -85,7 +85,7 @@ In short:
 | 0.33 | Hardening after the October audit - done in v0.33.0 |
 | 0.34 | Installer and first-run setup - done in v0.34.1 |
 | 0.35 | Faces: found, grouped, named, corrected; face overlay - done in v0.35.0 |
-| 0.36 | Places: offline place tags, pins on the map for photos without GPS |
+| 0.36 | Places: offline place tags, pins on the map, unknown places; strangers (People > Unknown) - done in v0.36.0 |
 
 ## Later
 

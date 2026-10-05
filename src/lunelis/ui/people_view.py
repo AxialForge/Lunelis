@@ -9,7 +9,9 @@ and the place to put its mistakes right.
 - To confirm: every "Ann?" suggestion, person by person.
 - Unnamed: groups of alike faces nobody has named yet - name a whole group
   at once, or pull out faces that don't belong.
-- Ignored: faces marked "not a face"; bring one back if that was wrong.
+- Strangers & not faces: people you don't know (their photos are tagged
+  People|Unknown - for crowds and public places) and faces marked "not a
+  face"; bring one back if that was wrong.
 
 A named face tags its photo People|<name>; taking it out removes the tag
 again (recognize/faces.py keeps the two in step). Double-click a face to
@@ -137,7 +139,7 @@ class PeopleView(QWidget):
         self.tabs.addTab(self.people_stack, "People")
         self.tabs.addTab(self._confirm_page(), "To confirm")
         self.tabs.addTab(self._groups_page(), "Unnamed")
-        self.tabs.addTab(self._ignored_page(), "Ignored")
+        self.tabs.addTab(self._ignored_page(), "Strangers & not faces")
 
     # --- pages ---------------------------------------------------------------------------------
 
@@ -178,6 +180,7 @@ class PeopleView(QWidget):
         self.not_b = QPushButton("Not this person", clicked=lambda: self._reject(self.person_faces.chosen()))
         row.addWidget(self.not_b)
         row.addWidget(QPushButton("Move to…", clicked=lambda: self._move(self.person_faces.chosen())))
+        row.addWidget(QPushButton("Stranger", clicked=lambda: self._stranger(self.person_faces.chosen())))
         row.addWidget(QPushButton("Not a face", clicked=lambda: self._ignore(self.person_faces.chosen())))
         row.addWidget(QPushButton("Use as cover", clicked=self._cover))
         row.addStretch(1)
@@ -209,6 +212,7 @@ class PeopleView(QWidget):
                                   clicked=lambda: self._confirm(self.confirm_faces.all_ids(), self._confirm_pid())))
         row.addWidget(QPushButton("No", clicked=lambda: self._reject(self.confirm_faces.chosen())))
         row.addWidget(QPushButton("Someone else…", clicked=lambda: self._move(self.confirm_faces.chosen())))
+        row.addWidget(QPushButton("Stranger", clicked=lambda: self._stranger(self.confirm_faces.chosen())))
         row.addWidget(QPushButton("Not a face", clicked=lambda: self._ignore(self.confirm_faces.chosen())))
         row.addStretch(1)
         rv.addLayout(row)
@@ -242,6 +246,7 @@ class PeopleView(QWidget):
         row.addWidget(QPushButton("Name this person…", objectName="Primary", clicked=self._name_group))
         row.addWidget(QPushButton("Name selected…", clicked=lambda: self._move(self.group_faces.chosen())))
         row.addWidget(QPushButton("Not in this group", clicked=self._ungroup))
+        row.addWidget(QPushButton("Strangers", clicked=self._group_strangers))
         row.addWidget(QPushButton("Not a face", clicked=lambda: self._ignore(self.group_faces.chosen())))
         row.addStretch(1)
         rv.addLayout(row)
@@ -254,13 +259,16 @@ class PeopleView(QWidget):
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(0, 8, 0, 0)
-        v.addWidget(QLabel("Faces marked \"not a face\" (or strangers you don't want to name). They're left out "
-                           "of suggestions, groups and tags.", objectName="Help", wordWrap=True))
+        v.addWidget(QLabel("Strangers - people you don't know, in a crowd or a public place - put a "
+                           "People > Unknown tag on their photos. Faces marked \"not a face\" are left out of "
+                           "everything. Neither is suggested or grouped.", objectName="Help", wordWrap=True))
         self.ignored = FaceList()
         self.ignored.open_photo.connect(self.open_photo)
         v.addWidget(self.ignored, 1)
         row = QHBoxLayout()
-        row.addWidget(QPushButton("It is a face", clicked=lambda: self._unignore(self.ignored.chosen())))
+        row.addWidget(QPushButton("Bring back", clicked=lambda: self._unignore(self.ignored.chosen())))
+        row.addWidget(QPushButton("Stranger", clicked=lambda: self._stranger(self.ignored.chosen())))
+        row.addWidget(QPushButton("Not a face", clicked=lambda: self._ignore(self.ignored.chosen())))
         row.addWidget(QPushButton("Name…", clicked=lambda: self._move(self.ignored.chosen())))
         row.addStretch(1)
         v.addLayout(row)
@@ -281,7 +289,8 @@ class PeopleView(QWidget):
         elif tab == 2:
             self.bg.run("groups", lambda c: faces.groups(c, 2), self._show_groups)
         else:
-            self.ignored.fill([_face_item(f, "") for f in faces.ignored_faces(self.conn, LIMIT)])
+            self.ignored.fill([_face_item(f, "Stranger" if f.stranger else "Not a face")
+                               for f in faces.ignored_faces(self.conn, LIMIT)])
 
     @unless_closed
     def _show_counts(self, result) -> None:
@@ -412,6 +421,11 @@ class PeopleView(QWidget):
                                         names if names else [""], names.index(current) if current in names else 0,
                                         True)
         name = (name or "").strip()
+        if ok and name.casefold() == "unknown":
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Strangers", "\"Unknown\" is kept for strangers: choose Stranger "
+                                    "instead, and the photo is tagged People > Unknown.")
+            return None
         return name if ok and name else None
 
     def _done(self, message: str | None = None) -> None:
@@ -436,6 +450,18 @@ class PeopleView(QWidget):
         if ids:
             faces.ignore(self.conn, ids)
             self._done()
+
+    def _stranger(self, ids: list[int]) -> None:
+        if ids:
+            faces.mark_strangers(self.conn, ids)
+            self._done()
+
+    def _group_strangers(self) -> None:
+        """The whole group (or the selected faces) are people you don't know."""
+        ids = self.group_faces.chosen() or self.group_faces.all_ids()
+        if ids:
+            faces.mark_strangers(self.conn, ids)
+            self._done(f"{len(ids):,} faces marked as strangers - their photos are tagged People > Unknown.")
 
     def _unignore(self, ids: list[int]) -> None:
         if ids:
@@ -479,6 +505,7 @@ class PeopleView(QWidget):
         m = QMenu(self)
         m.addAction(self.not_b.text(), lambda: self._reject(ids))
         m.addAction("Move to…", lambda: self._move(ids))
+        m.addAction("Stranger", lambda: self._stranger(ids))
         m.addAction("Not a face", lambda: self._ignore(ids))
         m.addAction("Use as cover", self._cover)
         m.exec(self.cursor().pos())

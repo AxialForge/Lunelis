@@ -32,7 +32,7 @@ Sidebar > Photos > **People**.
 | **People** | Everyone you've named, with how many photos they're in and how many faces wait for a yes. Open a person to see all their faces. |
 | **To confirm** | Every "Ann?" suggestion, person by person. **Yes** names the face (and tags the photo); **No** takes the suggestion away and Lunelis never suggests that person for that face again. |
 | **Unnamed** | Groups of faces that look alike but have no name yet. **Name this person...** names the whole group at once; take out faces that don't belong first (**Not in this group**). |
-| **Ignored** | Faces marked **Not a face** (or strangers you don't want to name). They're left out of groups, suggestions and tags. **It is a face** brings one back. |
+| **Strangers & not faces** | People you don't know (**Stranger** - their photos get People > Unknown) and faces marked **Not a face**. Neither is grouped or suggested. **Bring back** undoes either. |
 
 ### Correcting mistakes
 
@@ -42,6 +42,7 @@ click), then:
 - **Not Ann** - the face isn't Ann: her tag comes off that photo, and Ann is
   never suggested for that face again.
 - **Move to...** - it's someone else: pick a name or type a new one.
+- **Stranger** - someone you don't know (see below).
 - **Not a face** - it isn't a face at all.
 - **Use as cover** - the face shown for the person on the People tab.
 - **Rename...** - a typo, or a nickname. Renaming to a name that's already
@@ -51,6 +52,25 @@ click), then:
 
 Double-click any face to open its photo.
 
+## Strangers
+
+Shooting in a crowd or a public place, most faces belong to people you'll
+never name. Mark them as **strangers**: the photo gets **People > Unknown**,
+so you can find (or leave out) photos with strangers in them, and they're
+never grouped or suggested as someone you know.
+
+- One face: click it in the photo view > **Stranger**, or select it on the
+  People page > **Stranger**.
+- A whole unnamed group: Unnamed > **Strangers**.
+- A whole shoot: name the people you know, select the photos in the library,
+  then **Photo > Unnamed faces in these photos are strangers** - everyone
+  left unnamed becomes a stranger. In the photo view the same is in a face's
+  menu: **Everyone not named here is a stranger**.
+
+Strangers show as a dotted grey box labelled "Stranger". Naming a stranger
+later makes them a person again and takes People > Unknown off the photo if
+nobody else there is a stranger. "Unknown" can't be used as a person's name.
+
 ## Faces in the photo view
 
 Press **F** (or the **Faces** button) in the photo view to show a box around
@@ -58,7 +78,8 @@ every face, with the name under it:
 
 - **solid** box, name in the accent colour - named;
 - **dashed** amber box, "Ann?" - a suggestion waiting for a yes;
-- **white** box, no name - nobody yet.
+- **white** box, no name - nobody yet;
+- **dotted** grey box, "Stranger" - someone you don't know.
 
 **Click a box** for: *Yes, this is Ann* · *Name...* / *Rename...* · *Not Ann* ·
 *Not a face* · *All photos of Ann*. **Ctrl + drag** draws a box around a
