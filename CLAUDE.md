@@ -871,6 +871,18 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
   the native platform and `WA_DontShowOnScreen` instead.
 - **Don't swap the grid for QListView/IconMode.** It lays out every item
   up front; at 160k that's seconds per resize or sort.
+- **Worker threads open the catalog through `_thread_catalog()`, never
+  `main_window.open_catalog`.** Tests patch `mw.open_catalog` to hand the
+  window their own connection; a scan / backup / sidecar worker calling it
+  got that main-thread connection - "SQLite objects created in a thread can
+  only be used in that same thread" on GitHub only (timing), and the worker's
+  `finally: conn.close()` would close the test's catalog. Failed the 0.21.0
+  build after 434 passes.
+- **Tests delete the windows they open (`_no_leftover_windows`).** Without
+  it every app-wide stylesheet change restyled all earlier tests' widgets and
+  the suite slowed to hours. It waits for the thread pool first and skips a
+  window whose QThread still runs - deleting a page mid-work killed the
+  process with exit 127 and no traceback.
 
 ## Roadmap (unbuilt)
 
