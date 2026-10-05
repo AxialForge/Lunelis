@@ -2861,6 +2861,8 @@ class MainWindow(QMainWindow):
         self._jobs_timer.stop()
         self._drive_timer.stop()
         self._dt_timer.stop()
+        self._reach_timer.stop()
+        self._integrity_timer.stop()
         if self._jobs_dialog is not None:
             self._jobs_dialog._timer.stop()
             self._jobs_dialog.close()
