@@ -719,6 +719,22 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    33,
+    "Autopilot Import: each run's stages, what they made (for Undo) and what waits for review",
+    """
+    CREATE TABLE IF NOT EXISTS autopilot_runs (
+        id INTEGER PRIMARY KEY,
+        import_id INTEGER NOT NULL,
+        state TEXT NOT NULL DEFAULT 'running',   -- running | review | done
+        stages TEXT NOT NULL,                    -- JSON: stage -> {status, summary, data}
+        file_ids TEXT,                           -- JSON: the import's photos, once catalogued
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        finished_at TEXT
+    );
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 
