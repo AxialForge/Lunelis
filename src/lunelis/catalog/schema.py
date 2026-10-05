@@ -692,6 +692,23 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    31,
+    "Lunelis noticed: suggested HDR brackets, panoramas, focus stacks, timelapses, star trails",
+    """
+    CREATE TABLE IF NOT EXISTS suggestions (
+        id INTEGER PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,             -- kind + its frames: a dismissed group is never offered again
+        kind TEXT NOT NULL,                   -- hdr | panorama | focus | timelapse | startrails
+        file_ids TEXT NOT NULL,               -- JSON list, in shooting order
+        detail TEXT,                          -- JSON (EV span, interval...)
+        status TEXT NOT NULL DEFAULT 'open',  -- open | dismissed | built
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        answered_at TEXT
+    );
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 
