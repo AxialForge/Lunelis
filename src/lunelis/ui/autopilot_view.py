@@ -11,7 +11,7 @@ one row per stage, each with its answer:
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from lunelis.importing import autopilot as ap
@@ -94,7 +94,17 @@ class AutopilotView(QWidget):
             text = QVBoxLayout()
             text.addWidget(QLabel(ap.TITLES[stage], objectName="SectionTitle"))
             summary = "Turned off" if st["status"] == "off" else st["summary"]
-            text.addWidget(QLabel(summary, objectName="Help", wordWrap=True))
+            lab = QLabel(objectName="Help", wordWrap=True)
+            made = st["data"].get("path") if st["status"] == "made" else None
+            if made:
+                # The reel is a new file: a way to it, not just its name.
+                from html import escape
+                lab.setText(f'{escape(summary)} <a href="open">Play it</a> · <a href="folder">Open the folder</a>')
+                lab.linkActivated.connect(lambda href, path=made: self._open(path, href == "folder"))
+            else:
+                lab.setTextFormat(Qt.TextFormat.PlainText)
+                lab.setText(summary)
+            text.addWidget(lab)
             row.addLayout(text, 1)
             b = {}
             if r["state"] == "review":
@@ -130,6 +140,13 @@ class AutopilotView(QWidget):
         rid = self.run_id
         self.bg.run("reel", lambda conn: ap.make_reel(conn, rid, folder), lambda _p: self._draw(),
                     error=lambda e: (self.info.setText(f"Couldn't make the reel: {e}"), self._draw()))
+
+    @staticmethod
+    def _open(path: str, folder: bool) -> None:
+        import os
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(path) if folder else path))
 
     def _show_photos(self) -> None:
         r = ap.get(self.conn, self.run_id) if self.run_id else None

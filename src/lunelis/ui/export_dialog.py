@@ -22,6 +22,22 @@ from lunelis.edit.export import ExportOptions, export_one
 from lunelis.settings import Settings
 
 
+# Ready-made sets (the folder stays whatever you chose). Yours are added with Save as preset.
+BUILT_IN = {
+    "Web - 2048 px, sharpened for screens": {"format": "jpeg", "long_edge": 2048, "quality": 88,
+                                              "metadata": "no_location", "sharpen": "screen"},
+    "Email - 1600 px, small files": {"format": "jpeg", "long_edge": 1600, "quality": 80,
+                                     "metadata": "no_location", "sharpen": "screen"},
+    "Social - 1080 px, no metadata": {"format": "jpeg", "long_edge": 1080, "quality": 90,
+                                      "metadata": "none", "sharpen": "screen"},
+    "Print, matte - full size": {"format": "jpeg", "long_edge": None, "quality": 95,
+                                 "metadata": "all", "sharpen": "matte"},
+    "Print, glossy - full size": {"format": "jpeg", "long_edge": None, "quality": 95,
+                                  "metadata": "all", "sharpen": "glossy"},
+    "Archive - full size TIFF": {"format": "tiff", "long_edge": None, "metadata": "all", "sharpen": "none"},
+}
+
+
 class ExportDialog(QDialog):
     def __init__(self, conn, count: int, parent=None) -> None:
         super().__init__(parent)
@@ -38,6 +54,8 @@ class ExportDialog(QDialog):
         prow = QHBoxLayout()
         self.preset = QComboBox()
         self.preset.addItem("Last used", None)
+        for name in BUILT_IN:
+            self.preset.addItem(name, "builtin:" + name)
         for name in sorted(Settings(conn).get("export_presets") or {}):
             self.preset.addItem(name, name)
         self.preset.currentIndexChanged.connect(self._preset_chosen)
@@ -164,6 +182,9 @@ class ExportDialog(QDialog):
     def _preset_chosen(self, _i: int) -> None:
         name = self.preset.currentData()
         s = Settings(self.conn)
+        if name and name.startswith("builtin:"):
+            self._apply({"folder": self.folder.text(), "pattern": self.pattern.text(), **BUILT_IN[name[8:]]})
+            return
         self._apply((s.get("export_presets") or {}).get(name) if name else (s.get("export_last") or {}))
 
     def _save_preset(self) -> None:

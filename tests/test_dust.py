@@ -137,7 +137,10 @@ def test_the_sensor_dust_page(cam, monkeypatch):
         view.show_ids.connect(lambda i, n: shown.append(n))
         view.show_b.click()
         assert shown == ["Sensor dust"]
+        from PySide6.QtWidgets import QMessageBox
+        monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
         view.heal_b.click()
+        view.bg.wait()
         assert "Healed" in view.text.text() and view.undo_b.isEnabled()
         view.undo_b.click()
         assert "Took the dust spots off" in view.text.text() and not view.undo_b.isEnabled()

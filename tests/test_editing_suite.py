@@ -248,3 +248,17 @@ def test_export_presets_in_the_dialog(lib, monkeypatch):
     d2.preset.setCurrentIndex(d2.preset.findData("Print, glossy"))
     o = d2._current()
     assert o.sharpen == "glossy" and o.profile == "builtin:adobe-rgb"
+
+
+def test_export_has_ready_made_presets(lib):
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.export_dialog import ExportDialog
+    conn, fid, tmp = lib
+    d = ExportDialog(conn, 1)
+    folder = d.folder.text()
+    d.preset.setCurrentIndex(d.preset.findData("builtin:Print, matte - full size"))
+    o = d._current()
+    assert o.sharpen == "matte" and o.long_edge is None and o.quality == 95 and o.folder == folder
+    d.preset.setCurrentIndex(d.preset.findData("builtin:Social - 1080 px, no metadata"))
+    assert d._current().long_edge == 1080 and d._current().metadata == "none"

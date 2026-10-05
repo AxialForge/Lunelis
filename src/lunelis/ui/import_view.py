@@ -90,6 +90,7 @@ class ImportWorker(QObject):
 class ImportView(QWidget):
     imported = Signal(str)                       # destination folder that received files
     autopilot = Signal(int)                      # import id: sort out the shoot once it's catalogued
+    review = Signal()                            # open "Review your shoot"
 
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
@@ -115,6 +116,15 @@ class ImportView(QWidget):
         self.found = QLabel(objectName="Count")
         hl.addWidget(self.found)
         outer.addWidget(head)
+        # A shoot the autopilot sorted out, waiting to be looked over.
+        self.review_bar = QWidget(objectName="Card")
+        rb = QHBoxLayout(self.review_bar)
+        rb.setContentsMargins(24, 8, 24, 8)
+        self.review_text = QLabel()
+        rb.addWidget(self.review_text, 1)
+        rb.addWidget(QPushButton("Review it", objectName="Primary", clicked=lambda: self.review.emit()))
+        self.review_bar.hide()
+        outer.addWidget(self.review_bar)
 
         body = QHBoxLayout()
         body.setSpacing(0)
@@ -220,8 +230,16 @@ class ImportView(QWidget):
 
     # --- settings-backed fields ---------------------------------------------------
 
+    def show_review_waiting(self) -> None:
+        from lunelis.importing import autopilot
+        n = len(autopilot.to_review(self.conn))
+        self.review_text.setText(f"Autopilot sorted out {n} shoot{'s' if n != 1 else ''} - "
+                                 "look over what it did, keep it or undo it.")
+        self.review_bar.setVisible(bool(n))
+
     def refresh(self) -> None:
         s = Settings(self.conn)
+        self.show_review_waiting()
         self.autopilot_cb.blockSignals(True)
         self.autopilot_cb.setChecked(s.get("autopilot"))
         self.autopilot_cb.blockSignals(False)

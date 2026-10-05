@@ -266,6 +266,7 @@ class Tool(QWidget):
     """A Create tool: back button, title, picker, options, Make."""
 
     back = Signal()
+    made = Signal(str)                 # the first new file, once a Make has finished
     title_text = ""
     blurb = ""
     minimum = 1
@@ -362,6 +363,7 @@ class Tool(QWidget):
         what = (f'<a href="{made[0]}">{os.path.basename(made[0])}</a>' if len(made) == 1
                 else f"{len(made):,} files")
         self.result.setText(f"Made {what} in <a href=\"{folder}\">{folder}</a>")
+        self.made.emit(made[0])
 
 
 # --- Animation ---------------------------------------------------------------------------------
@@ -405,9 +407,11 @@ class AnimationTool(Tool):
         self._frames: list[QPixmap] = []
         self._i = 0
         self._play = QTimer(self, timeout=self._next_frame)
+        self._loaded: list[QPixmap] = []
         self.picker.changed.connect(self._restart_preview)
-        self.speed.valueChanged.connect(self._restart_preview)
-        self.bounce.toggled.connect(self._restart_preview)
+        # Speed and forward-and-back only replay the frames already loaded.
+        self.speed.valueChanged.connect(lambda _v: self._restart_preview(reload=False))
+        self.bounce.toggled.connect(lambda _on: self._restart_preview(reload=False))
         self._kind_changed()
 
     def _kind_changed(self) -> None:
@@ -416,10 +420,11 @@ class AnimationTool(Tool):
         self.loops.setToolTip("How many times the photos are played in the video" if mp4
                               else "0 = loops forever")
 
-    def _restart_preview(self) -> None:
-        ids = self.picker.ids()[:animation.MAX_FRAMES]
-        self._frames = [to_pixmap(thumb_image(self.conn, f, 512)) for f in ids[:60]]
-        self._frames = animation.sequence(self._frames, self.bounce.isChecked())
+    def _restart_preview(self, reload: bool = True) -> None:
+        if reload:
+            ids = self.picker.ids()[:animation.MAX_FRAMES]
+            self._loaded = [to_pixmap(thumb_image(self.conn, f, 512)) for f in ids[:60]]
+        self._frames = animation.sequence(self._loaded, self.bounce.isChecked())
         self._i = 0
         if len(self._frames) >= 2:
             self._play.start(self.speed.value())
@@ -484,7 +489,7 @@ class CollageCanvas(QWidget):
         self.selected = -1
         self._redraw = QTimer(self, singleShot=True, interval=30, timeout=self.rebuild)
 
-    HANDLE = 9
+    HANDLE = 14                    # big enough to hit on a laptop's trackpad
 
     def _handles(self, i: int) -> dict[str, QRectF]:
         r = self._boxes[i]

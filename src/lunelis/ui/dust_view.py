@@ -166,13 +166,27 @@ class DustView(QWidget):
     def heal(self) -> None:
         if not self.map or not self._plan:
             return
+        from PySide6.QtWidgets import QMessageBox
+        n = len(self._plan)
+        if QMessageBox.question(self, "Heal the dust",
+                                f"Add heal spots to {n:,} photo{'s' if n != 1 else ''}? They're edits - the files "
+                                "don't change, and Undo the last heal takes them off again.") \
+                != QMessageBox.StandardButton.Yes:
+            return
         live = [s for s in self.map.spots if s.state != "cleaned"] or self.map.spots
-        done, skipped = dust.heal(self.conn, self.map, live)
-        self.text.setText(f"Healed {done:,} photo{'s' if done != 1 else ''}"
-                          + (f"; {skipped} turned or flipped in Lunelis were left alone" if skipped else "")
-                          + ". Undo the last heal takes the spots off again.")
-        self.healed.emit()
-        self._update_buttons()
+        m = self.map
+        self.heal_b.setEnabled(False)
+        self.text.setText(f"Healing {n:,} photos…")
+
+        def done(result):
+            healed, skipped = result
+            self.text.setText(f"Healed {healed:,} photo{'s' if healed != 1 else ''}"
+                              + (f"; {skipped} turned or flipped in Lunelis were left alone" if skipped else "")
+                              + ". Undo the last heal takes the spots off again.")
+            self.healed.emit()
+            self._update_buttons()
+        self.bg.run("heal", lambda conn: dust.heal(conn, m, live), done,
+                    error=lambda e: (self.text.setText(f"Couldn't heal: {e}"), self._update_buttons()))
 
     def undo(self) -> None:
         cam = self.camera.currentData()

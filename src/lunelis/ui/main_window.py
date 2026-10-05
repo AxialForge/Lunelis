@@ -479,6 +479,7 @@ class MainWindow(QMainWindow):
         self.importer = ImportView(self.conn)
         self.importer.imported.connect(self._after_import)
         self.importer.autopilot.connect(self._autopilot_import)
+        self.importer.review.connect(lambda: self.open_page("Review your shoot"))
         self._autopilot_thread: QThread | None = None
         self.pages.addWidget(self.importer)
         self.events_page = EventsView(self.conn)
@@ -1040,6 +1041,9 @@ class MainWindow(QMainWindow):
                   context=Qt.ShortcutContext.WidgetShortcut)
         self._search_completer_ready = False
         h.addWidget(self.search)
+        ask_b = QPushButton("Ask", objectName="Ask", clicked=self.open_ask)
+        ask_b.setToolTip("Ask your library in a sentence - \"sunset on a beach, 2024\" (Ctrl+Shift+F)")
+        h.addWidget(ask_b)
         h.addStretch(1)
         h.addWidget(QLabel("Sort:", objectName="ToolLabel"))
         from lunelis.settings import Settings
@@ -1204,10 +1208,25 @@ class MainWindow(QMainWindow):
         elif self.filter.active():
             self.grid.empty_text = "No photos match these filters"
         else:
-            self.grid.empty_text = "No folders yet — Library ▸ Add folder… (Ctrl+O)"
+            self.grid.empty_text = "No folders yet - add the folder your photos are in"
+        no_sources = not len(self.index) and not self.filter.active() and not self.conn.execute(
+            "SELECT 1 FROM roots LIMIT 1").fetchone()
+        self._empty_add_b().setVisible(no_sources)
         self.grid.set_index(self.index)
         self.footer.setText(f"{s['bytes'] / 1e12:,.1f} TB indexed\n{s['files'] - s['missing'] - s['excluded']:,} photos & videos")
         self._update_count(len(self.grid.selected))
+
+    def _empty_add_b(self) -> QPushButton:
+        """A big Add a folder button in the middle of an empty library."""
+        if not hasattr(self, "_add_b"):
+            self._add_b = QPushButton("Add a folder…", self.grid.viewport(), objectName="Primary",
+                                      clicked=self.add_folder)
+            self._add_b.adjustSize()
+            self._add_b.hide()
+            self.grid.resized = getattr(self.grid, "resized", None)
+        vp = self.grid.viewport()
+        self._add_b.move((vp.width() - self._add_b.width()) // 2, vp.height() // 2 + 28)
+        return self._add_b
 
     # --- import, cards & tray ----------------------------------------------------
 
@@ -1320,11 +1339,14 @@ class MainWindow(QMainWindow):
             self.tray.hide()
             self.tray.deleteLater()
             self.tray = None
-            if self.cards is not None:
-                self.cards._timer.stop()
-                self.cards.deleteLater()
-                self.cards = None
             self._auto_action = None
+        if not enabled and self.cards is None:
+            # No tray: cards and USB drives are still noticed while the window is open.
+            from lunelis.ui.tray import CardWatcher
+            self.cards = CardWatcher(self)
+            self.cards.inserted.connect(self._card_inserted)
+            self.cards.stick_inserted.connect(self._stick_inserted)
+            self.cards.removed.connect(lambda d: self.importer.update_cards())
         app = QApplication.instance()
         if app is not None:
             app.setQuitOnLastWindowClosed(self.tray is None)
@@ -1439,6 +1461,7 @@ class MainWindow(QMainWindow):
                 return
         self._tray_card = drive
         if self.tray is None:
+            self.status.set_link(f"A memory card is in {drive.rstrip(chr(92))} - ", "import it", "Import")
             return
 
         # Counting walks the whole card: on a worker. A card pulled meanwhile
@@ -1455,8 +1478,6 @@ class MainWindow(QMainWindow):
         """A USB stick (no camera folders): offered for import when it holds
         photos - counted on a worker, and only up to a point (a big drive)."""
         self.importer.update_cards()
-        if self.tray is None:
-            return
         _serial, label = ingest.volume_info(drive)
 
         def count() -> int:
@@ -1473,6 +1494,10 @@ class MainWindow(QMainWindow):
         def say(n: int) -> None:
             if n and drive in ingest.removable_drives():
                 self._tray_card = drive
+                if self.tray is None:
+                    self.status.set_link(f"{label or 'A USB drive'} ({drive.rstrip(chr(92))}) has {n:,} photos and "
+                                         "videos - ", "import them", "Import")
+                    return
                 self.tray.showMessage("USB drive inserted",
                                       f"{label or 'USB drive'} ({drive.rstrip(chr(92))}): {n:,} photos and videos. "
                                       "Click to import.")
@@ -1486,6 +1511,10 @@ class MainWindow(QMainWindow):
         return self.bg
 
     def _tray_message_clicked(self) -> None:
+        if getattr(self, "_tray_review", False):
+            self._tray_review = False
+            self.open_page("Review your shoot")
+            return
         if self._tray_card:
             self.open_page("Import")
             self.importer.choose(self._tray_card)
@@ -1579,12 +1608,16 @@ class MainWindow(QMainWindow):
         self._autopilot_thread = None
         if reviewable:
             self.status.set_link("Autopilot: your shoot is ready - ", "review it", "Review your shoot")
+            self.importer.show_review_waiting()
             if self.tray is not None:
-                self.tray.showMessage("Your shoot is ready", "Autopilot has sorted it out - review it in Lunelis.")
+                self._tray_card = None
+                self._tray_review = True
+                self.tray.showMessage("Your shoot is ready", "Autopilot has sorted it out - click to review it.")
         self._start_thumbnails_if_needed()
         self.reload()
 
     def _shoot_reviewed(self) -> None:
+        self.importer.show_review_waiting()
         self._start_thumbnails_if_needed()
         self.reload()
 
@@ -2187,7 +2220,7 @@ class MainWindow(QMainWindow):
             return
         rec = backend()
         if rec is None:
-            self.status.setText("Find similar needs scene tags turned on (Settings > Library > Scene tags)")
+            self.status.set_link("Find similar needs the scene model - ", "turn it on in Settings", "Settings")
             return
         name = "Like this photo" if len(ids) == 1 else f"Like these {len(ids):,} photos"
 
@@ -2208,6 +2241,14 @@ class MainWindow(QMainWindow):
             ids = [self.index.file_id(i) for i in range(len(self.index)) if self.index.file_id(i) in self.grid.selected]
         else:
             ids = [self.index.file_id(i) for i in range(len(self.index))]
+        # A collapsed burst is one tile in the grid, but culling is where its frames
+        # are chosen between: every frame, in shooting order.
+        from lunelis import stacks
+        expanded = []
+        for fid in ids:
+            sid = stacks.stack_of(self.conn, fid)
+            expanded += stacks.members(self.conn, sid) if sid is not None else [fid]
+        ids = list(dict.fromkeys(expanded))
         if not ids:
             self.status.setText("Nothing to cull - the library shows no photos")
             return
@@ -2831,8 +2872,21 @@ class MainWindow(QMainWindow):
                 self._noticed_pending = None          # the dialog was cancelled: still on offer
         elif kind in ("timelapse", "focus", "startrails"):
             self.open_page("Create")
-            self.create_page.open_tool({"startrails": "trails"}.get(kind, kind))
-            noticed.mark_built(self.conn, sid)
+            key = {"startrails": "trails"}.get(kind, kind)
+            self.create_page.open_tool(key)
+            # Built only once the tool has made the file: backing out keeps the suggestion.
+            tool = self.create_page.tools[key]
+            self._noticed_build = (key, sid)
+            if not getattr(tool, "_noticed_hooked", False):
+                tool.made.connect(lambda _path, k=key: self._noticed_made(k))
+                tool._noticed_hooked = True
+
+    def _noticed_made(self, key: str) -> None:
+        pending = getattr(self, "_noticed_build", None)
+        if pending and pending[0] == key:
+            from lunelis import noticed
+            noticed.mark_built(self.conn, pending[1])
+            self._noticed_build = None
 
     def _on_similar_done(self, groups: int) -> None:
         if self.pages.currentWidget() is self.dupes:

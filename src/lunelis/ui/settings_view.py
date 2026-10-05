@@ -143,7 +143,7 @@ class SettingsView(QWidget):
             "General": [self._startup, self._tray],
             "Edit": [self._editing, self._ai_models, self._edit_caches],
             "Appearance": [self._appearance, self._library_view],
-            "Library": [self._sources, self._thumbnails, self._scene_tags],
+            "Library": [self._sources, self._thumbnails, self._scene_tags, self._helpers],
             "Import": [self._import],
             "Ratings & sidecars": [self._sidecars],
             "Duplicates & jobs": [self._duplicates_and_jobs],
@@ -238,20 +238,6 @@ class SettingsView(QWidget):
         self.show_videos = QCheckBox("Show videos in the library")
         self.show_videos.toggled.connect(lambda on: self._set("show_videos", on) and self.view_changed.emit())
         v.addWidget(self.show_videos)
-        self.noticed_cb = QCheckBox("After each scan, look for brackets, panoramas, focus stacks and timelapses")
-        self.noticed_cb.setToolTip("Suggestions wait on the Library status page; nothing is built by itself")
-        self.noticed_cb.toggled.connect(lambda on: self._set("noticed_auto", on))
-        v.addWidget(self.noticed_cb)
-        self.log_look = QComboBox()
-        self.log_look.addItem("Built-in look (to Rec.709)", "builtin")
-        self.log_look.addItem("My own LUT…", "cube")
-        self.log_look.addItem("Off - show as recorded", "off")
-        self.log_look.currentIndexChanged.connect(self._log_look_changed)
-        self.log_lut_label = QLabel(objectName="Count")
-        self._row(v, "S-Log3 videos", self.log_look, self.log_lut_label,
-                  help="Sony S-Log3 clips look flat and grey until they're graded. Lunelis shows them through a "
-                       "look in the player and the thumbnails - the files are never changed. A .cube LUT of your "
-                       "own should take S-Log3 as its input.")
         self.hover_info = QCheckBox("Show photo info when the mouse rests on a photo")
         self.hover_info.toggled.connect(lambda on: self._set("hover_info", on) and self.view_changed.emit())
         v.addWidget(self.hover_info)
@@ -388,6 +374,40 @@ class SettingsView(QWidget):
             return
         self._set("proof_profile", path)
         self._load_colour()
+
+    def _helpers(self) -> QFrame:
+        card, v = self._card("Shoots, videos and the autopilot",
+                             "What Lunelis does for you after a scan or an import - all of it only suggests, "
+                             "or can be undone.")
+        self.noticed_cb = QCheckBox("After each scan, look for brackets, panoramas, focus stacks and timelapses")
+        self.noticed_cb.setToolTip("Suggestions wait on the Library status page; nothing is built by itself")
+        self.noticed_cb.toggled.connect(lambda on: self._set("noticed_auto", on))
+        v.addWidget(self.noticed_cb)
+        self.log_look = QComboBox()
+        self.log_look.addItem("Built-in look (to Rec.709)", "builtin")
+        self.log_look.addItem("My own LUT…", "cube")
+        self.log_look.addItem("Off - show as recorded", "off")
+        self.log_look.currentIndexChanged.connect(self._log_look_changed)
+        self.log_lut_label = QLabel(objectName="Count")
+        self._row(v, "S-Log3 videos", self.log_look, self.log_lut_label,
+                  help="Sony S-Log3 clips look flat and grey until they're graded. Lunelis shows them through a "
+                       "look in the player and the thumbnails - the files are never changed. A .cube LUT of your "
+                       "own should take S-Log3 as its input.")
+        v.addWidget(QLabel("Autopilot after an import (tick Autopilot on the Import page)", objectName="SubTitle"))
+        from lunelis.importing.autopilot import STAGES, TITLES
+        self.autopilot_stages: dict[str, QCheckBox] = {}
+        for stage in STAGES:
+            cb = QCheckBox(TITLES[stage])
+            cb.toggled.connect(lambda _on: self._set("autopilot_skip",
+                                                      [k for k, b in self.autopilot_stages.items() if not b.isChecked()]))
+            self.autopilot_stages[stage] = cb
+            v.addWidget(cb)
+        return card
+
+    def _load_helpers(self) -> None:
+        skip = set(Settings(self.conn).get("autopilot_skip"))
+        for stage, cb in self.autopilot_stages.items():
+            cb.setChecked(stage not in skip)
 
     def _scene_tags(self) -> QFrame:
         card, v = self._card("Scene tags", "A model that runs only on this PC looks at your photos' thumbnails "
@@ -714,7 +734,11 @@ class SettingsView(QWidget):
         self.update_status.setWordWrap(True)
         v.addWidget(self.update_status)
         self.update_notes = QTextBrowser()
-        self.update_notes.setOpenExternalLinks(True)
+        self.update_notes.setOpenExternalLinks(False)
+        self.update_notes.setOpenLinks(False)
+        # Release notes come from GitHub: only web links open (never a file or a network share).
+        self.update_notes.anchorClicked.connect(
+            lambda url: QDesktopServices.openUrl(url) if url.scheme() == "https" else None)
         self.update_notes.setMaximumHeight(220)
         self.update_notes.hide()
         v.addWidget(self.update_notes)
@@ -1282,6 +1306,7 @@ class SettingsView(QWidget):
             self.show_videos.setChecked(s.get("show_videos"))
             self._load_log_look()
             self.noticed_cb.setChecked(s.get("noticed_auto"))
+            self._load_helpers()
             self._load_integrity()
             self.hover_info.setChecked(s.get("hover_info"))
             self.sidebar_auto.setChecked(s.get("sidebar_auto"))

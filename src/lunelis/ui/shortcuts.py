@@ -23,7 +23,15 @@ KEYS: dict[str, list[tuple[str, str]]] = {
         ("C", "Compare: 2, 3, 4 photos side by side, then back to 1"),
         ("Tab", "In a compare: the next photo is the one the keys act on"),
         ("Z, wheel, drag", "Zoom and move - every photo in the compare together"),
+        ("Ctrl+Z / Ctrl+Y", "Undo / redo the last star, label or flag"),
+        ("?", "These keys"),
         ("Esc", "Back to the library"),
+    ],
+    "Video": [
+        ("Space or K", "Play / pause"),
+        ("J / L", "5 seconds back / on"),
+        ("I / O", "Mark where a trimmed copy starts / ends"),
+        ("Left / Right", "Previous / next photo or video"),
     ],
     "Library": [
         ("Enter", "Open the selected photo"),
@@ -81,7 +89,9 @@ class ShortcutSheet(QDialog):
         self.resize(640, 640)
         v = QVBoxLayout(self)
         v.addWidget(QLabel(f"On this screen: <b>{screen}</b>. Menu commands work everywhere."))
-        order = [screen] + [g for g in ("Library", "Photo view", "Edit panel") if g != screen]
+        groups = ("Library", "Photo view", "Video", "Edit panel", "Culling (Photo > Cull full screen, Ctrl+K)")
+        order = [g for g in groups if g == screen or g.startswith(screen + " ")] + \
+            [g for g in groups if not (g == screen or g.startswith(screen + " "))]
         rows: list[tuple[str, str, str]] = []
         for group in order:
             rows += [(group, k, d) for k, d in KEYS.get(group, ())]

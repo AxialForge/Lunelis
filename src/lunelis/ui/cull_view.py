@@ -20,6 +20,7 @@ from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QKeyEvent, QPixmap
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from lunelis.ui.background import unless_closed
 from lunelis import paths
 from lunelis.raw.thumbnails import cache_rel_path
 from lunelis.ui import photoinfo
@@ -89,7 +90,7 @@ class CullView(QWidget):
         self.active = 0                    # which of the group the keys act on
         self.auto_advance = True
         self.previews = PreviewCache(self)
-        self.previews.ready.connect(lambda _fid: self._show())
+        self.previews.ready.connect(self._preview_ready)
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
@@ -103,7 +104,8 @@ class CullView(QWidget):
         h.setContentsMargins(16, 8, 16, 8)
         self.info = QLabel(objectName="CullInfo")
         h.addWidget(self.info, 1)
-        self.hint = QLabel("← → move · P pick · X reject · U unflag · 0-5 stars · C compare · A auto-advance · Esc done",
+        self.hint = QLabel("← → move · P pick · X reject · U unflag · 0-5 stars · C compare · A auto-advance · "
+                           "Ctrl+Z undo · ? keys · Esc done",
                            objectName="Help")
         h.addWidget(self.hint)
         v.addWidget(bar)
@@ -212,8 +214,23 @@ class CullView(QWidget):
 
     # --- keys ---------------------------------------------------------------------------------
 
+    @unless_closed
+    def _preview_ready(self, _fid: int) -> None:
+        self._show()                              # not after the window (or the catalog) has closed
+
     def keyPressEvent(self, e: QKeyEvent) -> None:
         k = e.key()
+        ctrl = bool(e.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        window = getattr(self.rate_ids, "__self__", None)          # the main window: its undo history
+        if ctrl and k in (Qt.Key.Key_Z, Qt.Key.Key_Y) and window is not None:
+            redo = k == Qt.Key.Key_Y or bool(e.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            window.redo() if redo else window.undo()
+            self._show()
+            return
+        if k == Qt.Key.Key_Question and window is not None:
+            from lunelis.ui.shortcuts import ShortcutSheet
+            ShortcutSheet(window, "Culling").exec()
+            return
         if k == Qt.Key.Key_Escape:
             self.close()
         elif k in (Qt.Key.Key_Right, Qt.Key.Key_Down, Qt.Key.Key_PageDown):

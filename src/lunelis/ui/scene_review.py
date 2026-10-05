@@ -64,7 +64,8 @@ class SceneReview(QWidget):
         self.threshold.valueChanged.connect(lambda val: self.threshold_label.setText(f"{val} %"))
         row.addWidget(self.threshold)
         row.addWidget(self.threshold_label)
-        self.bulk_b = QPushButton("Accept", clicked=self.accept_above)
+        self.bulk_b = QPushButton("Accept all above", clicked=self.accept_above)
+        self.bulk_b.setToolTip("Accept every suggestion of this tag at or above the confidence set here")
         row.addWidget(self.bulk_b)
         rv.addLayout(row)
         split.addWidget(right)
@@ -173,7 +174,21 @@ class SceneReview(QWidget):
     def accept_above(self) -> None:
         tag = self.current_tag()
         if tag:
-            n = scenes.accept_above(self.conn, tag, self.threshold.value() / 100)
+            pct = self.threshold.value()
+            count = self.conn.execute(
+                "SELECT COUNT(*) FROM file_tags ft JOIN tags t ON t.id = ft.tag_id WHERE t.name = ?"
+                " AND ft.confidence IS NOT NULL AND ft.confidence >= ?", (tag, pct / 100)).fetchone()[0]
+            if not count:
+                self.summary.setText(f"No {tag.split('|')[-1]} suggestions at or above {pct} %.")
+                return
+            from PySide6.QtWidgets import QMessageBox
+            if QMessageBox.question(
+                    self, "Accept suggestions",
+                    f"Tag {count:,} photo{'s' if count != 1 else ''} {tag.replace('|', ' > ')}? (Every suggestion "
+                    f"at or above {pct} %. You can remove a tag later on the Tags page.)") \
+                    != QMessageBox.StandardButton.Yes:
+                return
+            n = scenes.accept_above(self.conn, tag, pct / 100)
             self.summary.setText(f"Accepted {n:,} at or above {self.threshold.value()} %.")
             self.changed.emit()
             self.refresh()

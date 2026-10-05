@@ -253,6 +253,8 @@ def test_a_timelapse_opens_the_create_tool_with_its_frames(shoot, tmp_path, monk
         monkeypatch.setattr(w.create_page, "open_tool", lambda key: opened.append(key))
         w.build_noticed(cur.lastrowid, "timelapse", [])
         assert opened == ["timelapse"] and w.pages.currentWidget() is w.create_page
+        assert conn.execute("SELECT status FROM suggestions").fetchone()[0] == "open"     # nothing made yet
+        w.create_page.tools["timelapse"].made.emit("C:/x/Timelapse.mp4")
         assert conn.execute("SELECT status FROM suggestions").fetchone()[0] == "built"
     finally:
         w._quitting = True
