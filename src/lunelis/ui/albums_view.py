@@ -242,6 +242,7 @@ class AlbumsView(QWidget):
     open_album = Signal(object)      # Album -> the library, filtered
     add_to_album = Signal(object, list)   # Album, file ids dropped on it
     open_suggestions = Signal()      # the event suggestions page
+    share_album = Signal(int, str)   # album id, name: the family gallery
     changed = Signal()
 
     def __init__(self, conn, parent=None) -> None:
@@ -404,6 +405,8 @@ class AlbumsView(QWidget):
         if a.kind == "smart":
             m.addAction("Edit the rules…", lambda: self._edit_smart(a))
         m.addAction("Rename…", lambda: self._rename(a))
+        if a.kind == "album":
+            m.addAction("Share on the home network…", lambda: self.share_album.emit(int(a.key), a.name))
         m.addSeparator()
         m.addAction("Remove album" if a.kind == "album" else "Remove event", lambda: self._remove(a))
         m.exec(pos)
