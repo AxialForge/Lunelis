@@ -145,10 +145,12 @@ def _mpf_preview(img: Image.Image) -> Image.Image | None:
     return None
 
 
-def render(path: str, orientation: int | None = None, edge: int = THUMB_EDGE) -> Image.Image:
+def render(path: str, orientation: int | None = None, edge: int = THUMB_EDGE,
+           log_preview: str = "builtin") -> Image.Image:
     """An `edge`-bounded, upright, sRGB image for one file (THUMB_EDGE for
     thumbnails; the detail view asks for about a screen's worth - a RAW then
-    uses its biggest embedded preview). Raises if none."""
+    uses its biggest embedded preview). Raises if none. An S-Log3 clip's
+    frame goes through the log preview (video/slog.py) unless that's "off"."""
     with open(path, "rb") as fh:
         fmt = sniff(fh.read(SNIFF_BYTES))
         if fmt in VIDEO_FORMATS:
@@ -157,6 +159,11 @@ def render(path: str, orientation: int | None = None, edge: int = THUMB_EDGE) ->
             img = poster_frame(fh, edge)
             img = img.convert("RGB")
             img.thumbnail((edge, edge), Image.Resampling.LANCZOS)
+            if log_preview != "off":
+                from lunelis.video import slog
+                lut = slog.preview_lut(path, log_preview)
+                if lut is not None:
+                    img = lut.apply_image(img)
             return img
 
         if is_raw_content(path, fmt):
@@ -232,7 +239,8 @@ def forget_purged_cache(conn: sqlite3.Connection, cache_dir: Path) -> int:
 
 def _make_one(cache_dir: Path, file_id: int, root: str, rel_path: str,
               orientation: int | None, is_raw: bool = False, stack: str | None = None,
-              filter_params: dict | None = None, edit_cache: Path | None = None) -> tuple[str | None, str | None]:
+              filter_params: dict | None = None, edit_cache: Path | None = None,
+              log_preview: str = "builtin") -> tuple[str | None, str | None]:
     """(thumbnail rel path, error). Never raises. An edited photo's
     thumbnail shows the edit (edit/render.py)."""
     try:
@@ -242,7 +250,7 @@ def _make_one(cache_dir: Path, file_id: int, root: str, rel_path: str,
             from lunelis.edit.stack import loads
             return edit_render.edited_thumbnail(path, bool(is_raw), file_id, loads(stack), filter_params,
                                                 cache_dir, edit_cache), None
-        img = render(path, orientation)
+        img = render(path, orientation, log_preview=log_preview)
         return write_thumbnail(cache_dir, file_id, img), None
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"[:300]
@@ -275,6 +283,15 @@ def generate_pending(conn: sqlite3.Connection, cache_dir: Path, *,
                 if r[0] in ids]
     edit_cache = cache_dir.parent / "edits"
     done = 0
+    from lunelis.settings import Settings
+    settings = Settings(conn)
+    log_preview = settings.get("log_preview")
+    if only is None and settings.get("log_thumbs_rev") < 1:
+        # Clips filmed in S-Log3 before 0.24 have flat grey thumbnails: once, remake them.
+        from lunelis.video import slog
+        if slog.refresh_thumbnails(conn):
+            todo = conn.execute(PENDING_SQL + " ORDER BY f.root_id, f.rel_path").fetchall()
+        settings.set("log_thumbs_rev", 1)
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         for start in range(0, len(todo), BATCH_SIZE):
@@ -283,7 +300,7 @@ def generate_pending(conn: sqlite3.Connection, cache_dir: Path, *,
                 break
             chunk = todo[start:start + BATCH_SIZE]
             futures = [pool.submit(_make_one, cache_dir, fid, root, rel, orient, is_raw, stack,
-                                   _filter_params(conn, stack), edit_cache)
+                                   _filter_params(conn, stack), edit_cache, log_preview)
                        for fid, root, rel, orient, is_raw, stack in chunk]
             updates: list[tuple] = []
             for (file_id, _, rel_path, *_), fut in zip(chunk, futures):

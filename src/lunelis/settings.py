@@ -74,6 +74,8 @@ DEFAULTS: dict[str, Any] = {
     "start_page": "Library",             # Library | Albums | last (the page open when Lunelis closed)
     "last_page": "Library",
     "wheel_action": "zoom",              # the photo view's mouse wheel: zoom | step (next/previous photo)
+    "log_preview": "builtin",            # S-Log3 clips: builtin (to Rec.709) | off | cube:<path to a .cube LUT>
+    "log_thumbs_rev": 0,                 # 1 once log clips' thumbnails were remade with the preview look
     "date_format": "long",               # long | iso | day_first | short (photoinfo.DATE_FORMATS)
     "confirm_quit": True,                # ask before quitting while an export, merge or job runs
     "edit_live_quality": "fast",         # fast (half size while dragging) | sharp
