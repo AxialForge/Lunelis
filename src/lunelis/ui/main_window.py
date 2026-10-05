@@ -488,6 +488,10 @@ class MainWindow(QMainWindow):
         self.albums_page = AlbumsView(self.conn)
         self.albums_page.open_album.connect(self.show_album)
         self.albums_page.add_to_album.connect(self._dropped_on_album)
+        self.albums_page.share_album.connect(self.share_album)
+        self.gallery = None                            # the family gallery's server, once started
+        if self.conn.execute("SELECT COUNT(*) FROM shares WHERE revoked_at IS NULL").fetchone()[0]:
+            self._later(4000, self._gallery_server)
         self.albums_page.open_suggestions.connect(lambda: self.show_page("Events"))
         self.pages.addWidget(self.albums_page, scroll=False)        # scrolls itself
         from lunelis.ui.quarantine_view import QuarantineView
@@ -1522,6 +1526,29 @@ class MainWindow(QMainWindow):
                 self.status.setText(f"Imported, but couldn't add {destination} as a source: {e}")
                 return
         self.start([root_id])
+
+    # --- family gallery ----------------------------------------------------------------------
+
+    def _gallery_server(self) -> tuple[int, bool]:
+        """Start the gallery if it isn't running; (port, running)."""
+        from lunelis import gallery
+        port = Settings(self.conn).get("gallery_port")
+        if self.gallery is None:
+            self.gallery = gallery.Gallery(paths.DEFAULT_CATALOG_PATH, paths.DATA_DIR / "gallery_cache", port)
+        if not self.gallery.running:
+            try:
+                self.gallery.start()
+            except OSError as e:
+                self.status.setText(f"The family gallery couldn't start on port {port}: {e}")
+                return port, False
+        return self.gallery.port, True
+
+    def share_album(self, album_id: int, name: str) -> None:
+        from lunelis import gallery
+        from lunelis.ui.share_dialog import ShareDialog
+        ShareDialog(self.conn, album_id, name, self._gallery_server, self).exec()
+        if self.gallery is not None and self.gallery.running and not gallery.shares(self.conn):
+            self.gallery.stop()                        # nothing shared: nothing listening
 
     # --- autopilot import --------------------------------------------------------------------
 
@@ -2959,6 +2986,8 @@ class MainWindow(QMainWindow):
         self._dt_timer.stop()
         self._reach_timer.stop()
         self._integrity_timer.stop()
+        if self.gallery is not None:
+            self.gallery.stop()
         if self._autopilot_thread is not None:
             self._autopilot.cancel()
             self._autopilot_thread.quit()

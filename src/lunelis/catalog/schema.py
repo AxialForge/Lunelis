@@ -777,6 +777,22 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    37,
+    "family gallery: albums shared on the home network, one key each",
+    """
+    CREATE TABLE IF NOT EXISTS shares (
+        id INTEGER PRIMARY KEY,
+        album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+        token TEXT NOT NULL UNIQUE,           -- the long random key in the link
+        pin_hash TEXT,                        -- salt:PBKDF2-SHA256, or NULL for no PIN
+        originals INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        revoked_at TEXT
+    );
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 
