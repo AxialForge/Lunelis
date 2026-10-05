@@ -159,6 +159,15 @@ def run(report: str | None, samples: list[str] | None = None) -> int:
         return "FaceDetectorYN, FaceRecognizerSF"
     check("Faces runtime (OpenCV)", face_runtime)
 
+    def place_list():
+        # The place list ships as package data (geo/places.tsv.gz): a build that left it out names nothing.
+        from lunelis.geo import places
+        tag = places.lookup(41.9028, 12.4964).tag
+        if not tag.endswith("|Rome"):
+            raise RuntimeError(f"Rome came out as {tag}")
+        return tag
+    check("Place list (GeoNames)", place_list)
+
     def window():
         from PySide6.QtWidgets import QApplication
         app = QApplication.instance() or QApplication([sys.argv[0]])
