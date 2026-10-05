@@ -505,6 +505,8 @@ class DevelopPanel(QScrollArea):
     crop_mode = Signal(bool)
     aspect_changed = Signal(object)
     auto = Signal()
+    my_look = Signal()                     # suggest an edit in your style (edit/look.py)
+    look_apply = Signal()
     reset = Signal()
     before = Signal(bool)
     done = Signal()
@@ -554,9 +556,27 @@ class DevelopPanel(QScrollArea):
         self.before_b = QPushButton("Before", checkable=True)
         self.before_b.setToolTip("Show the original (\\ key)")
         self.before_b.toggled.connect(self.before.emit)
-        for b in (self.auto_b, self.reset_b, self.before_b):
+        self.look_b = QPushButton("My look", clicked=lambda: self.my_look.emit())
+        self.look_b.setToolTip("Suggest an edit in the style of your own edits - shown first, applied only "
+                               "if you say so")
+        for b in (self.auto_b, self.look_b, self.reset_b, self.before_b):
             row.addWidget(b)
         v.addLayout(row)
+        # The suggestion, waiting for an answer.
+        self.look_box = QFrame(objectName="Card")
+        lv = QVBoxLayout(self.look_box)
+        lv.setContentsMargins(10, 8, 10, 8)
+        self.look_text = QLabel(wordWrap=True)
+        lv.addWidget(self.look_text)
+        lrow = QHBoxLayout()
+        self.look_apply_b = QPushButton("Apply", objectName="Primary", clicked=lambda: self.look_apply.emit())
+        self.look_no_b = QPushButton("Not now", clicked=lambda: self.look_box.hide())
+        lrow.addWidget(self.look_apply_b)
+        lrow.addWidget(self.look_no_b)
+        lrow.addStretch(1)
+        lv.addLayout(lrow)
+        self.look_box.hide()
+        v.addWidget(self.look_box)
 
         v.addWidget(self._heading("Filters"))
         self.filter_box = QWidget()
@@ -900,6 +920,13 @@ class EditMode(QObject):
         panel.crop_mode.connect(self.set_crop_mode)
         panel.aspect_changed.connect(self._aspect_changed)
         panel.auto.connect(self.auto)
+        panel.my_look.connect(self.my_look)
+        panel.look_apply.connect(self.apply_look)
+        self._look_signals = _LookSignals()
+        self._look_signals.done.connect(self._look_done)
+        self._look_signals.progress.connect(
+            lambda d, t: self.panel.status.setText(f"Learning your look… {d:,} / {t:,} edits"))
+        self.look_suggestion: dict | None = None
         panel.reset.connect(lambda: self._set(Stack()))
         panel.before.connect(self.set_before)
         panel.filter_chosen.connect(self._filter)
@@ -1332,6 +1359,40 @@ class EditMode(QObject):
         QThreadPool.globalInstance().start(
             _AutoJob(self._auto_signals, self.info.file_id, self.session.disp, self.stack.geometry))
 
+    def my_look(self) -> None:
+        if self.session.disp is None or self.info is None:
+            return
+        from lunelis import paths
+        self.panel.look_box.hide()
+        self.panel.look_b.setEnabled(False)
+        self.panel.status.setText("Working out your look…")
+        QThreadPool.globalInstance().start(_LookJob(self._look_signals, self.info.file_id, self.session.disp,
+                                                    paths.DATA_DIR))
+
+    def _look_done(self, file_id: int, adjust, n: int, message: str) -> None:
+        self.panel.look_b.setEnabled(True)
+        if getattr(self, "closed", False) or self.info is None or file_id != self.info.file_id:
+            return
+        self.look_suggestion = adjust or None
+        if not adjust:
+            self.panel.status.setText(message)
+            return
+        from lunelis.edit import look
+        self.panel.status.setText("")
+        self.panel.look_text.setText(f"<b>Your look</b> (learned from {n:,} edits): {look.describe(adjust)}")
+        self.panel.look_box.show()
+
+    def apply_look(self) -> None:
+        """Apply the suggestion: the learned sliders take its values (Ctrl+Z undoes it)."""
+        if not self.look_suggestion:
+            return
+        from lunelis.edit import look
+        adj = {k: v for k, v in self.stack.adjust.items() if k not in look.LEARNED}
+        adj.update(self.look_suggestion)
+        self._set(replace(self.stack, adjust=adj))
+        self.look_suggestion = None
+        self.panel.look_box.hide()
+
     def _auto_done(self, file_id: int, adjust) -> None:
         self.panel.auto_b.setEnabled(True)
         if getattr(self, "closed", False) or self.info is None or file_id != self.info.file_id:
@@ -1432,6 +1493,43 @@ class _AutoJob(QRunnable):
         except Exception:
             adjust = None
         self.s.done.emit(self.file_id, adjust)
+
+
+class _LookSignals(QObject):
+    done = Signal(int, object, int, str)   # file id, adjust | None, edits learned from, message
+    progress = Signal(int, int)
+
+
+class _LookJob(QRunnable):
+    """Train if the model is missing or stale (own catalog connection), then suggest."""
+
+    def __init__(self, signals: _LookSignals, file_id: int, disp, data_dir) -> None:
+        super().__init__()
+        self.s, self.file_id, self.disp, self.data_dir = signals, file_id, disp, data_dir
+
+    def run(self) -> None:
+        from lunelis import paths
+        from lunelis.catalog.schema import open_catalog
+        from lunelis.edit import look
+        try:
+            conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+            try:
+                model = look.Model.load(self.data_dir)
+                if look.stale(conn, self.data_dir):
+                    model = look.train(conn, self.data_dir, lambda d, t: self.s.progress.emit(d, t)) or model
+                n = len(look.edited(conn))
+            finally:
+                conn.close()
+            if model is None:
+                self.s.done.emit(self.file_id, None, n,
+                                 f"Your look needs at least {look.MIN_EDITS} edited photos to learn from "
+                                 f"- you have {n}.")
+                return
+            adjust = model.predict(look.features(self.disp))
+            self.s.done.emit(self.file_id, adjust, model.n,
+                             "" if adjust else "Your look wouldn't change this photo.")
+        except Exception as e:                       # shown in the panel, never a crash
+            self.s.done.emit(self.file_id, None, 0, f"Couldn't work out your look: {e}")
 
 
 class _OutSignals(QObject):
