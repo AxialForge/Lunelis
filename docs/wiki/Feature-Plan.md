@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.29.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.30.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -164,7 +164,7 @@ library with import / export; virtual copies; colour management (ICC
 working space and output, soft-proofing, monitor profile); export presets
 for web, print and social with output sharpening.
 
-### 0.30 - sensor dust map
+### 0.30 - sensor dust map ✅ 0.30.0
 
 Finds dust spots shared across one camera's photos (strongest at f/8 and
 narrower, in smooth bright areas), shows a map with a confidence per spot,

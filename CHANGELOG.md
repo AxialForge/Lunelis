@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-04
+
+### Added (sensor dust map)
+
+- **Sensor dust** page (Keep safe): per camera, finds dust spots that sit in
+  the same place across its f/8-and-narrower photos, with a confidence per
+  spot, on a map of the sensor.
+- **Cleanings and new dust** are noticed from when spots stop or start
+  showing.
+- **Heal after a preview:** Heal spots added to the affected photos' edits
+  (the files never change); Undo the last heal takes them off again.
+
 ## [0.29.0] - 2026-10-04
 
 ### Added (editing suite)
