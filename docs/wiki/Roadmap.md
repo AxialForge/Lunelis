@@ -80,7 +80,7 @@ In short:
 | 0.23 / 0.24 | Video and GIF playback (done in v0.23.0); S-Log previews (done in v0.24.0) |
 | 0.25 | Lunelis noticed - done in v0.25.0 |
 | 0.26 | Offline-NAS view, protection indicator, map and calendar - done in v0.26.0 |
-| 0.27 / 0.28 | Learn My Look; Autopilot Import |
+| 0.27 / 0.28 | Learn My Look (done in v0.27.0); Autopilot Import |
 | 0.29 - 0.32 | Editing suite, sensor dust map, family gallery, Create round three |
 
 ## Later

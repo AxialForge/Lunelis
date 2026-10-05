@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-04
+
+### Added (Learn My Look)
+
+- **My look** in the Edit panel: a small model learned on this PC from your
+  own edits suggests an edit in your style - Light and Color sliders you
+  actually use, from how the photo looks as shot. Shown with how many edits
+  it learned from; applied only when you click Apply (Ctrl+Z undoes it).
+- Needs 15 edited photos; relearns when your edits grow by a tenth.
+
 ## [0.26.0] - 2026-10-04
 
 ### Added (resilience and views)

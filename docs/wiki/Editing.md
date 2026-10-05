@@ -57,7 +57,7 @@ edited.
 
 | Section | What's there |
 |---|---|
-| Top | **Auto** (a starting point from the photo's histogram), **Reset** (back to the original), **Before** (show the original; `\` toggles it) |
+| Top | **Auto** (a starting point from the photo's histogram), **My look** (an edit in your own style - see below), **Reset** (back to the original), **Before** (show the original; `\` toggles it) |
 | Filters | Every filter, previewed on this photo, plus an **Amount** slider |
 | Crop & rotate | Rotate left/right, flip, **Crop**, aspect ratio, **Straighten** |
 | Masks | Gradient, Radial, Brush, Subject and Sky masks, each with its own sliders |
@@ -79,6 +79,25 @@ time; **Settings > Edit > Unfold every section** opens them all again.
 The mouse wheel zooms the picture while you edit, and so do Z and
 double-click. The middle mouse button pans, even while cropping or
 painting a mask.
+
+## My look
+
+**My look** suggests an edit the way *you* edit. Lunelis learns from the
+photos you've already edited - on this PC, nothing leaves it - how you tend
+to set Exposure, Contrast, Highlights, Shadows, Whites, Blacks, Temperature,
+Tint, Vibrance and Saturation for photos that look a certain way as shot
+(dark or bright, flat or contrasty, warm or cool, muted or colourful).
+
+- Click **My look**. The suggestion appears in the panel - e.g. *Your look
+  (learned from 154 edits): Exposure +0.4, Contrast +15, Vibrance +20* -
+  and **nothing changes until you click Apply**. **Not now** dismisses it.
+- **Apply** sets those sliders; the rest of your edit stays. **Before**
+  (or `\`) compares, and **Ctrl+Z** takes it back.
+- Only sliders you actually use (in at least a quarter of your edits) are
+  suggested. Filters count as the adjustments they make.
+- It needs at least 15 edited photos. The first time (and again whenever your
+  edits have grown by a tenth) it learns from them, which takes a moment per
+  edited photo; the result is kept in the data folder (`look_model.json`).
 
 ## Noise reduction
 
