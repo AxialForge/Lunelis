@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-04
+
+### Added (editing suite)
+
+- **Retouch:** heal, clone and red-eye spots in the Edit panel; spots stay
+  put through later crops.
+- **Virtual copies:** more edits of one photo (Version > New copy), each
+  exported on its own.
+- **Presets as files:** export your filters to a file and import them.
+- **More local adjustments:** Hue and Fade in masks.
+- **Colour management:** the photo view through Windows' display profile;
+  soft proofing against a printer or paper profile with a gamut warning.
+- **Export:** output sharpening for screen / matte / glossy, an output
+  colour profile (sRGB, Display P3, Adobe RGB-compatible, or your own .icc)
+  embedded in the file, and named export presets.
+
+### Changed
+
+- The edit stack is now version 2 (`spot=`); version-1 edits read exactly as
+  before and stored ones were rewritten as version 2.
+
 ## [0.28.0] - 2026-10-04
 
 ### Added (Autopilot Import)

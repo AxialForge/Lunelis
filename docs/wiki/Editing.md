@@ -173,6 +173,43 @@ that the models run offline on this PC, and your photos never leave it.
 Finding the subject or sky takes about half a second per photo. The result
 is kept in the cache (`cache\masks`).
 
+## Retouch
+
+The **Retouch** section paints out spots and fixes eyes. Pick a tool, set the
+**Size**, and click on the photo; each spot shows as a circle while the tool
+is on. **Remove last spot** takes the latest one back (so does Ctrl+Z).
+
+- **Heal** - click a dust spot, a blemish or a stray wire: it's covered with a
+  patch from nearby, matched to the brightness and colour around it. The
+  patch is chosen when you click, so the export looks the same as the preview.
+- **Clone** - **Alt+click** where to copy from, then click where to paint;
+  further clicks keep the same offset.
+- **Red-eye** - click each red eye; only the red is taken out.
+
+Spots are stored in the edit like everything else, and stay put if you crop
+again later.
+
+## Versions: virtual copies
+
+**Version** at the top of the Edit panel switches between the photo's own
+edit (**Original**) and its virtual copies. **New copy** starts another edit
+from the one on screen - a black-and-white and a colour version, say -
+without copying the file. **⋯ > Export this copy...** exports that version;
+**⋯ > Delete this copy** removes it. The library's thumbnail shows the
+original's edit.
+
+## Colour
+
+- **Monitor profile** (Settings > Edit > Colour): with a calibrated monitor,
+  choose *Use Windows' display profile* and the photo view and Edit show
+  colours through it. Edits and exports don't change.
+- **Soft proof:** choose a printer or paper profile (.icc, from your lab or
+  printer maker) in the same place; then **Proof** in the Edit panel shows
+  how the photo will print, with the colours it can't reproduce in magenta.
+- Edits are worked in sRGB primaries at full floating-point precision, so
+  nothing clips between steps; the output colour space is chosen when you
+  export (below).
+
 ## Lens corrections
 
 **Use the lens profile** corrects the lens's barrel or pincushion
@@ -206,6 +243,13 @@ and Soft. Each tile shows that filter on the photo you're editing.
 photo a filter as a starting point. Photos you've already edited are left
 alone.
 
+## Presets as files
+
+**Presets > Export my filters...** saves your own filters to a `.json` file;
+**Presets > Import presets...** adds the filters from one (a filter you
+already have by that name is left as it is). Handy for moving your looks to
+another PC or sharing them.
+
 ## Several photos at once
 
 | Menu | Keys | What it does |
@@ -238,6 +282,15 @@ one on screen), with their edits, as new files:
 - **File names:** `{name}` (the original's name), `{date}` (capture date),
   `{n}` (001, 002...) and your own text. An existing file is never
   overwritten; the new one gets " (2)".
+- **Output sharpening:** none, for screen, for matte paper or for glossy
+  paper, low / standard / high - applied at the exported size, never to the
+  edit itself.
+- **Colour profile:** sRGB (screens, the web, most labs), Display P3
+  (wide-colour screens and phones), Adobe RGB (1998)-compatible (print
+  workflows) or a profile of your own (.icc), with perceptual or relative
+  colorimetric rendering. The profile is embedded in the file.
+- **Presets:** **Save as preset...** keeps the whole set under a name (e.g.
+  *Web*, *Print, glossy*, *Instagram*); pick it next time from **Preset**.
 
 Exports run in the background with a progress window you can cancel.
 Videos are skipped. A 60 MP RAW takes about 7 seconds at full size.

@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.28.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.29.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -157,7 +157,7 @@ suggested edits in your style, a draft album and highlight reel, then a
 *Review your shoot* screen. Every stage skippable; nothing destructive
 before the final review.
 
-### 0.29 - editing suite
+### 0.29 - editing suite ✅ 0.29.0
 
 Healing and clone, spot removal, red-eye, more local adjustments; a preset
 library with import / export; virtual copies; colour management (ICC

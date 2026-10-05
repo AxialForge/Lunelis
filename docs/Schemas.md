@@ -11,16 +11,19 @@ Stored per photo in `edits.stack` (catalog) and in XMP as `lunelis:EditStack`.
 Never written into the photo itself. Code: `edit/stack.py`, `edit/masks.py`.
 
 ```
-v=1;f=Vivid@40;exposure=0.3;contrast=12;rotate=90;flip_h=1;angle=1.5;
+v=2;f=Vivid@40;exposure=0.3;contrast=12;rotate=90;flip_h=1;angle=1.5;
 crop=0.1,0.05,0.9,0.95;curve=0,0 0.5,0.6 1,1;lens=1;lens_distortion=10;
-mask=radial|0.5,0.5,0.22,0.28,0.5||exposure:0.6|
+mask=radial|0.5,0.5,0.22,0.28,0.5||exposure:0.6|;spot=heal|0.41,0.33,0.012|
 ```
 
 (one line in practice). Rules:
 
-- `;`-separated `key=value` fields; `v=1` first. Order is fixed (equal stacks
+- `;`-separated `key=value` fields; `v=2` first. Order is fixed (equal stacks
   give equal text), and only non-default values are written - an empty
-  stack is `v=1` and means "the original".
+  stack is `v=2` and means "the original".
+- **Version 2** (0.29) added `spot=`. A `v=1` stack reads exactly as before
+  (no spots); catalog migration 34 rewrote stored stacks as `v=2`, and
+  sidecars written by older versions still open.
 - `f=<filter>@<amount 0-100>`: a built-in or user filter, scaled by amount.
 - Adjustments: one field per `edit/stack.PARAMS` key, in that order.
 - Geometry: `rotate` (0/90/180/270), `flip_h`, `flip_v`, `angle` (straighten,
@@ -30,10 +33,14 @@ mask=radial|0.5,0.5,0.22,0.28,0.5||exposure:0.6|
 - Lens: `lens=1` (use the profile) and `lens_<distortion|vignette|ca_red|ca_blue>`.
 - Masks: one `mask=` per mask, in order:
   `kind|shape numbers|inv flag|key:value,...|strokes`.
+- Retouch: one `spot=` per spot, in order: `kind|x,y,r|source x,y` - kind
+  `heal`, `clone` or `redeye`; positions are fractions of the uncropped frame
+  (like masks), r a fraction of its long side; an empty source means "choose".
 - **Unknown keys are ignored** when reading, so a newer Lunelis's stack opens
   in an older one (minus what the older one can't do).
 
-New tools (healing, presets, virtual copies) add new keys; they never change
+Virtual copies keep their own stacks in the `copies` table; the photo's own
+`edits` row stays "the original". New tools add new keys; they never change
 the meaning of an existing one.
 
 ## 2. Tags: source and confidence
