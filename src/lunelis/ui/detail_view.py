@@ -758,7 +758,12 @@ class DetailView(QWidget):
         self.split = QSplitter(Qt.Orientation.Vertical)
         self.split.setChildrenCollapsible(False)
         self.split.setHandleWidth(6)
-        self.split.addWidget(self.canvas)
+        # The photo, or - for a video - the player (made the first time it's needed).
+        self.view_stack = QStackedWidget()
+        self.view_stack.addWidget(self.canvas)
+        self.player = None
+        self._movie = None                 # an animated GIF playing on the canvas
+        self.split.addWidget(self.view_stack)
         self.strip = Filmstrip(self.strip_thumbs)
         self.strip.picked.connect(self.go)
         self.split.addWidget(self.strip)
@@ -812,6 +817,7 @@ class DetailView(QWidget):
             return
         pos = max(0, min(n - 1, pos))
         self.edit.finish()                 # saves the photo being left
+        self._stop_motion()
         self.pos = pos
         fid = self.index.file_id(pos)
         self.info = photoinfo.load(self.conn, fid)
@@ -828,7 +834,7 @@ class DetailView(QWidget):
         self._show_image()
         if self.editing:
             self.edit.start(self.info)
-        self.edit_b.setEnabled(not self.info.is_video)
+        self.edit_b.setEnabled(not self.info.is_video and self._movie is None)
         # Decode the neighbours ahead of time - and drop what's still queued
         # for photos already passed.
         near = [self.index.file_id(p) for p in (pos, pos + 1, pos - 1) if 0 <= p < n]
@@ -931,6 +937,7 @@ class DetailView(QWidget):
         self.edit.finish()
         self.edit.out_pool.waitForDone(15_000)
         self.edit.closed = True
+        self._stop_motion()
         self._shut = True
 
     def _show_image(self) -> None:
@@ -940,10 +947,12 @@ class DetailView(QWidget):
         if i is None:
             return
         if i.is_video:
-            thumb = self.big_thumbs.get(i.file_id, cache_rel_path(i.file_id))
-            self.canvas.show_pixmap(thumb, sharp=False,
-                                    message=f"Video · {i.length() or ''} - Open with default app to play it")
+            self._play_video(i)
             return
+        if self._movie is None and i.filename.lower().endswith(".gif") and not self.edit.active:
+            self._play_gif(i)
+        if self._movie is not None:
+            return                         # its frames draw themselves
         if self.edit.active and self.edit.has_render:
             return                         # the live edit is on screen
         if self._full_pix is not None and self._full_pix[0] == i.file_id:
@@ -957,6 +966,55 @@ class DetailView(QWidget):
         failed = i.file_id in self.previews.failed
         self.canvas.show_pixmap(thumb, sharp=False,
                                 message="Couldn't open this file at full size" if failed else "")
+
+    # --- videos and animated GIFs ---
+
+    def _play_video(self, i: photoinfo.PhotoInfo) -> None:
+        if self.player is None:
+            from lunelis.ui.video_player import VideoPlayer
+            self.player = VideoPlayer(self.conn)
+            self.player.setFocusPolicy(Qt.FocusPolicy.NoFocus)   # keys stay with the photo view
+            self.view_stack.addWidget(self.player)
+        self.view_stack.setCurrentWidget(self.player)
+        self.player.load(i.path)
+
+    def _play_gif(self, i: photoinfo.PhotoInfo) -> None:
+        from PySide6.QtGui import QMovie
+        movie = QMovie(i.path)
+        if not movie.isValid() or movie.frameCount() == 1:
+            return                         # a still GIF shows like any photo
+        movie.setCacheMode(QMovie.CacheMode.CacheAll)
+        movie.frameChanged.connect(self._gif_frame)
+        self._movie = movie
+        movie.start()
+
+    @unless_closed
+    def _gif_frame(self, _n: int) -> None:
+        if self._movie is not None and not getattr(self, "_shut", False):
+            self.canvas.show_pixmap(self._movie.currentPixmap(), sharp=True, keep_zoom=True)
+
+    def _stop_motion(self) -> None:
+        if self._movie is not None:
+            self._movie.stop()
+            self._movie.frameChanged.disconnect(self._gif_frame)
+            self._movie.deleteLater()
+            self._movie = None
+        if self.player is not None and self.player.path:
+            self.player.stop()
+        self.view_stack.setCurrentWidget(self.canvas)
+
+    def hideEvent(self, e) -> None:
+        # Back to the library: nothing keeps playing behind it.
+        if self.player is not None:
+            self.player.player.pause()
+        if self._movie is not None:
+            self._movie.setPaused(True)
+        super().hideEvent(e)
+
+    def showEvent(self, e) -> None:
+        if self._movie is not None:
+            self._movie.setPaused(False)
+        super().showEvent(e)
 
     # --- full resolution (zooming past the preview) ---
 
@@ -1030,6 +1088,13 @@ class DetailView(QWidget):
                 return
             if k == Qt.Key.Key_Escape:
                 self.set_editing(False)
+                return
+        if self.info is not None and self.info.is_video and self.player is not None and not ctrl:
+            act = {Qt.Key.Key_K: self.player.toggle, Qt.Key.Key_J: lambda: self.player.jump(-5000),
+                   Qt.Key.Key_L: lambda: self.player.jump(5000), Qt.Key.Key_I: self.player.set_in,
+                   Qt.Key.Key_O: self.player.set_out}.get(k)
+            if act is not None:
+                act()
                 return
         if k in (Qt.Key.Key_Left, Qt.Key.Key_Up):
             self.go(self.pos - 1)

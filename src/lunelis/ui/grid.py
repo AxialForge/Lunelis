@@ -25,7 +25,8 @@ from lunelis.ui.theme import label_color, qcolor
 PAD_X, PAD_Y, GAP, RADIUS = 24, 20, 10, 8
 MIN_TILE, MAX_TILE, DEFAULT_TILE = 100, 400, 180   # 180 = the mockup's 6 columns at 1440px
 PX_STEP = 64                 # thumbnail decode size is quantised so a window resize doesn't reload
-HOVER_DELAY_MS = 450         # still this long over a photo -> its info card
+HOVER_DELAY_MS = 450
+GIF_HOVER_MS = 250           # still this long over an animated GIF -> it plays in its tile         # still this long over a photo -> its info card
 RESIZE_SETTLE_MS = 180       # while the size slider moves, tiles are scaled; decode once it stops
 
 
@@ -94,6 +95,10 @@ class PhotoGrid(QAbstractScrollArea):
         self.card = HoverCard(self.viewport())
         self._hover_i = -1
         self._hover_timer = QTimer(self, singleShot=True, interval=HOVER_DELAY_MS, timeout=self._show_card)
+        # An animated GIF under the pointer plays in its tile (one at a time).
+        self._anim_i = -1
+        self._anim = None
+        self._anim_timer = QTimer(self, singleShot=True, interval=GIF_HOVER_MS, timeout=self._start_anim)
         self.viewport().setMouseTracking(True)
         # Size changes: scale what's loaded now, decode at the new size when it settles.
         self._decode_timer = QTimer(self, singleShot=True, interval=RESIZE_SETTLE_MS,
@@ -286,7 +291,17 @@ class PhotoGrid(QAbstractScrollArea):
             # The cache path is a pure function of the id, so a thumbnail a
             # background pass wrote after this index was loaded still shows.
             pix = self.thumbs.get(tile.file_id, tile.thumbnail_path or cache_rel_path(tile.file_id))
-        if pix is not None:
+        if i == self._anim_i and self._anim is not None and not self._anim.currentPixmap().isNull():
+            pix = None
+            frame = self._anim.currentPixmap()
+            # Cover the tile like the thumbnail does: the middle square of the frame.
+            side = min(frame.width(), frame.height())
+            src = QRect((frame.width() - side) // 2, (frame.height() - side) // 2, side, side)
+            p.save()
+            p.setClipPath(path)
+            p.drawPixmap(r, frame, src)
+            p.restore()
+        elif pix is not None:
             p.save()
             p.setClipPath(path)
             p.drawPixmap(r, pix)
@@ -426,15 +441,47 @@ class PhotoGrid(QAbstractScrollArea):
         i = self.position_at(e.position().toPoint())
         if i != self._hover_i:
             self._hide_card()
+            self._stop_anim()
             self._hover_i = i
             if i >= 0 and self.hover_enabled and self.info_provider is not None:
                 self._hover_timer.start()
+            if i >= 0 and self.info_provider is not None and self.index.tile(i).badge == "GIF":
+                self._anim_timer.start()
         super().mouseMoveEvent(e)
 
     def leaveEvent(self, e) -> None:
         self._hover_i = -1
         self._hide_card()
+        self._stop_anim()
         super().leaveEvent(e)
+
+    # --- animated GIFs play on hover --------------------------------------------
+
+    def _start_anim(self) -> None:
+        i = self._hover_i
+        if i < 0 or i >= len(self.index) or self.info_provider is None:
+            return
+        info = self.info_provider(self.index.file_id(i))
+        if info is None or not info.path:
+            return
+        from PySide6.QtGui import QMovie
+        movie = QMovie(info.path)
+        if not movie.isValid() or movie.frameCount() == 1:
+            return
+        movie.setCacheMode(QMovie.CacheMode.CacheAll)
+        movie.frameChanged.connect(lambda _n, i=i: self.viewport().update(self._tile_rect(i)))
+        self._anim_i, self._anim = i, movie
+        movie.start()
+
+    def _stop_anim(self) -> None:
+        self._anim_timer.stop()
+        if self._anim is not None:
+            i = self._anim_i
+            self._anim.stop()
+            self._anim.deleteLater()
+            self._anim, self._anim_i = None, -1
+            if 0 <= i < len(self.index):
+                self.viewport().update(self._tile_rect(i))
 
     def _hide_card(self) -> None:
         self._hover_timer.stop()

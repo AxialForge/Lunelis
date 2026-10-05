@@ -22,6 +22,7 @@ RAW_EXTS: frozenset[str] = frozenset({
 IMAGE_EXTS: frozenset[str] = frozenset({
     "jpg", "jpeg", "png", "tif", "tiff", "heic", "heif", "webp", "bmp",
     "hif",                      # Sony/Canon/Fuji in-camera HEIF
+    "gif",                      # animated ones play in the photo view and on hover (0.23)
 })
 
 # Catalog + thumbnail only; not an edit target (see design doc, File format table).
