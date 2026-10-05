@@ -12,6 +12,9 @@ Video playback in the photo view, with trimming to a new file.
   Create folder (video/trim.py, on a worker). The original is only read.
 - The player is made the first time a video is shown, so opening Lunelis
   doesn't load Qt Multimedia.
+- **S-Log3 clips** (video/slog.py) play through the log preview: frames come
+  from a QVideoSink, go through the LUT's fast table at about screen size and
+  are painted by LutView. "Show log" turns the look off to compare.
 """
 from __future__ import annotations
 
@@ -45,6 +48,49 @@ class _TrimJob(QRunnable):
             self.signals.done.emit(e)
 
 
+class LutView(QWidget):
+    """Paints the player's frames through a LUT, fitted to the widget."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        from PySide6.QtMultimedia import QVideoSink
+        self.sink = QVideoSink(self)
+        self.sink.videoFrameChanged.connect(self._frame)
+        self.lut = None
+        self.image = None
+        self.setMinimumSize(80, 60)
+
+    def _frame(self, frame) -> None:
+        import numpy as np
+        from PySide6.QtGui import QImage
+        img = frame.toImage()
+        if img.isNull():
+            return
+        # Fit first: a 4K frame is scaled to the widget before the LUT, so the
+        # lookup costs what the screen shows, not what the camera recorded.
+        w, h = max(1, self.width()), max(1, self.height())
+        img = img.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
+        img = img.convertToFormat(QImage.Format.Format_RGB888)
+        if self.lut is not None:
+            bpl = img.bytesPerLine()
+            a = np.frombuffer(img.constBits(), np.uint8, bpl * img.height()).reshape(img.height(), bpl)
+            rgb = np.ascontiguousarray(a[:, :img.width() * 3].reshape(img.height(), img.width(), 3))
+            out = self.lut.apply_fast(rgb)
+            img = QImage(out.data, out.shape[1], out.shape[0], out.shape[1] * 3, QImage.Format.Format_RGB888).copy()
+        self.image = img
+        self.update()
+
+    def paintEvent(self, e) -> None:
+        from PySide6.QtGui import QPainter
+        p = QPainter(self)
+        p.fillRect(self.rect(), Qt.GlobalColor.black)
+        if self.image is not None:
+            x = (self.width() - self.image.width()) // 2
+            y = (self.height() - self.image.height()) // 2
+            p.drawImage(x, y, self.image)
+        p.end()
+
+
 class VideoPlayer(QWidget):
     trimmed = Signal(str)               # the new file's path
 
@@ -67,7 +113,14 @@ class VideoPlayer(QWidget):
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
-        v.addWidget(self.video, 1)
+        from PySide6.QtWidgets import QStackedWidget
+        self.screen = QStackedWidget()
+        self.screen.addWidget(self.video)
+        self.lut_view = LutView()
+        self.screen.addWidget(self.lut_view)
+        v.addWidget(self.screen, 1)
+        self.log_kind: str | None = None
+        self.lut = None
         bar = QWidget(objectName="Toolbar")
         h = QHBoxLayout(bar)
         h.setContentsMargins(12, 6, 12, 6)
@@ -95,6 +148,11 @@ class VideoPlayer(QWidget):
         self.out_b.setToolTip("Mark where the trimmed copy ends (O)")
         self.save_b = QPushButton("Save trimmed copy", clicked=self.save_trim)
         self.save_b.setToolTip("A new file between the marks, in the Create folder - the original is untouched")
+        self.log_b = QPushButton("Show log", checkable=True)
+        self.log_b.setToolTip("Show the clip as recorded (flat S-Log), without the preview look")
+        self.log_b.toggled.connect(self._show_log)
+        self.log_b.hide()
+        h.addWidget(self.log_b)
         for b in (self.in_b, self.out_b, self.save_b):
             h.addWidget(b)
         v.addWidget(bar)
@@ -122,8 +180,45 @@ class VideoPlayer(QWidget):
         self.path = path
         self.mark_in = self.mark_out = None
         self.note.setText("")
+        self._choose_look(path)
         self.player.setSource(QUrl.fromLocalFile(path))
         self._update_marks()
+
+    def _choose_look(self, path: str) -> None:
+        from lunelis.settings import Settings
+        from lunelis.video import slog
+        self.log_kind = slog.detect(path)
+        self.lut = slog.preview_lut(path, Settings(self.conn).get("log_preview")) if self.log_kind else None
+        self.log_b.setVisible(self.lut is not None)
+        self.log_b.blockSignals(True)
+        self.log_b.setChecked(False)
+        self.log_b.blockSignals(False)
+        self._apply_look()
+        self.note.setText(self.look_text())
+
+    def _apply_look(self) -> None:
+        through_lut = self.lut is not None
+        self.lut_view.lut = None if self.log_b.isChecked() else self.lut
+        self.lut_view.image = None
+        if through_lut:
+            self.player.setVideoOutput(self.lut_view.sink)
+            self.screen.setCurrentWidget(self.lut_view)
+        else:
+            self.player.setVideoOutput(self.video)
+            self.screen.setCurrentWidget(self.video)
+
+    def _show_log(self, on: bool) -> None:
+        self.lut_view.lut = None if on else self.lut
+        self.log_b.setText("Show preview" if on else "Show log")
+        self.player.setPosition(self.player.position())       # redraw the current frame now
+
+    def look_text(self) -> str:
+        from lunelis.video import slog
+        if not self.log_kind:
+            return ""
+        if self.lut is None:
+            return f"{slog.describe(self.log_kind)} - shown as recorded (log preview is off in Settings)"
+        return f"{slog.describe(self.log_kind)} - shown through {self.lut.title}"
 
     def stop(self) -> None:
         """Leaving the clip: stop and let go of the file."""

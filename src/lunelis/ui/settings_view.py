@@ -238,6 +238,16 @@ class SettingsView(QWidget):
         self.show_videos = QCheckBox("Show videos in the library")
         self.show_videos.toggled.connect(lambda on: self._set("show_videos", on) and self.view_changed.emit())
         v.addWidget(self.show_videos)
+        self.log_look = QComboBox()
+        self.log_look.addItem("Built-in look (to Rec.709)", "builtin")
+        self.log_look.addItem("My own LUT…", "cube")
+        self.log_look.addItem("Off - show as recorded", "off")
+        self.log_look.currentIndexChanged.connect(self._log_look_changed)
+        self.log_lut_label = QLabel(objectName="Count")
+        self._row(v, "S-Log3 videos", self.log_look, self.log_lut_label,
+                  help="Sony S-Log3 clips look flat and grey until they're graded. Lunelis shows them through a "
+                       "look in the player and the thumbnails - the files are never changed. A .cube LUT of your "
+                       "own should take S-Log3 as its input.")
         self.hover_info = QCheckBox("Show photo info when the mouse rests on a photo")
         self.hover_info.toggled.connect(lambda on: self._set("hover_info", on) and self.view_changed.emit())
         v.addWidget(self.hover_info)
@@ -567,6 +577,54 @@ class SettingsView(QWidget):
         row.addStretch(1)
         v.addLayout(row)
         return card
+
+    def _load_log_look(self) -> None:
+        choice = Settings(self.conn).get("log_preview")
+        key = "cube" if choice.startswith("cube:") else choice
+        self.log_look.setCurrentIndex(max(0, self.log_look.findData(key)))
+        self.log_lut_label.setText(os.path.basename(choice[5:]) if key == "cube" else "")
+
+    def _log_look_changed(self, _i: int) -> None:
+        if self._loading:
+            return
+        key = self.log_look.currentData()
+        old = Settings(self.conn).get("log_preview")
+        if key == "cube":
+            from PySide6.QtWidgets import QFileDialog
+            path, _ = QFileDialog.getOpenFileName(self, "Choose a .cube LUT", "", "3D LUT (*.cube)")
+            if not path:
+                self._loading = True
+                self._load_log_look()               # cancelled: back to what it was
+                self._loading = False
+                return
+            from lunelis.video.lut import LutError, load_cube
+            try:
+                load_cube(path)
+            except LutError as e:
+                self.saved.setText(f"Not saved: {e}")
+                self._loading = True
+                self._load_log_look()
+                self._loading = False
+                return
+            choice = "cube:" + path
+        else:
+            choice = key
+        if choice == old or not self._set("log_preview", choice):
+            return
+        self._load_log_look()
+        self.saved.setText("Remaking the thumbnails of S-Log3 clips…")
+
+        def clear(conn):
+            from lunelis.video import slog
+            return slog.refresh_thumbnails(conn)
+
+        def done(n):
+            self.saved.setText(f"{n:,} S-Log3 clip thumbnail{'s' if n != 1 else ''} will be made again"
+                               if n else "Saved - no S-Log3 clips in the library yet")
+            if n:
+                self.library_changed.emit()
+                self.rescan.emit([r[0] for r in self.conn.execute("SELECT id FROM roots WHERE enabled = 1")])
+        self._bg().run("log_look", clear, done)
 
     def _load_thumbnails(self) -> None:
         n, missing = self.conn.execute(
@@ -1160,6 +1218,7 @@ class SettingsView(QWidget):
                 b.setChecked(b.property("theme") == key)
             self.default_sort.setCurrentIndex(max(0, self.default_sort.findData(s.get("grid_default_sort"))))
             self.show_videos.setChecked(s.get("show_videos"))
+            self._load_log_look()
             self.hover_info.setChecked(s.get("hover_info"))
             self.sidebar_auto.setChecked(s.get("sidebar_auto"))
             self.stack_bursts.setChecked(s.get("stack_bursts"))
