@@ -6,6 +6,55 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-04
+
+Hardening after the October 2026 audit (docs/Audit-2026-10.md).
+
+### Security
+
+- Text from a photo's metadata is always shown as text: a crafted file can't
+  put a link or a picture in the Info panel, and its links only open events
+  and the map.
+- An update refuses a program folder that also holds the data folder or other
+  programs (it replaces the whole folder); the data folder can't be moved
+  into it.
+- Emptying quarantine on a network share checks the kept copy byte for byte
+  before the permanent delete, and a sidecar can no longer stop it half-way.
+- Moving a photo and its sidecar into quarantine (or during migration) settles
+  any name clash before anything moves.
+- Crafted Google Takeout JSON, .cube LUTs and Sony XML are refused cleanly.
+- Release notes open web links only.
+
+### Changed
+
+- **Review your shoot** is easy to get back to: a banner on the Import page,
+  and the tray message opens it.
+- **Ask** button beside the search box.
+- **Culling** shows every frame of a burst, has undo (Ctrl+Z / Ctrl+Y) and
+  its own `?` keys.
+- **Space** plays and pauses a video; the shortcut sheet lists the video and
+  culling keys.
+- **Dust healing** and **accepting scene tags in bulk** ask first; healing
+  runs in the background.
+- **Export** has ready-made presets: Web, Email, Social, Print matte / glossy,
+  Archive TIFF.
+- **Settings > Library > Shoots, videos and the autopilot** gathers Lunelis
+  noticed, S-Log3 and the autopilot's stages (now switchable).
+- Memory cards and USB drives are offered for import with the tray turned off
+  too.
+- A Lunelis noticed suggestion counts as built once the Create tool has made
+  the file, not when the tool opens.
+- Find similar without the scene model links to Settings; the highlight reel
+  links to its file; an empty library has an Add a folder button; collage
+  handles are bigger; the animation preview no longer reloads on every speed
+  change.
+
+### Fixed
+
+- Autopilot's Undo of scene tags removes only the suggestions it added.
+- The user guide matches the app again (sidebar groups, settings tabs and
+  cards, scan steps, shortcuts, the Backup filter).
+
 ## [0.32.0] - 2026-10-04
 
 ### Added (Create, round three)

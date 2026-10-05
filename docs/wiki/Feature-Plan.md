@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.32.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.33.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -181,6 +181,11 @@ rate-limited.
 
 Focus stacking, star trails and median stacks, and panorama / HDR merges as
 Create tools.
+
+### 0.33 - hardening ✅ 0.33.0
+
+The October 2026 audit's fixes: security, reachability and ease of use, and
+the guide brought back in line with the app (docs/Audit-2026-10.md).
 
 ## Someday 💤
 
