@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-04
+
+### Added (Lunelis noticed)
+
+- **Lunelis noticed:** after each scan, Lunelis looks for HDR brackets,
+  panoramas, focus stacks, timelapses and star trails - from the camera
+  settings, then checking the pictures really line up or overlap.
+- **Offered, never automatic:** suggestions wait on the Library status page
+  with Build it (HDR and panorama merges, the Timelapse tool), Show photos and
+  Dismiss. A dismissed set of frames is never offered again.
+- A Settings switch to turn the looking off.
+
 ## [0.24.0] - 2026-10-04
 
 ### Added (S-Log previews)

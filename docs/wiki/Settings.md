@@ -48,6 +48,8 @@ darktable · Updates · Advanced**.
   Medium 180, Large 260, Extra large 360, or Custom), and whether videos
   show in the library. Changing the sort or the Grid size slider in the
   library also updates these.
+- **Lunelis noticed:** whether to look for brackets, panoramas, focus
+  stacks and timelapses after each scan. See [Lunelis noticed](Lunelis-Noticed.md).
 - **S-Log3 videos:** how S-Log3 clips are shown - the built-in look (to
   Rec.709), your own `.cube` LUT, or off (as recorded). See
   [Videos](Videos-and-Google-Takeout.md#s-log3-footage).

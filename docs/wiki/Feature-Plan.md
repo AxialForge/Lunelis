@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.24.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-04 (v0.25.0), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -131,7 +131,7 @@ Videos and animated GIFs play in the library and the photo view, with
 trim. Then Sony S-Log3 footage shown through a LUT (to Rec.709) so it looks
 right without grading; your own .cube LUTs.
 
-### 0.25 - Lunelis noticed
+### 0.25 - Lunelis noticed ✅ 0.25.0
 
 Spots sequences that could become something - HDR brackets, panoramas,
 focus stacks, timelapses, star trails - checks they really overlap, and
