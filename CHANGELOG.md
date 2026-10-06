@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.37.5] - 2026-10-06
+
+From a full migration rehearsal (two overlapping pools into one library,
+interrupted and resumed, then released).
+
+### Fixed
+
+- **A duplicate's XMP sidecar could end up only in the quarantine.** When the
+  copy of a photo that stayed behind was the one with the darktable or
+  Lightroom sidecar, the copy that moved had none, and emptying the quarantine
+  later would have removed the only sidecar. A copy of it now goes beside the
+  copy that moves (or stays, on the Duplicates page), named for it. A file
+  already there is never overwritten.
+
+### Changed
+
+- The Migration wiki page says how much space and time a migration needs,
+  what travels with each photo, what stays behind in the old folders, and
+  suggests a small trial first.
+
 ## [0.37.4] - 2026-10-06
 
 From a button audit (every button, menu item and key, about 1,060 checks,

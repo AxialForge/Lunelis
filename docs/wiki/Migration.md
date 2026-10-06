@@ -96,4 +96,27 @@ drive...**) to move just your archived photos - see
 
 - Your first migration: verify duplicates first on the Duplicates page, and
   choose a target with enough space. The preview tells you both.
+- **Try it small first.** Plan a migration of one folder-sized source (or
+  only the Archive) into a test folder, look at the result, release, and
+  restore from the Quarantine page once, before moving everything.
+- **Space.** The target needs room for everything that moves (the preview's
+  figure, plus 2 % and 1 GB). If the target is on the same drive or NAS volume
+  as the sources, the originals still take their space too: until you release
+  them, and then in `_Lunelis Quarantine` until you empty it.
+- **Time.** Each file is read once, written once and read back once. From one
+  NAS share to another through this PC on gigabit Ethernet, expect roughly 6-8
+  hours per terabyte, so a few days for several terabytes. Pause it, or
+  schedule it for nights in
+  [Settings](Settings.md#duplicates-and-background-jobs).
+- **What travels with a photo:** the photo, its XMP sidecar, and everything in
+  the catalog (ratings, labels, tags, albums, events, faces, places, edits). When
+  a duplicate stays behind and only it had an XMP sidecar, a copy of that
+  sidecar goes beside the copy that moved.
+- **What stays behind:** files Lunelis doesn't catalog - documents,
+  `Thumbs.db`, camera `.XML`/`.THM` files, iPhone `.AAE` edits, Google Takeout
+  `.json` files - and anything in a skipped folder. They stay in the old
+  folders, untouched; look through those folders before you delete them
+  yourself.
+- Nothing is ever deleted by a migration. Only **Empty quarantine** removes
+  files, and it asks first.
 - Renaming an event's folder on disk will come later, as an optional move job.

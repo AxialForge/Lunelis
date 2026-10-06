@@ -161,6 +161,38 @@ def merge_user_data(conn: sqlite3.Connection, from_id: int, to_id: int) -> None:
         model.add_files(conn, ev[0], [to_id], commit=False)
 
 
+def carry_sidecar(conn: sqlite3.Connection, from_id: int, to_id: int) -> str | None:
+    """Before an exact duplicate is set aside: if it has an XMP sidecar (darktable
+    history, a culling tool's ratings) and the copy that stays has none, a copy
+    of the sidecar goes beside the one that stays, named for it - so emptying
+    the quarantine later can't take the only sidecar. Returns its new path."""
+    rows = {fid: (os.path.join(root, *rel.split("/")), sidecar) for fid, root, rel, sidecar in conn.execute(
+        "SELECT f.id, r.path, f.rel_path, f.sidecar FROM files f JOIN roots r ON r.id = f.root_id"
+        " WHERE f.id IN (?, ?)", (from_id, to_id))}
+    if from_id not in rows or to_id not in rows:
+        return None
+    (src_path, src_side), (dst_path, dst_side) = rows[from_id], rows[to_id]
+    if not src_side or dst_side:
+        return None
+    side = os.path.join(os.path.dirname(src_path), src_side)
+    if not os.path.isfile(side):
+        return None
+    src_name, dst_name = os.path.basename(src_path), os.path.basename(dst_path)
+    if src_side.lower().startswith(src_name.lower()):        # IMG_1.JPG.xmp -> <name>.JPG.xmp
+        new_name = dst_name + src_side[len(src_name):]
+    else:                                                     # IMG_1.xmp -> <stem>.xmp
+        new_name = os.path.splitext(dst_name)[0] + src_side[len(os.path.splitext(src_name)[0]):]
+    target = os.path.join(os.path.dirname(dst_path), new_name)
+    if os.path.exists(target):
+        return None                                           # never overwrite a file that's there
+    try:
+        shutil.copy2(side, target)
+    except OSError:
+        return None
+    conn.execute("UPDATE files SET sidecar = ? WHERE id = ?", (new_name, to_id))
+    return target
+
+
 # --- starting ---------------------------------------------------------------------------
 
 def start(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | None = None,
@@ -378,6 +410,8 @@ def _set_aside(conn, mid, keep: bool, item_id, file_id, keeper_id, root, src_rel
     if not (moved or keeper_live):
         return                                     # its keeper didn't make it: leave this copy alone
     merge_user_data(conn, file_id, keeper_id)
+    if conn.execute("SELECT action FROM migration_items WHERE id = ?", (item_id,)).fetchone()[0] == "skip_duplicate":
+        carry_sidecar(conn, file_id, keeper_id)    # byte-identical: its sidecar describes the same photo
     if keep:
         conn.execute("UPDATE migration_items SET state = 'kept' WHERE id = ?", (item_id,))
     else:

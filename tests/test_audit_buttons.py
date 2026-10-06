@@ -221,3 +221,27 @@ def test_adding_to_an_album_counts_the_photos_added(tmp_path):
     assert albums.add_files(conn, album, ids) == 3
     assert albums.add_files(conn, album, ids) == 0
     conn.close()
+
+
+def test_a_set_aside_duplicates_sidecar_goes_beside_the_copy_that_stays(tmp_path):
+    # migration rehearsal: the copy with darktable's XMP may not be the one kept
+    from lunelis.dupes import quarantine as q
+    from lunelis.jobs import engine
+    root = tmp_path / "L"
+    (root / "a").mkdir(parents=True)
+    (root / "deep" / "b").mkdir(parents=True)
+    data = os.urandom(6000)
+    (root / "a" / "x.jpg").write_bytes(data)
+    (root / "deep" / "b" / "x.jpg").write_bytes(data)
+    (root / "deep" / "b" / "x.jpg.xmp").write_text("<x:xmpmeta xmlns:x='adobe:ns:meta/'/>", encoding="utf-8")
+    conn = open_catalog(tmp_path / "c.db")
+    rid = add_root(conn, root)
+    scan_root(conn, rid)
+    for kind in ("duplicates", "verify"):
+        engine.run_job(conn, engine.create_job(conn, kind, kind, [(rid, None)]))
+    gid = conn.execute("SELECT id FROM duplicate_groups WHERE verified = 1").fetchone()[0]
+    b = conn.execute("SELECT id FROM files WHERE rel_path = 'deep/b/x.jpg'").fetchone()[0]
+    q.quarantine(conn, gid, [b])
+    assert (root / "a" / "x.jpg.xmp").exists()
+    assert conn.execute("SELECT sidecar FROM files WHERE rel_path = 'a/x.jpg'").fetchone()[0] == "x.jpg.xmp"
+    conn.close()

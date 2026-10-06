@@ -52,7 +52,7 @@ def quarantine(conn: sqlite3.Connection, group_id: int, file_ids: list[int], *,
         from lunelis.catalog.backup import snapshot
         snapshot(conn, backup_dir, "before-quarantine")
 
-    from lunelis.migrate.execute import merge_user_data
+    from lunelis.migrate.execute import carry_sidecar, merge_user_data
     keep = [fid for fid in members if fid not in targets]
     marked = {r[0] for r in conn.execute("SELECT file_id FROM duplicate_group_files WHERE group_id = ?"
                                          " AND is_keeper = 1", (group_id,))}
@@ -62,6 +62,7 @@ def quarantine(conn: sqlite3.Connection, group_id: int, file_ids: list[int], *,
         root, rel, sidecar = members[fid]
         src, dst, s_src, s_dst = quarantine_paths(root, rel, sidecar, fid)
         merge_user_data(conn, fid, keeper)                # the kept copy gets its stars, albums, tags...
+        carry_sidecar(conn, fid, keeper)                  # ...and its sidecar, if it has none
         move_pair(src, dst, s_src, s_dst)
         conn.execute("UPDATE files SET quarantined_at = ?, quarantine_path = ? WHERE id = ?",
                      (_now(), dst, fid))
