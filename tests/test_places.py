@@ -132,6 +132,7 @@ def test_placing_photos_from_the_library_on_the_map(tmp_path, monkeypatch):
         # Dropping photos dragged from the library places them where they land.
         w.map_page.canvas.dropped.emit([ids[0]], *CLEVELAND)
         assert tags.tags_of(w.conn, ids[0]) == ["Places|United States|Ohio|Cleveland"]
+        w.show_page("Library")                       # Photo-menu commands act on photo pages (0.37.4)
         w.grid.selected = {ids[0]}
         w.clear_location()
         assert tags.tags_of(w.conn, ids[0]) == []
