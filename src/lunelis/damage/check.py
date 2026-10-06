@@ -115,6 +115,9 @@ def _like_prefix(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
 
 
+SAME_FILE = "Same name, size and date, another location"
+
+
 def survivors(conn: sqlite3.Connection, file_id: int) -> list[tuple[int, str, str]]:
     """[(file id, full path, why it's a good copy)] - best first.
 
@@ -124,17 +127,18 @@ def survivors(conn: sqlite3.Connection, file_id: int) -> list[tuple[int, str, st
       Takeout re-encode (lower quality, but the picture survives)
     """
     row = conn.execute(
-        "SELECT f.filename, f.size_bytes, f.root_id, f.rel_path FROM files f WHERE f.id = ?",
+        "SELECT f.filename, f.size_bytes, f.root_id, f.rel_path, e.captured_at FROM files f"
+        " LEFT JOIN exif e ON e.file_id = f.id WHERE f.id = ?",
         (file_id,)).fetchone()
     if not row:
         return []
-    name, size, root_id, rel = row
+    name, size, root_id, rel, taken = row
     stem = name.rsplit(".", 1)[0].lower()
     folder = rel.rsplit("/", 1)[0] if "/" in rel else ""
     out: list[tuple[int, str, str, int]] = []
-    for fid, rpath, frel, fname, fsize, is_raw, fmt in conn.execute(
-            f"SELECT f.id, r.path, f.rel_path, f.filename, f.size_bytes, f.is_raw, f.format"
-            f" FROM files f JOIN roots r ON r.id = f.root_id"
+    for fid, rpath, frel, fname, fsize, is_raw, fmt, ftaken in conn.execute(
+            f"SELECT f.id, r.path, f.rel_path, f.filename, f.size_bytes, f.is_raw, f.format, e.captured_at"
+            f" FROM files f JOIN roots r ON r.id = f.root_id LEFT JOIN exif e ON e.file_id = f.id"
             f" WHERE {LIVE} AND f.id != ? AND f.format IS NOT NULL"
             f" AND NOT EXISTS (SELECT 1 FROM damaged d WHERE d.file_id = f.id)"
             # Both forms can use idx_files_filename_nocase (LIKE is
@@ -144,8 +148,10 @@ def survivors(conn: sqlite3.Connection, file_id: int) -> list[tuple[int, str, st
         full = os.path.join(rpath, *frel.split("/"))
         same_name = fname.lower() == name.lower()
         ffolder = frel.rsplit("/", 1)[0] if "/" in frel else ""
-        if same_name and fsize == size:
-            out.append((fid, full, "Same file, another location", 0))
+        # Name and size alone don't make the same photo (IMG_0001.JPG repeats
+        # across cameras): when both have a capture time, it has to match too.
+        if same_name and fsize == size and (not taken or not ftaken or taken == ftaken):
+            out.append((fid, full, SAME_FILE, 0))
         elif is_raw and not same_name and ffolder == folder:
             out.append((fid, full, "The RAW original", 1))
         elif same_name:

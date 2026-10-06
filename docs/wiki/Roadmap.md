@@ -70,7 +70,7 @@ In short:
 
 | Version | What |
 |---|---|
-| 0.16 | Locked schemas, an interface audit, import hardening (camera profiles, Sony video sidecars, import history) |
+| 0.16 | Locked schemas, an interface audit, import hardening (camera profiles, Sony video sidecars, import history) - done in v0.16.0 |
 | 0.17 | Create tab: GIF / MP4 / WebP maker, collage, batch tools, one export engine - done in v0.17.0 |
 | 0.18 | Phone and USB-stick import (HEIC, Live Photos, motion photos) - done in v0.18.0 |
 | 0.19 | Culling mode, smart albums, RAW+JPG pairing - done in v0.19.0 |
@@ -86,10 +86,11 @@ In short:
 | 0.34 | Installer and first-run setup - done in v0.34.1 |
 | 0.35 | Faces: found, grouped, named, corrected; face overlay - done in v0.35.0 |
 | 0.36 | Places: offline place tags, pins on the map, unknown places; strangers (People > Unknown) - done in v0.36.0 |
+| 0.37 | Fixes from testing the installed app (v0.37.0); safety fixes from the release audit (v0.37.1, v0.37.2) - done |
 
 ## Later
 
-Faces (found and grouped on this PC), a full-screen slideshow viewer, Canon
-CR3 details, editing layers, encrypted backups, a camera-matched RAW look, a
-smaller download, a Mac version. (Scene recognition, the map, the timeline and
-natural-language search are built - 0.20, 0.26, 0.4 and 0.21.)
+A full-screen slideshow viewer, Canon CR3 details, editing layers, encrypted
+backups, a camera-matched RAW look, a smaller download, a Mac version. (Scene
+recognition, the map, the timeline, natural-language search, faces and places
+are built - 0.20, 0.26, 0.4, 0.21, 0.35 and 0.36.)

@@ -223,9 +223,9 @@ def empty(conn: sqlite3.Connection, items: list[Entry], *, backup_dir: Path | No
             continue
         side = _sidecars_near(e)
         network = _is_network(e.now)
-        if network and e.exact and not _same_bytes(e.kept, e.now):
-            # No Recycle Bin on a share: the copy kept must really be the same
-            # bytes, not just the same size, before this one goes for good.
+        if e.exact and not _same_bytes(e.kept, e.now):
+            # The kept copy must really be the same bytes, not just the same
+            # size, before this one goes (a Recycle Bin gets emptied too).
             res.skipped.append((e, "its kept copy isn't byte-for-byte the same any more - it stays in quarantine"))
             continue
         try:

@@ -18,9 +18,10 @@
      PC to carry on with that library.
    - **Start-up and the tray:** keep Lunelis in the tray (it offers to import
      when a card, phone or stick goes in) and start it with Windows.
-   - **Optional downloads:** the scene model and the subject and sky mask
-     models. Lunelis fetches the ones you tick in the background after it
-     starts, each checked against its fingerprint.
+   - **Optional downloads:** four small AI models that run only on this PC -
+     **Scene tags** (155 MB), **Faces** (39 MB), **Subject masks** (44 MB) and
+     **Sky masks** (176 MB). Lunelis fetches the ones you tick in the
+     background after it starts, each checked against its fingerprint.
 4. Finish with **Start Lunelis now**. It reads your folders in the background
    and downloads the chosen models; you can browse straight away.
 

@@ -11,7 +11,7 @@ darktable · Updates · Advanced**.
 
 ## General
 
-- **Open Lunelis on:** the library, Albums, or wherever you left off.
+- **Open Lunelis on:** The library, Albums, or Where I left off.
 - **In the photo view, the mouse wheel:** zooms in and out (default), or
   goes to the next/previous photo. Whichever it isn't: the arrow keys, the
   filmstrip and tilting the wheel always change photo; Z and double-click
@@ -58,9 +58,43 @@ darktable · Updates · Advanced**.
 ## Scene tags (Library tab)
 
 Download and turn on the scene model (once, checked against its fingerprint),
-tag the whole library as a background job, choose whether new photos are
-tagged after each scan, and open the suggestions to review. See
-[Tags](Tags.md#scene-tags).
+tag the whole library as a background job (**Tag the library...**), choose
+whether new photos are tagged (**Look at new photos after each scan**), open
+the suggestions (**Review suggestions**) and change the list of scenes
+(**Edit the labels...**). See [Tags](Tags.md#scene-tags).
+
+**Accept a suggestion by itself when the model is at least** a percentage
+sure: off by default, so every suggestion waits for you on the Tags page.
+
+## Faces (Library tab)
+
+Two small models (YuNet and SFace from OpenCV) find the faces in your photos
+and group the ones that look alike. They run only on this PC; nothing is sent
+anywhere. See [People](People.md).
+
+- **Face models**: whether they're installed, with **Download and turn on** /
+  **Remove**.
+- **Look for faces in new photos after each scan.**
+- **Name a face by itself when it's at least** a percentage sure: off by
+  default, so a likely match shows as "Ann?" and waits on the People page
+  until you say yes.
+- **Find faces in the library...** runs a background job; **Open the People
+  page** goes to the People page.
+
+## Places (Library tab)
+
+Photos with a location (from the camera, or a pin dropped on the Map) get a
+place tag such as Places > Italy > Lazio > Rome, from a list of towns built
+into Lunelis. Nothing is looked up online. See [Places](Places.md).
+
+- **Give photos a place tag after each scan.**
+- **Tag photos without any location Places > No location** (off by default:
+  on a library from cameras without GPS it tags most photos).
+- **Show map pictures on the Map (from OpenStreetMap, over the internet)**:
+  only the map tile numbers are asked for. Off, the Map shows the dots on a
+  plain grid.
+- **Name places now** tags the photos still waiting for a place, straight
+  away.
 
 ## Shoots, videos and the autopilot (Library tab)
 
@@ -137,9 +171,13 @@ Lunelis refuses a folder inside one of your sources.
   kept. Otherwise it's the copy in the shallowest folder, and never a Google
   Takeout copy if there's another.
 - **New jobs start with**: the defaults the job dialog opens with. These are
-  when to run (straight away, only while the PC is idle, or only between set
-  hours) and a speed limit for reading from the NAS. Each job keeps its own
-  choice. See [Background jobs](Jobs.md).
+  **When to run** (Straight away, Only while the PC is idle, or Only during
+  set hours), **Idle means no input for** so many minutes, the **Set hours**
+  (they can run past midnight) and a **Speed limit** for reading from the
+  NAS. Each job keeps its own choice. See [Background jobs](Jobs.md).
+- **Regular file checks**: **Re-read files** every week, every month or off,
+  so many GB each time. The files checked longest ago are read again in idle
+  time, so damage is caught while a backup still has a good copy.
 
 ## Catalog backups
 
@@ -151,6 +189,7 @@ many backups to keep (10). The page also offers:
   place. The catalog it replaces is kept alongside as
   `catalog.db.before-restore-...`.
 - **Open folder**.
+- **Photo backups (USB, network)...**: opens the [Backups](Backups.md) page.
 
 Keeping backups on a different drive, or on a network folder, protects them
 if this PC's drive fails. Changing the folder moves the existing backups there.
@@ -169,7 +208,15 @@ new place and restarts Lunelis to move everything:
 The data folder has to be on a drive in this PC. The catalog can't live on a
 network share, because the database needs features that network shares
 don't provide reliably. Moving isn't possible while a card import is
-unfinished, because its staged copies live in the data folder.
+unfinished, because its staged copies live in the data folder. While a move
+is waiting for the next start, **Cancel the move** calls it off.
+
+## darktable
+
+**Install in darktable** puts a small script in darktable that swaps stars,
+colour labels and rejects with Lunelis, both ways, through an **Exchange
+folder**. **Sync now** and **Remove from darktable** are beside it. See
+[darktable](darktable.md).
 
 ## Updates
 
@@ -183,9 +230,11 @@ unfinished, because its staged copies live in the data folder.
 - **Nothing is overwritten:** the previous version is kept until the new one
   has started. If the swap can't happen (a file in use, or a program folder
   that needs administrator rights), the old version simply starts again.
-- **Automatic check:** once a day at start-up (untick it to turn it off). A
-  button in the status bar says when an update is waiting.
+- **Check for updates when Lunelis starts (once a day)**: untick it to turn
+  the automatic check off. A button in the status bar says when an update is
+  waiting.
 - **Skip this version:** stays quiet until the next one comes out.
+- **Releases page** opens the releases page in your browser.
 
 ## Log and problem reports (Advanced tab)
 

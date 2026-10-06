@@ -60,7 +60,23 @@ _LOCALAPPDATA = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" /
 LOCATION_FILE = _APPDATA / "Lunelis" / "location.json"
 
 
+LOCATION_PROBLEM: str | None = None     # set when location.json exists but couldn't be read
+
+
+def write_json_atomic(path: Path, data) -> None:
+    """Write JSON via a temp file and a rename: a crash leaves the old file or
+    the new one, never half of one."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
 def resolve_data_dir() -> Path:
+    global LOCATION_PROBLEM
     env = os.environ.get("LUNELIS_DATA_DIR")
     if env:
         return Path(env)
@@ -68,15 +84,18 @@ def resolve_data_dir() -> Path:
         chosen = json.loads(LOCATION_FILE.read_text(encoding="utf-8")).get("data_dir")
         if chosen:
             return Path(chosen)
-    except (OSError, ValueError):
+    except FileNotFoundError:
         pass
+    except (OSError, ValueError, AttributeError) as e:
+        # A moved data folder would silently "vanish" into the default one:
+        # start-up says so instead (main.py).
+        LOCATION_PROBLEM = f"{LOCATION_FILE} couldn't be read ({type(e).__name__}: {e})"
     return _LOCALAPPDATA / "Lunelis"
 
 
 def set_data_dir(path: Path) -> None:
     """Record a user-chosen data folder (takes effect on next start)."""
-    LOCATION_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LOCATION_FILE.write_text(json.dumps({"data_dir": str(path)}, indent=2), encoding="utf-8")
+    write_json_atomic(LOCATION_FILE, {"data_dir": str(path)})
 
 
 def reload() -> None:
@@ -158,9 +177,7 @@ def request_move(new: str | os.PathLike, current: Path | None = None) -> None:
     """Move the data folder at the next start (checked first)."""
     current = Path(current or DATA_DIR)
     check_new_data_dir(new, current)
-    LOCATION_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LOCATION_FILE.write_text(json.dumps({"data_dir": str(current), "move_to": str(Path(new))}, indent=2),
-                             encoding="utf-8")
+    write_json_atomic(LOCATION_FILE, {"data_dir": str(current), "move_to": str(Path(new))})
 
 
 def pending_move() -> Path | None:
@@ -179,7 +196,7 @@ def cancel_move() -> None:
     except (OSError, ValueError):
         return
     data.pop("move_to", None)
-    LOCATION_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    write_json_atomic(LOCATION_FILE, data)
 
 
 def _same_volume(a: Path, b: Path) -> bool:

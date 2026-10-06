@@ -54,6 +54,14 @@ jobs:
           pip install -r requirements.txt
           pip install . pyinstaller==6.22.3
 
+      - name: Tag matches the version
+        # The file names follow the tag, the app reports pyproject's version:
+        # they must be the same release.
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path pyproject.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ("v$v" -ne "${{ github.ref_name }}") { Write-Error "Tag ${{ github.ref_name }} but pyproject.toml says $v"; exit 1 }
+
       - name: Build Lunelis.exe (one-folder)
         run: |
           python packaging/make_version_info.py

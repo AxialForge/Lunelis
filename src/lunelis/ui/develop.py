@@ -846,7 +846,11 @@ class DevelopPanel(QScrollArea):
         self.lens_profile.setChecked(bool(settings.get("profile")))
         self.lens_profile.blockSignals(False)
         self.lens_profile.setEnabled(profile is not None or bool(settings.get("profile")))
+        from lunelis.edit.lens import unavailable
+        broken = None if profile else unavailable()
         self.lens_name.setText(f"Profile: {profile}" if profile else
+                               f"Lens corrections aren't available: the lens library didn't load ({broken})."
+                               if broken else
                                f"No profile for {lens_name}." if lens_name else "The lens isn't recorded.")
         for key, s in self.lens_sliders.items():
             s.set_value(settings.get(key, 0))

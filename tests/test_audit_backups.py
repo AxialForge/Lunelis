@@ -78,3 +78,22 @@ def test_clearing_finished_jobs_and_deleting_files_survive_migration_records(tmp
     assert conn.execute("SELECT job_id FROM migrations").fetchone()[0] is None
     assert conn.execute("SELECT COUNT(*) FROM migration_items").fetchone()[0] == 0
     conn.close()
+
+
+def test_a_group_member_changing_on_disk_unverifies_the_group(tmp_path):
+    # audit LRA-015: migration 41
+    conn = open_catalog(tmp_path / "cat.db")
+    lib = tmp_path / "Lib"
+    lib.mkdir()
+    (lib / "a.jpg").write_bytes(_photo(4))
+    rid = add_root(conn, lib)
+    scan_root(conn, rid)
+    fid = conn.execute("SELECT id FROM files").fetchone()[0]
+    conn.execute("INSERT INTO duplicate_groups (id, method, verified) VALUES (1, 'exact', 1)")
+    conn.execute("INSERT INTO duplicate_group_files (group_id, file_id) VALUES (1, ?)", (fid,))
+    conn.commit()
+    conn.execute("UPDATE files SET rel_path = rel_path WHERE id = ?", (fid,))
+    assert conn.execute("SELECT verified FROM duplicate_groups").fetchone()[0] == 1   # untouched by other changes
+    conn.execute("UPDATE files SET size_bytes = size_bytes + 1 WHERE id = ?", (fid,))
+    assert conn.execute("SELECT verified FROM duplicate_groups").fetchone()[0] == 0
+    conn.close()

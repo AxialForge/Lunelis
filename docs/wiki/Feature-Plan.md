@@ -1,7 +1,7 @@
 # Feature plan
 
 Every feature of Lunelis, built and planned, phase by phase, with the
-version it arrived in or is planned for. Updated 2026-10-04 (v0.33.0), with the October 2026 feature list.
+version it arrived in or is planned for. Updated 2026-10-05 (v0.37.2), with the October 2026 feature list.
 
 **Status:** ✅ done · 🔨 next · 📅 planned · 💤 someday
 
@@ -53,10 +53,10 @@ All in **v0.2.0** (the first Windows build).
 | **Archive** | Archive photos out of the library (hidden from the grid, search and filters; one click brings them back), with an optional job that moves archived photos to an archive folder or drive. | ✅ 0.14.0 |
 | **Edit page** | An editing workspace in the sidebar: the photo large, the Edit panel full height, a strip of photos to edit, and batch tools. | ✅ 0.15.0 |
 
-## Phase 3 - the timeline from October 2026 📅
+## Phase 3 - the timeline from October 2026 ✅
 
 From *Lunelis: Features to Add* (October 3, 2026), in its build order.
-Decisions made with it: scene tagging moves up (faces stay later); a
+Decisions made with it: scene tagging moves up (faces came later, in 0.35); a
 **keeper** is a photo flagged **Pick**; Create-tab outputs go to one
 configurable output folder (Pictures\Lunelis creations by default, never
 the data folder).
@@ -187,7 +187,7 @@ Create tools.
 The October 2026 audit's fixes: security, reachability and ease of use, and
 the guide brought back in line with the app (docs/Audit-2026-10.md).
 
-### 0.34 - installer and first-run setup ✅ 0.34.0
+### 0.34 - installer and first-run setup ✅ 0.34.1
 
 A per-user Windows installer (`Lunelis-vX.Y.Z-setup.exe`, Inno Setup, no
 administrator rights) that installs into `%LOCALAPPDATA%\Programs\Lunelis`
@@ -219,13 +219,32 @@ dropping a pin on the Map - one photo or many, from the Photo menu or by
 dragging them onto the map. Faces gain "Stranger": people you don't know
 put People|Unknown on the photo, one face, a group or a whole shoot at once.
 
+### 0.37 - fixes from testing and the release audit ✅ 0.37.0 · 0.37.1 · 0.37.2
+
+**0.37.0**, from testing the installed app: the filmstrip always shows the
+photo on screen; "‹ Create" goes back again; On this day, Library status and
+the release notes load properly. The Edit panel can be made wider, the Map
+gets a "Show map pictures" button, and Stats and Duplicates are rebuilt to
+read at a glance.
+**0.37.1**, safety fixes: Clear the card only counts a file as in the
+library when its full SHA-256 matches; camera sidecars kept out by another
+file stay on the card; the installer fetches the right optional models; a
+sleeping NAS can't crash or hang a scan; backups no longer report "Up to
+date" for a file they can't restore; one failing job no longer stops the
+rest.
+**0.37.2**, more audit fixes: a NAS that drops mid-scan doesn't mark files
+unreadable; one odd file can't stop the library pass; impossible GPS
+positions and dates are ignored; emptying the quarantine on a USB stick or
+memory card warns that files can't be recovered. New: Problems in the Info
+panel, the third-party licences under Help > About Lunelis, and the Welcome
+window says what Lunelis sends over the network.
+
 ## Someday 💤
 
 | Feature | Notes |
 |---|---|
-| Faces | Find and group people on this PC, behind the recognition interface so it can move to a GPU server. |
 | Full-screen slideshow viewer | Any selection, album or search on screen, with timing and transitions (the Create tab makes slideshow videos in 0.22). |
-| Canon CR3 metadata | CR3 files are catalogued and shown; their camera details aren't read yet. |
+| Canon CR3 metadata | CR3 files are catalogued and shown; their camera details aren't read yet (the Info panel's Problems says so, 0.37.2). |
 | Editing layers | After the edit-stack schema has settled. |
 | Encrypted backups | Optional encryption of photo backups. |
 | RAW look matching the camera | Default RAW rendering that matches the camera's own JPEG. |

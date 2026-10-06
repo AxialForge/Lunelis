@@ -169,11 +169,11 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
                     action[m] = ("skip_duplicate", keeper, "An identical copy moves instead")
 
     # Damaged files: skip when an intact copy of the same file exists.
-    from lunelis.damage.check import survivors
+    from lunelis.damage.check import SAME_FILE, survivors
     for fid, r in by_id.items():
         if not r[11] or fid in action:
             continue
-        same = [s for s in survivors(conn, fid) if s[2] == "Same file, another location"]
+        same = [s for s in survivors(conn, fid) if s[2] == SAME_FILE]
         if same and options.skip_damaged_copies:
             action[fid] = ("skip_damaged", same[0][0], "Damaged - an intact copy exists")
         else:

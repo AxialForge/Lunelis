@@ -55,22 +55,8 @@ def quarantine(conn: sqlite3.Connection, group_id: int, file_ids: list[int], *,
     moved = []
     for fid in targets:
         root, rel, sidecar = members[fid]
-        src = os.path.join(root, *rel.split("/"))
-        dst = os.path.join(root, QUARANTINE_DIR, *rel.split("/"))
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        s_src = os.path.join(os.path.dirname(src), sidecar) if sidecar else None
-        s_name = sidecar
-        if os.path.exists(dst) or (sidecar and os.path.exists(os.path.join(os.path.dirname(dst), sidecar))):
-            # Taken already: this copy and its sidecar both get the id, decided
-            # before anything moves (a clash half-way would lose track of one).
-            base, ext = os.path.splitext(dst)
-            dst = f"{base} ({fid}){ext}"
-            if sidecar:
-                s_name = os.path.basename(dst) + sidecar[len(os.path.basename(src)):] \
-                    if sidecar.lower().startswith(os.path.basename(src).lower()) else f"({fid}) {sidecar}"
-        os.rename(src, dst)                       # same volume: instant, no copy
-        if s_src and os.path.exists(s_src):
-            os.rename(s_src, os.path.join(os.path.dirname(dst), s_name))
+        src, dst, s_src, s_dst = quarantine_paths(root, rel, sidecar, fid)
+        move_pair(src, dst, s_src, s_dst)
         conn.execute("UPDATE files SET quarantined_at = ?, quarantine_path = ? WHERE id = ?",
                      (_now(), dst, fid))
         conn.commit()                             # per file: a crash can't lose track of one
@@ -79,21 +65,68 @@ def quarantine(conn: sqlite3.Connection, group_id: int, file_ids: list[int], *,
     return moved
 
 
+def quarantine_paths(root: str, rel: str, sidecar: str | None, fid: int) -> tuple[str, str, str | None, str | None]:
+    """(photo, its quarantine place, sidecar, the sidecar's quarantine place).
+    When a name is taken there, the copy and its sidecar both get the id -
+    decided before anything moves (a clash half-way would lose track of one)."""
+    src = os.path.join(root, *rel.split("/"))
+    dst = os.path.join(root, QUARANTINE_DIR, *rel.split("/"))
+    s_src = os.path.join(os.path.dirname(src), sidecar) if sidecar else None
+    if s_src and not os.path.exists(s_src):
+        s_src = None
+    s_name = sidecar
+    if os.path.exists(dst) or (sidecar and os.path.exists(os.path.join(os.path.dirname(dst), sidecar))):
+        base, ext = os.path.splitext(dst)
+        dst = f"{base} ({fid}){ext}"
+        if sidecar:
+            s_name = os.path.basename(dst) + sidecar[len(os.path.basename(src)):] \
+                if sidecar.lower().startswith(os.path.basename(src).lower()) else f"({fid}) {sidecar}"
+    return src, dst, s_src, (os.path.join(os.path.dirname(dst), s_name) if s_src else None)
+
+
+def move_pair(src: str, dst: str, s_src: str | None, s_dst: str | None) -> None:
+    """Rename a photo and its sidecar together: both move or neither does.
+    Everything is checked before the first rename; a sidecar that then fails
+    to move puts the photo back."""
+    if os.path.exists(dst):
+        raise QuarantineRefused(f"something already exists at {dst}")
+    if s_src and s_dst and os.path.exists(s_dst):
+        raise QuarantineRefused(f"something already exists at {s_dst}")
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    os.rename(src, dst)                           # same volume: instant, no copy
+    if s_src and s_dst:
+        try:
+            os.rename(s_src, s_dst)
+        except OSError:
+            os.rename(dst, src)                   # undo: the pair stays together where it was
+            raise
+
+
+def _quarantined_sidecar(qpath: str, rel: str, sidecar: str, file_id: int) -> str | None:
+    """Where quarantine() put this file's sidecar (renamed with the id on a clash)."""
+    folder, qname, name = os.path.dirname(qpath), os.path.basename(qpath), os.path.basename(rel)
+    cands = [sidecar]
+    if sidecar.lower().startswith(name.lower()):
+        cands.append(qname + sidecar[len(name):])
+    cands.append(f"({file_id}) {sidecar}")
+    for c in cands:
+        if os.path.exists(os.path.join(folder, c)):
+            return os.path.join(folder, c)
+    return None
+
+
 def restore(conn: sqlite3.Connection, file_id: int) -> str:
     """Move a quarantined file (and its sidecar) back where it was."""
-    root, rel, qpath, sidecar = conn.execute(
+    row = conn.execute(
         "SELECT r.path, f.rel_path, f.quarantine_path, f.sidecar FROM files f"
         " JOIN roots r ON r.id = f.root_id WHERE f.id = ? AND f.quarantined_at IS NOT NULL",
         (file_id,)).fetchone()
+    if row is None:
+        raise QuarantineRefused("that file isn't in quarantine")
+    root, rel, qpath, sidecar = row
     dst = os.path.join(root, *rel.split("/"))
-    if os.path.exists(dst):
-        raise QuarantineRefused(f"something already exists at {dst}")
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    os.rename(qpath, dst)
-    if sidecar:
-        s_src = os.path.join(os.path.dirname(qpath), sidecar)
-        if os.path.exists(s_src):
-            os.rename(s_src, os.path.join(os.path.dirname(dst), sidecar))
+    s_src = _quarantined_sidecar(qpath, rel, sidecar, file_id) if sidecar else None
+    move_pair(qpath, dst, s_src, os.path.join(os.path.dirname(dst), sidecar) if s_src else None)
     conn.execute("UPDATE files SET quarantined_at = NULL, quarantine_path = NULL,"
                  " missing_since = NULL WHERE id = ?", (file_id,))
     conn.commit()

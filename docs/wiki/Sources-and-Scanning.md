@@ -8,7 +8,7 @@ photo and video underneath it and never moves, renames or edits them.
 | Kind | Formats |
 |---|---|
 | RAW | Sony ARW/SR2/ARQ, Canon CR2 (CR3 metadata coming), Nikon NEF/NRW, Fuji RAF, DNG, Panasonic RW2, Olympus ORF, Pentax PEF, Samsung SRW |
-| Images | JPEG, HEIC/HEIF (incl. Sony `.HIF`), PNG, TIFF, WebP, BMP |
+| Images | JPEG, HEIC/HEIF (incl. Sony `.HIF`), PNG, TIFF, WebP, BMP, GIF (animated ones play) |
 | Video | MP4, MOV, AVCHD (MTS/M2TS) |
 
 Hidden and system folders (`$RECYCLE.BIN`, `@eaDir`, `#recycle`...) and

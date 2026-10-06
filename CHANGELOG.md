@@ -6,6 +6,64 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.37.3] - 2026-10-05
+
+The rest of the 0.37.0 release audit's navigation, recovery and safety
+findings.
+
+### Fixed
+
+- **Back from a photo returns to the page it was opened from** (People, for
+  example), not always to the Library, and the sidebar always highlights the
+  page on screen.
+- **Leaving the photo view by a link or the sidebar closes its Edit panel**,
+  so the next photo no longer opens in edit mode.
+- **Rating, flag and stack keys (0-9, P, X, U, S) only act on the Library,
+  the photo view and the Edit page.** Pressing 3 on Stats changed a hidden
+  photo's stars.
+- **Esc leaves the Edit page** (back to where you came from), **Esc in a
+  Create tool** goes back to the list of tools, and Create opens on its list
+  of tools rather than the last tool used.
+- Back after the photo left the Library's filter no longer leaves a hidden
+  photo selected. Opening a photo from People that the Library's search or
+  filter hides now says so instead of doing nothing.
+- The shortcut sheet (?) no longer lists keys twice, and now covers the Map,
+  Albums and Create keys.
+- **A damaged catalog is a message, not a crash.** At start-up Lunelis offers
+  to restore the newest catalog backup (the damaged one is kept) or to start
+  with an empty catalog. A catalog from a newer Lunelis is refused with a
+  message instead of being opened.
+- Restoring a catalog backup never leaves a moment without a catalog.db, so a
+  crash part-way can't make Lunelis start on an empty one.
+- `location.json` (where a moved data folder is) and each backup drive's
+  `backup.json` are written whole; an unreadable `location.json` is reported
+  at start-up instead of quietly starting on the default data folder.
+- **A photo and its sidecar always move together** into or out of
+  quarantine (duplicates, near-duplicates, migration): if the sidecar can't
+  move, the photo is put back. Restoring a file that isn't in quarantine says
+  so instead of failing with an error.
+- **Emptying the quarantine checks every byte** of the kept copy on every
+  drive, and a duplicate group stops counting as verified when one of its
+  files changes on disk (catalog schema 41).
+- A damaged photo's "same file, another location" now also needs the same
+  capture time when both have one; a migration no longer sets a different
+  photo of the same name and size aside as the damaged one's copy.
+- A migration item whose copy was made and verified, but whose original
+  couldn't be set aside, stays resumable instead of being marked failed.
+- Restoring files from a backup reports where it kept the damaged files it
+  replaced, and ignores damage warnings you dismissed.
+- **Family gallery:** at most 32 connections at once, and twenty wrong PINs
+  for an album (from any addresses) lock its PIN for an hour.
+- Lens corrections say when the lens library itself didn't load, instead of
+  "No profile for" every lens.
+
+### Changed
+
+- CI refuses to build a release whose tag doesn't match the version in
+  pyproject.toml, or whose CHANGELOG section is missing.
+- The wiki's Feature plan, Roadmap, Settings, Getting started, Sources and
+  Home pages are brought up to date.
+
 ## [0.37.2] - 2026-10-05
 
 More fixes from the 0.37.0 release audit: one odd file or a dropped NAS no

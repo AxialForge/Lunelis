@@ -92,3 +92,37 @@ def test_files_on_a_share_that_went_away_stay_pending(tmp_path):
     assert t.offline == 1 and t.failed == 0
     assert conn.execute("SELECT thumb_error FROM files").fetchone()[0] is None
     conn.close()
+
+
+def test_a_photo_and_its_sidecar_move_together_or_not_at_all(tmp_path, monkeypatch):
+    # audit LRA-014/040
+    import os
+    from lunelis.dupes import quarantine as q
+    a, b = tmp_path / "a.jpg", tmp_path / "a.jpg.xmp"
+    a.write_bytes(b"photo")
+    b.write_text("<x/>", encoding="utf-8")
+    real = os.rename
+
+    def flaky(s, d):
+        if str(s).endswith(".xmp"):
+            raise PermissionError("in use")
+        return real(s, d)
+    monkeypatch.setattr(os, "rename", flaky)
+    with pytest.raises(PermissionError):
+        q.move_pair(str(a), str(tmp_path / "Q" / "a.jpg"), str(b), str(tmp_path / "Q" / "a.jpg.xmp"))
+    assert a.exists() and b.exists()                       # the photo was put back
+    monkeypatch.setattr(os, "rename", real)
+    (tmp_path / "Q").mkdir(exist_ok=True)
+    (tmp_path / "Q" / "a.jpg.xmp").write_text("<other/>", encoding="utf-8")
+    with pytest.raises(q.QuarantineRefused):                # checked before anything moves
+        q.move_pair(str(a), str(tmp_path / "Q" / "a.jpg"), str(b), str(tmp_path / "Q" / "a.jpg.xmp"))
+    assert a.exists() and not (tmp_path / "Q" / "a.jpg").exists()
+
+
+def test_restoring_a_file_not_in_quarantine_is_refused(tmp_path):
+    from lunelis.catalog.schema import open_catalog
+    from lunelis.dupes import quarantine as q
+    conn = open_catalog(tmp_path / "c.db")
+    with pytest.raises(q.QuarantineRefused):
+        q.restore(conn, 12345)
+    conn.close()

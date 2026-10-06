@@ -238,3 +238,34 @@ def test_originals_with_any_name(served, tmp_path):
     token = gallery.share(conn, aid, originals=True)
     code, data, h = get(g, f"/s/{token}/original/{ids[0]}.jpg")
     assert code == 200 and "filename*=UTF-8''Grand-m%C3%A8re" in h["Content-Disposition"]
+
+
+def test_an_albums_pin_has_its_own_budget_across_addresses():
+    # audit LRA-020: many LAN addresses can't each get five guesses for ever
+    from lunelis import gallery
+    lim = gallery._Limiter()
+    for _ in range(gallery.SHARE_PIN_TRIES):
+        assert lim.share_attempt("tok")
+        lim.share_failed("tok")
+    assert not lim.share_attempt("tok")
+    assert lim.share_attempt("other")
+
+
+def test_the_server_caps_connections(tmp_path, monkeypatch):
+    # audit LRA-019
+    import socket
+    import time
+    from lunelis import gallery
+    monkeypatch.setattr(gallery, "MAX_CONNECTIONS", 2)
+    g = gallery.Gallery(tmp_path / "none.db", tmp_path, port=0, host="127.0.0.1")
+    g.start()
+    try:
+        held = [socket.create_connection(("127.0.0.1", g.port)) for _ in range(2)]
+        time.sleep(0.3)
+        extra = socket.create_connection(("127.0.0.1", g.port))
+        extra.settimeout(3)
+        assert extra.recv(10) == b""                       # closed at once, not left waiting
+        for s in held + [extra]:
+            s.close()
+    finally:
+        g.stop()

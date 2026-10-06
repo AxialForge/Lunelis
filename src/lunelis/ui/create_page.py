@@ -1431,6 +1431,16 @@ class CreatePage(QWidget):
     def refresh(self) -> None:
         self.where.setText(f"Saved to: {engine.output_dir(self.conn)}")
 
+    def home(self) -> None:
+        """Back to the list of tools."""
+        self.stack.setCurrentIndex(0)
+
+    def keyPressEvent(self, e) -> None:
+        if e.key() == Qt.Key.Key_Escape and self.stack.currentIndex() != 0:
+            self.home()                            # Esc in a tool: back to the tools, like "‹ Create"
+            return
+        super().keyPressEvent(e)
+
     def open_tool(self, key: str) -> None:
         tool = self.tools[key]
         tool.picker.set_library_context(self._selection, self._view_filter, self._sort)

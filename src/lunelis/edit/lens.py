@@ -64,6 +64,17 @@ def active(settings: dict | None) -> bool:
 # --- the profile ---------------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
+@lru_cache(maxsize=1)
+def unavailable() -> str | None:
+    """Why lens corrections can't work at all (the lensfun library or its lens
+    database didn't load), or None. Told apart from "no profile for this lens"."""
+    try:
+        _db()
+        return None
+    except Exception as e:
+        return f"{type(e).__name__}: {e}"
+
+
 def _db():
     import lensfunpy
     return lensfunpy.Database()

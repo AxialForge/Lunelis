@@ -124,11 +124,14 @@ def _quarantine_original(root: str, rel: str, sidecar: str | None, migration_id:
             old = os.path.basename(src)
             s_name = (os.path.basename(dst) + sidecar[len(old):] if sidecar.lower().startswith(old.lower())
                       else f"({datetime.now():%H%M%S}) {sidecar}")
-    os.rename(src, dst)
-    if sidecar:
-        s_src = os.path.join(os.path.dirname(src), sidecar)
-        if os.path.exists(s_src):
-            os.rename(s_src, os.path.join(os.path.dirname(dst), s_name))
+    from lunelis.dupes.quarantine import QuarantineRefused, move_pair
+    s_src = os.path.join(os.path.dirname(src), sidecar) if sidecar else None
+    if s_src and not os.path.exists(s_src):
+        s_src = None
+    try:
+        move_pair(src, dst, s_src, os.path.join(os.path.dirname(dst), s_name) if s_src else None)   # both or neither
+    except QuarantineRefused as e:
+        raise FileExistsError(str(e)) from e      # an item error, like any other file problem
     return dst
 
 
@@ -230,8 +233,10 @@ def migrate_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, throt
         except OSError as e:
             if is_network_error(e) or not os.path.isdir(root) or not os.path.isdir(target):
                 raise SourceOffline(str(e)) from e
-            conn.execute("UPDATE migration_items SET state = 'failed', error = ? WHERE id = ?",
-                         (f"{type(e).__name__}: {e}"[:300], item[0]))
+            # A file already copied and repointed stays 'copied': only setting its
+            # original aside is left, and the next run tries that again.
+            conn.execute("UPDATE migration_items SET state = CASE state WHEN 'copied' THEN 'copied' ELSE 'failed'"
+                         " END, error = ? WHERE id = ?", (f"{type(e).__name__}: {e}"[:300], item[0]))
             conn.commit()
             result.errors.append(str(e))
     return result

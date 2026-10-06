@@ -870,6 +870,19 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    41,
+    "a duplicate group stops counting as verified when one of its files changes on disk",
+    """
+    CREATE TRIGGER IF NOT EXISTS files_changed_unverify AFTER UPDATE OF size_bytes, mtime ON files
+    WHEN OLD.size_bytes IS NOT NEW.size_bytes OR OLD.mtime IS NOT NEW.mtime
+    BEGIN
+        UPDATE duplicate_groups SET verified = 0
+        WHERE id IN (SELECT group_id FROM duplicate_group_files WHERE file_id = NEW.id);
+    END;
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 
@@ -902,6 +915,10 @@ def _snapshot_before_upgrade(conn: sqlite3.Connection, db_path: Path, version: i
     backup.snapshot(conn, folder, reason=f"before-upgrade-v{version}", keep=1_000_000)   # prune nothing
 
 
+class NewerCatalog(RuntimeError):
+    """The catalog was upgraded by a newer Lunelis than this one."""
+
+
 def migrate(db_path: str | Path) -> int:
     """Apply every migration newer than the catalog's current version.
 
@@ -913,6 +930,11 @@ def migrate(db_path: str | Path) -> int:
         conn.execute("PRAGMA foreign_keys = ON")
         _ensure_version_table(conn)
         applied = current_version(conn)
+        if applied > MIGRATIONS[-1][0]:
+            # Its tables may mean things this version doesn't know: refuse
+            # rather than read or write it wrongly.
+            raise NewerCatalog(f"The catalog is from a newer Lunelis (schema {applied}; this version knows "
+                               f"up to {MIGRATIONS[-1][0]}).")
         if 0 < applied < MIGRATIONS[-1][0]:
             _snapshot_before_upgrade(conn, Path(db_path), applied)
         vacuum = False

@@ -34,7 +34,6 @@ the user's explicit decision, one group at a time or all at once.
 """
 from __future__ import annotations
 
-import os
 import sqlite3
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -307,7 +306,7 @@ def quarantine_similar(conn: sqlite3.Connection, group_id: int, file_ids: list[i
     """Set near-duplicate copies aside (same-drive rename into the quarantine
     folder, never a delete). Never the last copy of a group; ratings, labels,
     events and albums of the set-aside copies are merged into the kept one."""
-    from lunelis.dupes.quarantine import QUARANTINE_DIR, QuarantineRefused, _now
+    from lunelis.dupes.quarantine import QuarantineRefused, _now
     from lunelis.migrate.execute import merge_user_data
     g = conn.execute("SELECT method FROM duplicate_groups WHERE id = ?", (group_id,)).fetchone()
     if not g or g[0] != "similar":
@@ -328,15 +327,9 @@ def quarantine_similar(conn: sqlite3.Connection, group_id: int, file_ids: list[i
         root, rel, sidecar = conn.execute("SELECT r.path, f.rel_path, f.sidecar FROM files f"
                                           " JOIN roots r ON r.id = f.root_id WHERE f.id = ?", (fid,)).fetchone()
         merge_user_data(conn, fid, keeper)
-        src = os.path.join(root, *rel.split("/"))
-        dst = os.path.join(root, QUARANTINE_DIR, *rel.split("/"))
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        if os.path.exists(dst):
-            base, ext = os.path.splitext(dst)
-            dst = f"{base} ({fid}){ext}"
-        os.rename(src, dst)
-        if sidecar and os.path.exists(os.path.join(os.path.dirname(src), sidecar)):
-            os.rename(os.path.join(os.path.dirname(src), sidecar), os.path.join(os.path.dirname(dst), sidecar))
+        from lunelis.dupes.quarantine import move_pair, quarantine_paths
+        src, dst, s_src, s_dst = quarantine_paths(root, rel, sidecar, fid)
+        move_pair(src, dst, s_src, s_dst)                  # photo and sidecar together, or neither
         conn.execute("UPDATE files SET quarantined_at = ?, quarantine_path = ? WHERE id = ?", (_now(), dst, fid))
         conn.commit()
         moved.append(dst)

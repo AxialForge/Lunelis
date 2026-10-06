@@ -370,6 +370,10 @@ class BackupsView(QWidget):
                 text += f" {res.skipped:,} skipped (already there and healthy)."
             if res.failed:
                 text += f" {res.failed:,} failed: " + "; ".join(res.errors[:3])
+            if res.set_aside:
+                text += (f" The {len(res.set_aside):,} damaged file{'s' if len(res.set_aside) != 1 else ''} they"
+                         f" replaced {'were' if len(res.set_aside) != 1 else 'was'} kept in "
+                         f"{res.set_aside_dir} (and the log lists each).")
             self.message.setText(text)
             self.library_changed.emit()
         self.refresh()

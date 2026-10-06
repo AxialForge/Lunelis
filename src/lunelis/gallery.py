@@ -12,7 +12,10 @@ answers on this PC's home-network address, and:
   albums, and Stop sharing makes the key useless at once.
 - **Optional PIN:** stored only as a salted PBKDF2 hash; a right PIN sets a
   cookie (HttpOnly, SameSite=Strict) signed with this PC's own secret. Five
-  wrong PINs from one address lock it out for ten minutes.
+  wrong PINs from one address lock it out for ten minutes, and
+  twenty wrong PINs for one album (from any addresses) lock that album's PIN
+  for an hour.
+- **At most 32 connections** at once; more are closed straight away.
 - **Rate limit:** each address gets a bucket of requests (burst 120, 20 a
   second); past that, 429.
 - **Resized copies:** photos are served as 1600 px JPEGs with their edits
@@ -42,6 +45,9 @@ DEFAULT_PORT = 8735
 SIZE = 1600
 THUMB = 400
 PIN_TRIES = 5
+SHARE_PIN_TRIES = 20          # wrong PINs for one album from ALL addresses, per SHARE_LOCKOUT_S
+SHARE_LOCKOUT_S = 3600
+MAX_CONNECTIONS = 32          # more at once are turned away: slow clients can't pile up threads
 LOCKOUT_S = 600
 BURST, RATE = 120, 20.0
 VIDEO = ("mp4", "mov", "mpeg-ts")
@@ -182,6 +188,20 @@ class _Limiter:
             if stamp in tries:
                 tries.remove(stamp)
 
+    def share_attempt(self, token: str) -> bool:
+        """The album's own budget, whatever address the guesses come from (a
+        LAN has plenty): False once SHARE_PIN_TRIES wrong PINs in the hour."""
+        now = time.monotonic()
+        key = "share:" + token
+        with self.lock:
+            recent = [t for t in self.fails.get(key, []) if now - t < SHARE_LOCKOUT_S]
+            self.fails[key] = recent
+            return len(recent) < SHARE_PIN_TRIES
+
+    def share_failed(self, token: str) -> None:
+        with self.lock:
+            self.fails.setdefault("share:" + token, []).append(time.monotonic())
+
 
 PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{title}</title>
@@ -289,6 +309,8 @@ def _handler(app: "Gallery"):
             addr, sh, rest = g
             if rest[:1] != ["pin"] or not sh["pin_hash"]:
                 return self._deny(404, "Nothing here.")
+            if not app.limiter.share_attempt(sh["token"]):
+                return self._deny(429, "Too many wrong PINs for this album - try again in an hour.")
             stamp = app.limiter.attempt(addr)
             if stamp is None:
                 return self._deny(429, "Too many wrong PINs - try again in ten minutes.")
@@ -300,6 +322,7 @@ def _handler(app: "Gallery"):
             with app.pin_lock:                         # one PBKDF2 at a time: guessing can't load the PC
                 ok = _pin_ok(pin, sh["pin_hash"])
             if not ok:
+                app.limiter.share_failed(sh["token"])
                 return self._pin_form(sh, wrong=True)
             app.limiter.succeeded(addr, stamp)
             ck = f"lg{sh['id']}={app.sign(sh['token'] + sh['pin_hash'])}; Path=/s/{sh['token']}/; HttpOnly; SameSite=Strict"
@@ -330,6 +353,30 @@ def _handler(app: "Gallery"):
                     "document.documentElement.requestFullscreen();};</script>")
             self._send(200, PAGE.format(title=html.escape(sh["name"]), body=body).encode())
     return H
+
+
+class _CappedServer(ThreadingHTTPServer):
+    """At most MAX_CONNECTIONS handled at once; the rest are closed at once."""
+
+    def __init__(self, *a, **kw) -> None:
+        super().__init__(*a, **kw)
+        self._slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
+
+    def process_request(self, request, client_address) -> None:
+        if not self._slots.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
 
 
 class Gallery:
@@ -408,7 +455,7 @@ class Gallery:
     def start(self) -> None:
         if self.httpd is not None:
             return
-        self.httpd = ThreadingHTTPServer((self.host, self.port), _handler(self))
+        self.httpd = _CappedServer((self.host, self.port), _handler(self))
         self.httpd.daemon_threads = True
         self.port = self.httpd.server_address[1]
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="lunelis-gallery", daemon=True)

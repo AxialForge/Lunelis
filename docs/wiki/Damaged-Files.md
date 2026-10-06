@@ -26,7 +26,8 @@ at risk.
 
 Select a file to see its intact copies, best first:
 
-1. **Same file, another location** - identical name and size elsewhere
+1. **Same name, size and date, another location** - identical name and size
+   elsewhere, and the same capture time when both have one
 2. **The RAW original** - for a damaged JPEG, its RAW in the same folder
 3. **Google Takeout copy** - Google's re-encoded version (lower quality, but
    the picture survives)

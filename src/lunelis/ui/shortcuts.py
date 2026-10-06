@@ -63,7 +63,18 @@ KEYS: dict[str, list[tuple[str, str]]] = {
         ("O", "Show or hide the selected mask"),
         ("Alt while painting", "Erase a brush mask"),
         ("Double-click a slider", "Put it back to 0"),
-        ("Esc", "Deselect the mask, then leave editing"),
+        ("Esc", "Deselect the mask, then leave editing (on the Edit page: back to the page before)"),
+    ],
+    "Map": [
+        ("+ / =, -", "Zoom in / out"),
+    ],
+    "Albums": [
+        ("Enter, Space", "Open the album"),
+        ("Menu key", "The album's menu"),
+    ],
+    "Create": [
+        ("Enter, Space", "Open the tool"),
+        ("Esc", "Back to the list of tools"),
     ],
     "Everywhere": [
         ("?", "This sheet"),
@@ -91,14 +102,17 @@ class ShortcutSheet(QDialog):
         self.resize(640, 640)
         v = QVBoxLayout(self)
         v.addWidget(QLabel(f"On this screen: <b>{screen}</b>. Menu commands work everywhere."))
-        groups = ("Library", "Photo view", "Video", "Edit panel", "Culling (Photo > Cull full screen, Ctrl+K)")
+        groups = ("Library", "Photo view", "Video", "Edit panel", "Culling (Photo > Cull full screen, Ctrl+K)",
+                  "Map", "Albums", "Create")
         order = [g for g in groups if g == screen or g.startswith(screen + " ")] + \
             [g for g in groups if not (g == screen or g.startswith(screen + " "))]
         rows: list[tuple[str, str, str]] = []
         for group in order:
             rows += [(group, k, d) for k, d in KEYS.get(group, ())]
-        rows += [("Menus", k, d) for k, d in menu_shortcuts(window)]
         rows += [("Everywhere", k, d) for k, d in KEYS["Everywhere"]]
+        # A menu command already listed above (?, F5, S...) isn't listed twice.
+        listed = {k for _, k, _ in rows}
+        rows += [("Menus", k, d) for k, d in menu_shortcuts(window) if k not in listed]
         self.table = QTableWidget(len(rows), 3)
         self.table.setHorizontalHeaderLabels(["Where", "Keys", "What they do"])
         self.table.verticalHeader().hide()

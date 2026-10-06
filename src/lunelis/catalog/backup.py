@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import sqlite3
 import sys
 import time
@@ -99,14 +100,45 @@ def restore(snapshot_zip: Path, catalog_path: Path) -> Path:
         tmp.unlink()
         raise ValueError(f"snapshot failed its integrity check: {ok}")
     if catalog_path.exists():
+        # Copied, not moved, aside: catalog.db exists at every moment, so a
+        # crash here can never leave Lunelis to start on an empty catalog.
         keep = catalog_path.with_name(f"{catalog_path.name}.before-restore-{int(time.time())}")
-        os.replace(catalog_path, keep)
+        shutil.copy2(catalog_path, keep)
         for suffix in ("-wal", "-shm"):
             side = Path(str(catalog_path) + suffix)
             if side.exists():
                 os.replace(side, Path(str(keep) + suffix))
     os.replace(tmp, catalog_path)
     return catalog_path
+
+
+def problem(catalog_path: Path) -> str | None:
+    """Why the catalog can't be opened ("empty", "damaged: ..."), or None when
+    it's fine or doesn't exist yet. Read-only: nothing is written or checkpointed."""
+    if not catalog_path.exists():
+        return None
+    if catalog_path.stat().st_size == 0:
+        return "empty"
+    try:
+        c = sqlite3.connect(catalog_path.resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            c.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()     # the header and schema read
+        finally:
+            c.close()
+    except sqlite3.DatabaseError as e:
+        return f"damaged: {e}"
+    return None
+
+
+def set_aside_damaged(catalog_path: Path) -> Path:
+    """Move a damaged catalog (and its -wal/-shm) out of the way, kept."""
+    keep = catalog_path.with_name(f"{catalog_path.name}.damaged-{datetime.now():%Y%m%d-%H%M%S}")
+    os.replace(catalog_path, keep)
+    for suffix in ("-wal", "-shm"):
+        side = Path(str(catalog_path) + suffix)
+        if side.exists():
+            os.replace(side, Path(str(keep) + suffix))
+    return keep
 
 
 PENDING_RESTORE = "restore-pending.json"

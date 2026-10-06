@@ -5,7 +5,7 @@ videos where they already are - local drives, a NAS, a Google Takeout export -
 reads their metadata, shows them in one fast grid, and helps you keep the
 library healthy: ratings that round-trip with darktable, duplicate detection,
 damaged-file checks, non-destructive editing and automatic catalog backups.
-Nothing leaves your computer, and Lunelis never modifies your photos.
+Your photos never leave your computer, and Lunelis never modifies them.
 
 ## Using Lunelis
 
@@ -63,10 +63,13 @@ Nothing leaves your computer, and Lunelis never modifies your photos.
 | `Ctrl+O` | Add a folder |
 | `Ctrl+I` | Import from a card or folder |
 | `F5` | Rescan all folders |
+| `Ctrl+.` | Stop the scan (**Library > Stop**) |
 | `Ctrl+E` | New event from the selected photos |
 | `Ctrl+Shift+A` | Add the selected photos to an album |
 | `Ctrl+T` | Tag the selected photos |
 | `Ctrl+F` | Search |
+| `F` (photo view) | Show or hide the faces and their names (click a face to name or correct it; `Ctrl`+drag adds one) |
+| `Ctrl+Shift+L` | Set the location on the map (a pin, for photos without GPS) |
 | `E` (photo view) | Edit the photo; `\` before/after, `R` crop, `O` show mask, `Ctrl+Z` undo |
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | Copy / paste edit settings |
 | `Ctrl+Shift+E` | Export the selected photos |

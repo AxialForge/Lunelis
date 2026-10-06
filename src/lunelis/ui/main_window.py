@@ -604,6 +604,7 @@ class MainWindow(QMainWindow):
         from lunelis.ui.edit_page import EditPage
         self.edit_page = EditPage(self.conn)
         v = self.edit_page.view
+        v.back.connect(self._edit_page_back)
         v.rate.connect(lambda change: self.rate(**change))
         v.show_event.connect(self.show_event)
         v.edited.connect(self._photo_edited)
@@ -1870,7 +1871,11 @@ class MainWindow(QMainWindow):
             self.grid.set_index(self.index)
             pos = self.index.position(file_id)
         if pos < 0:
+            self.status.setText("That photo isn't in the Library's current view - clear the search or filter"
+                                " to open it")
             return
+        if self.pages.currentWidget() is not self.detail:
+            self._detail_from = getattr(self, "_page_name", "Library")    # Back returns here
         self.toolbar.hide()
         self.filter_bar.hide()
         self.pages.setCurrentWidget(self.detail)
@@ -2257,15 +2262,31 @@ class MainWindow(QMainWindow):
     def close_detail(self) -> None:
         self.detail.set_editing(False)
         fid = self.detail.info.file_id if self.detail.info else None
+        origin = getattr(self, "_detail_from", "Library") or "Library"
+        if origin != "Library" and origin in self._nav:
+            self.open_page(origin)                 # back to People (or wherever it was opened from)
+            return
         self.show_page("Library")
-        if fid is not None:
-            pos = self.index.position(fid)
-            if pos >= 0:
-                self.grid.current = self.grid.anchor = pos
-                self.grid.selected = {fid}
-                self.grid.scroll_to(pos)
-                self.grid.selection_changed.emit(1)
+        pos = self.index.position(fid) if fid is not None else -1
+        if pos >= 0:
+            self.grid.current = self.grid.anchor = pos
+            self.grid.selected = {fid}
+            self.grid.scroll_to(pos)
+            self.grid.selection_changed.emit(1)
+        elif self.grid.selected:
+            self.grid.selected = set()             # the photo left the view: nothing hidden stays selected
+            self.grid.selection_changed.emit(0)
+            self.grid.viewport().update()
         self.grid.setFocus()
+
+    def _edit_page_back(self) -> None:
+        """Esc / Backspace on the Edit page: back to the page it was opened from."""
+        origin = getattr(self, "_edit_from", "Library") or "Library"
+        self.open_page(origin if origin in self._nav and origin != "Edit" else "Library")
+
+    def _on_photo_page(self) -> bool:
+        """A page where the rating, flag and stack keys mean something."""
+        return self.pages.currentWidget() in (self.grid, self.detail, getattr(self, "edit_page", None))
 
     def _detail_moved(self, file_id: int) -> None:
         # The photo on screen is what the rating keys apply to.
@@ -2275,8 +2296,20 @@ class MainWindow(QMainWindow):
             self.grid.current = pos
 
     def show_page(self, name: str) -> None:
+        prev = getattr(self, "_page_name", None)
         if name != "Edit" and self.pages.currentWidget() is getattr(self, "edit_page", None):
             self.edit_page.leave()                     # saves the photo being edited
+        if self.pages.currentWidget() is getattr(self, "detail", None):
+            self.detail.set_editing(False)             # left by a link or the sidebar: close its edit too
+        if name == "Edit" and prev != "Edit":
+            self._edit_from = prev if self.pages.currentWidget() is not getattr(self, "detail", None) \
+                else getattr(self, "_detail_from", "Library")
+        if name == "Create" and prev != "Create" and hasattr(self, "create_page"):
+            self.create_page.home()                    # a fresh visit starts at the tools, not the last one
+        self._page_name = name
+        b = getattr(self, "_nav", {}).get(name)
+        if b is not None and not b.isChecked():
+            b.setChecked(True)                         # the sidebar shows the page on screen
         if name in getattr(self, "_nav", {}) and name != "Settings":
             try:
                 Settings(self.conn).set("last_page", name)
@@ -2638,6 +2671,8 @@ class MainWindow(QMainWindow):
         return (self.index.file_id(i), sid) if sid is not None else None
 
     def toggle_stack(self) -> None:
+        if not self._on_photo_page():
+            return
         cur = self._current_stack()
         if not cur:
             self.status.setText("That photo isn't part of a burst stack")
@@ -2865,6 +2900,8 @@ class MainWindow(QMainWindow):
         return pairs.with_partners(self.conn, ids) if ids else ids
 
     def rate(self, **change) -> None:
+        if not self._on_photo_page():
+            return                                     # a key on Stats or Settings must not rate a hidden photo
         self.rate_ids(self._targets(), **change)
 
     def rate_ids(self, ids: list[int], **change) -> None:

@@ -161,7 +161,7 @@ def test_damage_categories_and_survivors(lib):
     assert r.read_files <= 3                                             # only unrecognised headers read
 
     (best, path, why), *_ = survivors(conn, _id(conn, "Old/a.jpg"))
-    assert best == _id(conn, "2019/a.jpg") and why == "Same file, another location"
+    assert best == _id(conn, "2019/a.jpg") and why == "Same name, size and date, another location"
 
     # Dismissed stays dismissed while the problem persists; fixed drops off.
     conn.execute("UPDATE damaged SET dismissed = 1 WHERE file_id = ?", (_id(conn, "Old/junk.jpg"),))

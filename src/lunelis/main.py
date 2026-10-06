@@ -86,6 +86,15 @@ def main() -> int:
         QMessageBox.warning(None, "Lunelis", f"Couldn't restore the catalog backup:\n{e}\n\n"
                             "The current catalog is unchanged.")
 
+    if paths.LOCATION_PROBLEM:
+        log.LOG.error("%s", paths.LOCATION_PROBLEM)
+        QMessageBox.warning(None, "Lunelis", f"{paths.LOCATION_PROBLEM}.\n\nLunelis is using the default data "
+                            f"folder ({paths.DATA_DIR}) for now. If you had moved your data folder, it is still where "
+                            "you put it and nothing in it was lost: close Lunelis and repair or delete that file "
+                            "(Help > Report a problem can help).")
+    if not _catalog_ok(backup):
+        return 1
+
     from lunelis.ui.main_window import MainWindow
 
     window = MainWindow(tray=True)
@@ -108,6 +117,52 @@ def main() -> int:
         else:
             QTimer.singleShot(600, window.maybe_welcome)
     return app.exec()
+
+
+def _catalog_ok(backup) -> bool:
+    """A damaged or newer catalog is a message with a way out, never a
+    traceback - and never silently a new, empty library."""
+    from lunelis import log
+    from lunelis.catalog import schema
+    cat = paths.DEFAULT_CATALOG_PATH
+    why = backup.problem(cat)
+    if why is None:
+        try:
+            schema.migrate(cat)
+            return True
+        except schema.NewerCatalog as e:
+            log.LOG.error("%s", e)
+            QMessageBox.critical(None, "Lunelis", f"{e}\n\nInstall the newest Lunelis from Settings > Updates "
+                                 "or github.com/AxialForge/Lunelis/releases. Your catalog is unchanged.")
+            return False
+        except Exception as e:                         # e.g. a page damaged past the header
+            why = f"damaged: {e}"
+    log.LOG.error("Catalog problem at start-up: %s", why)
+    snaps = backup.list_snapshots(paths.DATA_DIR / "backups")
+    box = QMessageBox(QMessageBox.Icon.Warning, "Lunelis",
+                      f"Lunelis can't open its catalog ({why}).\n\nYour photos are not affected - the catalog "
+                      "holds only Lunelis's own records (ratings, tags, albums...).")
+    restore_b = None
+    if snaps:
+        box.setInformativeText(f"The newest catalog backup is {snaps[0].name}. Restoring it brings back "
+                               "everything up to then; the damaged catalog is kept beside it.")
+        restore_b = box.addButton("Restore the newest backup", QMessageBox.ButtonRole.AcceptRole)
+    fresh_b = box.addButton("Start with an empty catalog", QMessageBox.ButtonRole.DestructiveRole)
+    box.addButton("Quit", QMessageBox.ButtonRole.RejectRole)
+    box.exec()
+    try:
+        if restore_b is not None and box.clickedButton() is restore_b:
+            backup.set_aside_damaged(cat)
+            backup.restore(snaps[0], cat)
+            log.LOG.info("Restored the catalog from %s", snaps[0])
+            return True
+        if box.clickedButton() is fresh_b:
+            kept = backup.set_aside_damaged(cat)
+            log.LOG.info("Damaged catalog set aside as %s; starting empty", kept)
+            return True
+    except (OSError, ValueError) as e:
+        QMessageBox.critical(None, "Lunelis", f"That didn't work: {e}\n\nNothing was deleted.")
+    return False
 
 
 if __name__ == "__main__":

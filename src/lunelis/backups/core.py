@@ -390,9 +390,10 @@ def _write_manifest(conn, set_id: int, dest: str) -> None:
     os.makedirs(meta, exist_ok=True)
     s = get_set(conn, set_id)
     roots = dict(conn.execute("SELECT id, path FROM roots"))
-    with open(os.path.join(meta, "backup.json"), "w", encoding="utf-8") as fh:
-        json.dump({"app": "Lunelis", "set_id": set_id, "name": s.name, "updated": _now(),
-                   "sources": {root_key(r, roots[r]): roots[r] for r in s.sources if r in roots}}, fh, indent=2)
+    from lunelis.paths import write_json_atomic
+    write_json_atomic(Path(meta) / "backup.json",
+                      {"app": "Lunelis", "set_id": set_id, "name": s.name, "updated": _now(),
+                       "sources": {root_key(r, roots[r]): roots[r] for r in s.sources if r in roots}})
 
 
 def _mirror_tree(src: Path, dst: Path) -> None:
@@ -442,6 +443,8 @@ class RestoreResult:
     skipped: int = 0
     failed: int = 0
     errors: list[str] = field(default_factory=list)
+    set_aside: list[str] = field(default_factory=list)    # damaged files moved out of the way, kept
+    set_aside_dir: str | None = None
 
 
 def restorable(conn: sqlite3.Connection, set_id: int) -> list[int]:
@@ -450,7 +453,8 @@ def restorable(conn: sqlite3.Connection, set_id: int) -> list[int]:
     return [r[0] for r in conn.execute(
         "SELECT f.id FROM backup_files b JOIN files f ON f.id = b.file_id"
         " WHERE b.set_id = ? AND b.problem IS NULL AND f.quarantined_at IS NULL"
-        " AND (f.missing_since IS NOT NULL OR EXISTS (SELECT 1 FROM damaged d WHERE d.file_id = f.id))",
+        " AND (f.missing_since IS NOT NULL"
+        " OR EXISTS (SELECT 1 FROM damaged d WHERE d.file_id = f.id AND d.dismissed = 0))",
         (set_id,))]
 
 
@@ -476,7 +480,7 @@ def restore_files(conn: sqlite3.Connection, set_id: int, file_ids: list[int] | N
             break
         row = conn.execute(
             "SELECT b.rel, b.sha256, b.size, f.root_id, r.path, f.rel_path,"
-            " EXISTS (SELECT 1 FROM damaged d WHERE d.file_id = f.id)"
+            " EXISTS (SELECT 1 FROM damaged d WHERE d.file_id = f.id AND d.dismissed = 0)"
             " FROM backup_files b JOIN files f ON f.id = b.file_id JOIN roots r ON r.id = f.root_id"
             " WHERE b.set_id = ? AND b.file_id = ?", (set_id, fid)).fetchone()
         if row is None:
@@ -498,6 +502,10 @@ def restore_files(conn: sqlite3.Connection, set_id: int, file_ids: list[int] | N
                     q = os.path.join(root, QUARANTINE_DIR, stamp, *rel.split("/"))
                     os.makedirs(os.path.dirname(q), exist_ok=True)
                     os.rename(target, q)                    # the damaged one is kept, not replaced in place
+                    res.set_aside.append(q)
+                    res.set_aside_dir = os.path.join(root, QUARANTINE_DIR, stamp)
+                    from lunelis.log import LOG
+                    LOG.info("Restore set the damaged %s aside as %s", target, q)
             elif os.path.exists(target):
                 res.skipped += 1
                 continue

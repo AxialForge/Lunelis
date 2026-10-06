@@ -1356,7 +1356,10 @@ class DetailView(QWidget):
                 self.edit.select_mask(-1)
                 return
             if k == Qt.Key.Key_Escape:
-                self.set_editing(False)
+                if self.workspace:
+                    self.back.emit()               # the Edit page: Esc leaves it, as Back does elsewhere
+                else:
+                    self.set_editing(False)
                 return
         if self.info is not None and self.info.is_video and self.player is not None and not ctrl:
             act = {Qt.Key.Key_K: self.player.toggle, Qt.Key.Key_Space: self.player.toggle,
