@@ -103,7 +103,7 @@ class EditPage(QWidget):
         self.source.setToolTip("Which photos to work through")
         # Sized to a short label, not the longest one ("What the library shows now").
         self.source.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-        self.source.setMinimumContentsLength(16)
+        self.source.setMinimumContentsLength(26)      # "What the library shows now" in full
         for key, label in SOURCES:
             self.source.addItem(label, key)
         self.source.currentIndexChanged.connect(lambda _i: self.load())

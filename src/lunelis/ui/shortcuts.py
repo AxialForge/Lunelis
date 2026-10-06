@@ -111,7 +111,8 @@ class ShortcutSheet(QDialog):
             rows += [(group, k, d) for k, d in KEYS.get(group, ())]
         rows += [("Everywhere", k, d) for k, d in KEYS["Everywhere"]]
         # A menu command already listed above (?, F5, S...) isn't listed twice.
-        listed = {k for _, k, _ in rows}
+        import re
+        listed = {k.strip() for _, keys, _ in rows for k in re.split(r" / |, | or ", keys)}
         rows += [("Menus", k, d) for k, d in menu_shortcuts(window) if k not in listed]
         self.table = QTableWidget(len(rows), 3)
         self.table.setHorizontalHeaderLabels(["Where", "Keys", "What they do"])

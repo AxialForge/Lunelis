@@ -371,11 +371,16 @@ class DuplicatesView(QWidget):
     # --- the chosen group ---------------------------------------------------------------
 
     def _clear_detail(self) -> None:
-        while self.detail_v.count():
-            item = self.detail_v.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
+        def clear(layout) -> None:
+            while layout.count():
+                item = layout.takeAt(0)
+                if item.widget() is not None:
+                    item.widget().hide()               # gone at once, not at the next event loop turn
+                    item.widget().deleteLater()
+                elif item.layout() is not None:        # a row of buttons: its buttons too
+                    clear(item.layout())
+                    item.layout().deleteLater()
+        clear(self.detail_v)
 
     def _show(self, row: int) -> None:
         self._clear_detail()

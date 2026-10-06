@@ -103,8 +103,7 @@ def delete_filter(conn: sqlite3.Connection, name: str) -> int:
     how many photos that was."""
     users = users_of(conn, name)
     for fid in users:
-        s = get(conn, fid)
-        save(conn, fid, Stack(None, 100, flatten(conn, s), s.geometry), commit=False)
+        save(conn, fid, baked(conn, get(conn, fid)), commit=False)
     conn.execute("DELETE FROM edit_filters WHERE name = ?", (name,))
     conn.commit()
     return len(users)
@@ -134,10 +133,18 @@ def apply_import_filter(conn: sqlite3.Connection) -> list[int]:
 
 
 def flatten(conn: sqlite3.Connection, stack: Stack) -> dict:
-    """A stack's filter + manual adjustments as plain adjustments (for
-    saving it as a new filter)."""
+    """A stack's filter + manual adjustments as plain slider values (for
+    saving it as a new filter). Curves, masks, lens and retouch aren't sliders
+    and stay with the photo."""
     from lunelis.edit.stack import effective
-    return effective(stack, filter_params(conn, stack.filter))
+    return {k: v for k, v in effective(stack, filter_params(conn, stack.filter)).items() if not k.startswith("_")}
+
+
+def baked(conn: sqlite3.Connection, stack: Stack) -> Stack:
+    """The same look with its filter written into the photo's own sliders -
+    everything else in the edit (crop, curves, masks, lens, retouch) kept."""
+    from dataclasses import replace
+    return replace(stack, filter=None, amount=100, adjust=flatten(conn, stack))
 
 
 # --- virtual copies -------------------------------------------------------------------------------

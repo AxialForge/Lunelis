@@ -70,10 +70,12 @@ def add_files(conn: sqlite3.Connection, album_id: int, file_ids: Iterable[int]) 
     ids = list(dict.fromkeys(file_ids))
     start = conn.execute("SELECT COALESCE(MAX(position), 0) FROM album_files WHERE album_id = ?",
                          (album_id,)).fetchone()[0]
-    before = conn.total_changes
+    count = lambda: conn.execute("SELECT COUNT(*) FROM album_files WHERE album_id = ?",  # noqa: E731
+                                 (album_id,)).fetchone()[0]
+    before = count()                                   # (total_changes also counts the search-index triggers)
     conn.executemany("INSERT OR IGNORE INTO album_files (album_id, file_id, position) VALUES (?, ?, ?)",
                      [(album_id, fid, start + n + 1) for n, fid in enumerate(ids)])
-    added = conn.total_changes - before
+    added = count() - before
     conn.execute("UPDATE albums SET updated_at = datetime('now') WHERE id = ?", (album_id,))
     conn.commit()
     return added

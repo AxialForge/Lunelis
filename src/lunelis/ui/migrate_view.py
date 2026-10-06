@@ -268,6 +268,7 @@ class MigrateView(QWidget):
 
     def prefill_archive(self) -> None:
         """Library > Move the Archive to a drive: every source, archived photos only."""
+        self._tick_all = True                         # also sources the refresh below adds
         self.refresh()
         for i in range(self.sources.count()):
             self.sources.item(i).setCheckState(Qt.CheckState.Checked)
@@ -285,6 +286,7 @@ class MigrateView(QWidget):
 
     def _fill_page(self, data) -> None:
         sources, (exact, likely), mid, plan_data = data
+        tick_all, self._tick_all = getattr(self, "_tick_all", False), False
         checked = {self.sources.item(i).data(Qt.ItemDataRole.UserRole)
                    for i in range(self.sources.count())
                    if self.sources.item(i).checkState() == Qt.CheckState.Checked}
@@ -292,7 +294,8 @@ class MigrateView(QWidget):
         for rid, path, n, size in sources:
             it = QListWidgetItem(f"{path}   ({n:,} files, {_gb(size)})")
             it.setData(Qt.ItemDataRole.UserRole, rid)
-            it.setCheckState(Qt.CheckState.Checked if rid in checked else Qt.CheckState.Unchecked)
+            it.setCheckState(Qt.CheckState.Checked if rid in checked or tick_all
+                             else Qt.CheckState.Unchecked)
             self.sources.addItem(it)
         self.dup_help.setText(
             f"{exact:,} verified groups. {likely:,} likely groups aren't verified yet - verify them in "
@@ -475,9 +478,10 @@ class MigrateView(QWidget):
         s_ = Settings(self.conn)
         schedule = {"mode": s_.get("job_default_when"), "idle_minutes": s_.get("job_idle_minutes"),
                     "start_hour": s_.get("job_window_start_hour"), "end_hour": s_.get("job_window_end_hour")}
+        mb_per_s = s_.get("job_mb_per_s") or None        # read here: the worker has its own connection
         self.message.setText("Backing up the catalog and starting…")
         self._run(lambda c: execute.start(c, mid, backup_dir=folder, schedule=schedule,
-                                          mb_per_s=s_.get("job_mb_per_s") or None), self._started)
+                                          mb_per_s=mb_per_s), self._started)
 
     def _started(self, job_id: int) -> None:
         self.job_started.emit(job_id)

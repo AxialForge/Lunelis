@@ -139,7 +139,7 @@ class PeopleView(QWidget):
         self.tabs.addTab(self.people_stack, "People")
         self.tabs.addTab(self._confirm_page(), "To confirm")
         self.tabs.addTab(self._groups_page(), "Unnamed")
-        self.tabs.addTab(self._ignored_page(), "Strangers & not faces")
+        self.tabs.addTab(self._ignored_page(), "Strangers && not faces")       # && shows one & (a lone & is a key mnemonic)
 
     # --- pages ---------------------------------------------------------------------------------
 
@@ -520,7 +520,11 @@ class PeopleView(QWidget):
         old = faces.name_of(self.conn, self.person)
         new, ok = QInputDialog.getText(self, "Rename", "New name (an existing name merges the two):", text=old)
         if ok and new.strip() and new.strip() != old:
-            self.person = faces.rename_person(self.conn, self.person, new)
+            try:
+                self.person = faces.rename_person(self.conn, self.person, new)
+            except ValueError as e:
+                QMessageBox.information(self, "Rename", str(e))
+                return
             self._done()
 
     def _forget(self) -> None:

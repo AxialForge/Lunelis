@@ -91,6 +91,7 @@ class EventsView(QWidget):
         cap = QLabel("YOUR EVENTS", objectName="FilterLabel")
         tv.addWidget(cap)
         self.table = QTableWidget(0, 4)
+        self.table.itemSelectionChanged.connect(lambda: self._row_buttons())
         self.table.setHorizontalHeaderLabels(["Event", "Dates", "Photos & videos", "Made from"])
         self._setup(self.table, stretch=0)
         self.table.doubleClicked.connect(lambda _: self._show_selected())
@@ -178,8 +179,12 @@ class EventsView(QWidget):
             self.table.setItem(i, 3, _item(SOURCE_TEXT.get(e.source, e.source)))
         n = len(self.events)
         self.count.setText(f"{n:,} event{'s' if n != 1 else ''}")
+        self._row_buttons()
+
+    def _row_buttons(self) -> None:
+        on = bool(self.events) and self.table.currentRow() >= 0 and bool(self.table.selectedItems())
         for b in (self.show_b, self.rename_b, self.remove_b):
-            b.setEnabled(bool(self.events))
+            b.setEnabled(on)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)

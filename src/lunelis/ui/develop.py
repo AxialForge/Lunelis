@@ -420,7 +420,8 @@ class ParamSlider(QWidget):
         g.setVerticalSpacing(0)
         self.name = QLabel(label)
         self.name.setToolTip("Double-click to reset")
-        self.name.mouseDoubleClickEvent = lambda _e: self.set_value(0, emit=True)
+        self.default = 0.0                               # what a double-click puts it back to
+        self.name.mouseDoubleClickEvent = lambda _e: self.set_value(self.default, emit=True)
         self.number = QDoubleSpinBox(objectName="SliderNumber")
         self.number.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.number.setDecimals(2 if step < 1 else 0)
@@ -436,7 +437,7 @@ class ParamSlider(QWidget):
         self.slider.setToolTip("Double-click to reset")
         self.slider.valueChanged.connect(self._changed)
         self.slider.sliderReleased.connect(lambda: self.moved.emit(self.key, self.current(), True))
-        self.slider.reset.connect(lambda: self.set_value(0, emit=True))
+        self.slider.reset.connect(lambda: self.set_value(self.default, emit=True))
         g.addWidget(self.name, 0, 0)
         g.addWidget(self.number, 0, 1)
         g.addWidget(self.slider, 1, 0, 1, 2)
@@ -645,6 +646,7 @@ class DevelopPanel(QScrollArea):
         self.filter_buttons: dict[object, QToolButton] = {}
         v.addWidget(self.filter_box)
         self.amount_s = ParamSlider("amount", "Amount", 0, 100, 1)
+        self.amount_s.default = 100
         self.amount_s.moved.connect(lambda _k, val, final: self.amount.emit(val, final))
         v.addWidget(self.amount_s)
         row = QHBoxLayout()
@@ -721,6 +723,7 @@ class DevelopPanel(QScrollArea):
             row.addWidget(b)
         v.addLayout(row)
         self.spot_size = ParamSlider("spot", "Size", 0.2, 10, 0.1)
+        self.spot_size.default = 1.5
         self.spot_size.set_value(1.5)
         self.spot_size.moved.connect(lambda _k, val, final: final and self.retouch_size.emit(val))
         v.addWidget(self.spot_size)
@@ -802,6 +805,7 @@ class DevelopPanel(QScrollArea):
         self.brush_size = ParamSlider("size", "Brush size", 1, 200, 1)
         self.brush_soft = ParamSlider("soft", "Brush feather", 0, 100, 1)
         self.brush_flow = ParamSlider("flow", "Flow", 5, 100, 1)
+        self.brush_size.default, self.brush_soft.default, self.brush_flow.default = 30, 50, 100
         self.brush_erase = QCheckBox("Erase (or hold Alt)")
         for w in (self.brush_size, self.brush_soft, self.brush_flow):
             w.moved.connect(lambda *_: self.brush_changed.emit())
@@ -1208,7 +1212,9 @@ class EditMode(QObject):
         self.panel.set_filters(tiles, self.stack.filter)
 
     def _failed(self, why: str) -> None:
-        self.panel.status.setText(f"This photo can't be edited: {why}")
+        from lunelis.ui.photoinfo import friendly
+        self.panel.status.setText(f"This photo can't be edited: {friendly(why)}")
+        self.panel.status.setToolTip(why)                  # the technical reason, for a bug report
 
     def _rendered(self, img: QImage, fast: bool) -> None:
         if getattr(self, "closed", False):
@@ -1639,13 +1645,14 @@ class EditMode(QObject):
         except ValueError as e:
             QMessageBox.warning(self.panel, "Save as filter", str(e))
             return
-        # Same look, now as the named filter (so its Amount slider works).
-        self._set(Stack(name.strip(), 100, {}, self.stack.geometry))
+        # Same look, now as the named filter (so its Amount slider works); the
+        # rest of the edit (curves, masks, lens, retouch, crop) stays.
+        self._set(replace(self.stack, filter=name.strip(), amount=100, adjust={}))
         self._filter_previews()
 
     def _unpack(self) -> None:
         if self.stack.filter:
-            self._set(Stack(None, 100, store.flatten(self.conn, self.stack), self.stack.geometry))
+            self._set(store.baked(self.conn, self.stack))
 
     def _delete_filter(self, name: str) -> None:
         users = store.users_of(self.conn, name)

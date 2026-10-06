@@ -16,7 +16,7 @@ from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMessageBox, QProgressBar, QPushButton, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget,
+    QFrame, QVBoxLayout, QWidget,
 )
 
 from lunelis import paths
@@ -129,7 +129,8 @@ class ImportView(QWidget):
         body = QHBoxLayout()
         body.setSpacing(0)
         left = QWidget(objectName="Toolbar")
-        left.setFixedWidth(340)
+        left.setMinimumWidth(220)                      # narrows on a small window instead of pushing
+        left.setMaximumWidth(320)                      # the Import button off the screen
         lv = QVBoxLayout(left)
         lv.setContentsMargins(20, 20, 20, 20)
         cap = QLabel("MEMORY CARDS")
@@ -137,6 +138,7 @@ class ImportView(QWidget):
         lv.addWidget(cap)
         self.cards = QListWidget()
         self.cards.setMaximumHeight(110)
+        self.cards.setMinimumHeight(44)
         self.cards.itemClicked.connect(lambda it: self.choose(it.data(Qt.ItemDataRole.UserRole)))
         lv.addWidget(self.cards)
         lv.addSpacing(8)
@@ -144,6 +146,7 @@ class ImportView(QWidget):
         cap.setObjectName("FilterLabel")
         lv.addWidget(cap)
         self.drives = QListWidget()
+        self.drives.setMinimumHeight(60)
         self.drives.itemClicked.connect(self._drive_clicked)
         lv.addWidget(self.drives, 1)
         lv.addSpacing(8)
@@ -152,10 +155,18 @@ class ImportView(QWidget):
         lv.addWidget(cap)
         self.recent = QListWidget()
         self.recent.setMaximumHeight(150)
+        self.recent.setMinimumHeight(44)
         self.recent.itemClicked.connect(lambda it: self.choose(it.data(Qt.ItemDataRole.UserRole)))
         lv.addWidget(self.recent)
         lv.addWidget(QPushButton("Import from a folder…", clicked=self._choose_folder))
-        body.addWidget(left)
+        # Its own scroll area: on a short window the lists scroll, the Import button stays on screen.
+        from PySide6.QtWidgets import QScrollArea  # noqa: E402
+        left_scroll = QScrollArea(widgetResizable=True, frameShape=QFrame.Shape.NoFrame)
+        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        left_scroll.setWidget(left)
+        left_scroll.setMinimumWidth(220)
+        left_scroll.setMaximumWidth(320)
+        body.addWidget(left_scroll)
 
         center = QVBoxLayout()
         center.setContentsMargins(24, 20, 24, 20)
@@ -169,6 +180,7 @@ class ImportView(QWidget):
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setWordWrap(False)
+        self.table.setMinimumHeight(90)
         self.table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         center.addWidget(self.table, 1)
         self.bar = QProgressBar()
@@ -179,26 +191,36 @@ class ImportView(QWidget):
         wrap.setLayout(body)
         outer.addWidget(wrap, 1)
 
+        # Two rows, so it fits a small or scaled window: where it goes, then go.
         foot = QWidget(objectName="Toolbar")
-        fl = QHBoxLayout(foot)
-        fl.setContentsMargins(24, 12, 24, 12)
+        foot_v = QVBoxLayout(foot)
+        foot_v.setContentsMargins(24, 12, 24, 12)
+        foot_v.setSpacing(10)
+        top = QHBoxLayout()
+        top.setSpacing(16)
+        fl = QHBoxLayout()
         fl.setSpacing(16)
+        foot_v.addLayout(top)
+        foot_v.addLayout(fl)
+        from lunelis.ui.widgets import ElidedLabel
         dest_box = QVBoxLayout()
         dest_box.addWidget(QLabel("Destination", objectName="FilterLabel"))
-        self.dest = QLabel()
+        self.dest = ElidedLabel()
         self.dest.setStyleSheet("font-weight: 600;")
         dest_box.addWidget(self.dest)
-        fl.addLayout(dest_box)
-        fl.addWidget(QPushButton("Change…", clicked=self._choose_destination))
+        dest_box.addStretch(1)
+        top.addLayout(dest_box, 1)
+        top.addWidget(QPushButton("Change…", clicked=self._choose_destination), 0, Qt.AlignmentFlag.AlignTop)
         tmpl_box = QVBoxLayout()
         tmpl_box.addWidget(QLabel("Folders", objectName="FilterLabel"))
         self.template = QComboBox()
         self.template.setEditable(True)
-        self.template.setMinimumWidth(300)
+        self.template.setMinimumWidth(220)
         tmpl_box.addWidget(self.template)
-        self.example = QLabel(objectName="FilterLabel")
+        self.example = ElidedLabel()
+        self.example.setObjectName("FilterLabel")
         tmpl_box.addWidget(self.example)
-        fl.addLayout(tmpl_box)
+        top.addLayout(tmpl_box, 1)
         name_box = QVBoxLayout()
         name_box.addWidget(QLabel("Event name (optional)", objectName="FilterLabel"))
         self.name = QLineEdit(placeholderText="e.g. Cleveland Air Show")
@@ -342,7 +364,7 @@ class ImportView(QWidget):
         if not source or self._thread is not None:
             return
         self.source = source
-        if source not in ingest.removable_drives_with_media():
+        if source not in ingest.removable_drives_with_media() and os.path.splitdrive(source)[1].strip("\\/"):
             s = Settings(self.conn)                  # remember it for Recent folders
             recent = [source] + [f for f in s.get("import_recent") if os.path.normcase(f) != os.path.normcase(source)]
             s.set("import_recent", recent[:6])
@@ -480,6 +502,10 @@ class ImportView(QWidget):
             lines.append(f"{s.get('placed', 0):,} imported, {s.get('already_in_library', 0):,} were already "
                          f"in your library" + (f", {s['failed']:,} failed (Retry on the next import)"
                                                 if s.get("failed") else "") + ".")
+            left = s.get("pending", 0) + s.get("staged", 0)
+            if left and not s["card_removable"]:
+                lines.insert(0, f"Stopped - {left:,} file{'s' if left != 1 else ''} not imported yet. "
+                                "Import again to carry on; nothing already copied is copied twice.")
             self.message.setText("\n".join(lines))
             if s.get("placed"):
                 if self.autopilot_cb.isChecked():

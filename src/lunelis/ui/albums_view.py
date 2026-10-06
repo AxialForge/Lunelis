@@ -408,7 +408,8 @@ class AlbumsView(QWidget):
         if a.kind == "album":
             m.addAction("Share on the home network…", lambda: self.share_album.emit(int(a.key), a.name))
         m.addSeparator()
-        m.addAction("Remove album" if a.kind == "album" else "Remove event", lambda: self._remove(a))
+        m.addAction({"album": "Remove album", "smart": "Remove smart album"}.get(a.kind, "Remove event"),
+                    lambda: self._remove(a))
         m.exec(pos)
 
     def _rename(self, a: albums.Album) -> None:

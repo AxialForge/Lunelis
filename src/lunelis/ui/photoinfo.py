@@ -203,6 +203,25 @@ def load(conn: sqlite3.Connection, file_id: int) -> PhotoInfo | None:
     return info
 
 
+def friendly(error: str) -> str:
+    """A stored error ("UnidentifiedImageError: cannot identify image file 'C:\\...'") in
+    plain words; the technical text is in the log."""
+    e = error or ""
+    low = e.lower()
+    if "cannot identify image" in low or "unrecognised file contents" in low or "unidentifiedimage" in low \
+            or "truncated" in low or "not a jpeg" in low:
+        return "the file isn't a picture Lunelis can read - it may be damaged (see Damaged files)"
+    if e.startswith("FileNotFoundError"):
+        return "the file isn't there any more"
+    if e.startswith("PermissionError"):
+        return "Windows won't let Lunelis read it"
+    if e.startswith("offline:") or "network" in low:
+        return "its folder can't be reached right now"
+    if e.startswith("NotImplementedError"):
+        return "Lunelis can't read this kind of file yet"
+    return "it couldn't be read (" + e.split(":", 1)[0] + ")"
+
+
 def problems(conn: sqlite3.Connection, file_id: int) -> tuple[str, ...]:
     """Plain-words lines for anything Lunelis tried and failed to do with this
     file, so a stuck sidecar or an unread format isn't silent."""
@@ -213,10 +232,10 @@ def problems(conn: sqlite3.Connection, file_id: int) -> tuple[str, ...]:
             out.append("Lunelis can't read this format's camera details yet ("
                        + r[0].split(":", 1)[-1].strip() + ")")
         else:
-            out.append(f"Couldn't read the camera details: {r[0]}")
+            out.append(f"Couldn't read the camera details: {friendly(r[0])}")
     r = conn.execute("SELECT thumb_error FROM files WHERE id = ?", (file_id,)).fetchone()
     if r and r[0]:
-        out.append(f"Couldn't make a thumbnail: {r[0]}")
+        out.append(f"Couldn't make a thumbnail: {friendly(r[0])}")
     r = conn.execute("SELECT xmp_error, xmp_pending FROM ratings WHERE file_id = ?", (file_id,)).fetchone()
     if r and r[0]:
         out.append(("Rating and tags not saved to the sidecar yet (will retry): " if r[1] else "")

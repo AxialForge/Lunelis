@@ -48,6 +48,7 @@ class Theme:
     chip_bg: str            # also primary buttons
     chip_text: str
     accent: str             # focus rings, links, the logo's indigo
+    accent_text: str = "#ffffff"    # text drawn on the accent colour
     viewer_bg: str = "#111114"      # behind a photo in the detail view: neutral dark in every theme
     viewer_strip: str = "#1a1a1d"   # the filmstrip under it
     labels: tuple = ()      # (name, colour) for Red/Yellow/Green/Blue/Purple
@@ -61,25 +62,25 @@ _LABELS = (("Red", "#d0453b"), ("Yellow", "#f2c230"), ("Green", "#2e8b57"),
 GRAPHITE = Theme(
     name="graphite", title="Graphite (light)", dark=False,
     sidebar_bg="#18181a", sidebar_text="#e8e8ea", sidebar_muted="#a5a5a8", sidebar_active_bg="#2c2c2e",
-    sidebar_footer="#7a7a7d", sidebar_divider="#2c2c2e",
+    sidebar_footer="#8e8e92", sidebar_divider="#2c2c2e",
     surface="#ffffff", surface_alt="#f7f7f8", canvas="#f2f2f2", border="#d9d9dc",
-    text="#141414", text_muted="#55555a", text_faint="#838388", field_bg="#eeeeef",
+    text="#141414", text_muted="#55555a", text_faint="#6e6e73", field_bg="#eeeeef",
     tile_placeholder="#d9dbde", tile_unavailable="#c9ccd1",
     badge_bg="rgba(20,20,20,0.65)", badge_text="#ffffff",
-    selection="#141414", rating="#c9a227", reject_veil="rgba(242,242,242,0.62)",
+    selection="#141414", rating="#a8841c", reject_veil="rgba(242,242,242,0.62)",
     chip_bg="#141414", chip_text="#ffffff", accent="#5b5bd6", labels=_LABELS,
 )
 
 MIDNIGHT = Theme(
     name="midnight", title="Midnight (dark)", dark=True,
     sidebar_bg="#0d0d10", sidebar_text="#ececf0", sidebar_muted="#9d9da6", sidebar_active_bg="#23232a",
-    sidebar_footer="#6f6f78", sidebar_divider="#23232a",
+    sidebar_footer="#8c8c95", sidebar_divider="#23232a",
     surface="#1a1a1f", surface_alt="#202026", canvas="#131317", border="#34343c",
-    text="#ececf0", text_muted="#b0b0b8", text_faint="#80808a", field_bg="#27272e",
+    text="#ececf0", text_muted="#b0b0b8", text_faint="#9a9aa3", field_bg="#27272e",
     tile_placeholder="#2a2a31", tile_unavailable="#34343c",
     badge_bg="rgba(0,0,0,0.62)", badge_text="#ffffff",
     selection="#e6e6ec", rating="#e0b84a", reject_veil="rgba(19,19,23,0.66)",
-    chip_bg="#e6e6ec", chip_text="#131317", accent="#8b8cf2",
+    chip_bg="#e6e6ec", chip_text="#131317", accent="#8b8cf2", accent_text="#0d0d10",
     labels=(("Red", "#e5584e"), ("Yellow", "#f2c230"), ("Green", "#3fae72"),
             ("Blue", "#5b95ea"), ("Purple", "#9a72d6")),
 )
@@ -93,7 +94,8 @@ HIGH_CONTRAST = Theme(
     tile_placeholder="#1a1a1a", tile_unavailable="#333333",
     badge_bg="rgba(0,0,0,0.85)", badge_text="#ffff00",
     selection="#ffd400", rating="#ffd400", reject_veil="rgba(0,0,0,0.72)",
-    chip_bg="#ffd400", chip_text="#000000", accent="#00e5ff", viewer_bg="#000000", viewer_strip="#0a0a0a",
+    chip_bg="#ffd400", chip_text="#000000", accent="#00e5ff", accent_text="#000000", viewer_bg="#000000",
+    viewer_strip="#0a0a0a",
     labels=(("Red", "#ff5a4f"), ("Yellow", "#ffe600"), ("Green", "#3cf07a"),
             ("Blue", "#4fa8ff"), ("Purple", "#c78bff")),
 )
@@ -184,6 +186,25 @@ def _check_icon(t: Theme) -> str:
     return path.as_posix()
 
 
+def _arrow_icon(t: Theme, up: bool) -> str:
+    """A small chevron for combo and spin boxes, in the theme's muted text colour."""
+    from lunelis import paths
+    folder = Path(paths.DATA_DIR) / "cache" / "ui"
+    colour = t.text_muted
+    path = folder / f"arrow-{'up' if up else 'down'}-{colour.lstrip('#')}.svg"
+    if not path.exists():
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            d = "M3 8.5L7 4.5l4 4" if up else "M3 5.5l4 4 4-4"
+            path.write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14">'
+                f'<path d="{d}" fill="none" stroke="{colour}" stroke-width="1.6"'
+                ' stroke-linecap="round" stroke-linejoin="round"/></svg>', encoding="utf-8")
+        except OSError:
+            return ""
+    return path.as_posix()
+
+
 BASE_POINT_SIZE = 9.0          # Windows' message font at 100 % text size (Segoe UI 9 pt)
 
 
@@ -212,6 +233,7 @@ def stylesheet(t: Theme | None = None) -> str:
 def _stylesheet(t: Theme | None = None) -> str:
     t = t or _current
     check = _check_icon(t)
+    down, up = _arrow_icon(t, False), _arrow_icon(t, True)
     red = dict(t.labels)["Red"]
     return f"""
     QMainWindow, QWidget#Main {{ background: {t.canvas}; }}
@@ -260,7 +282,7 @@ def _stylesheet(t: Theme | None = None) -> str:
     QScrollArea#PageScroll, QScrollArea#PageScroll > QWidget > QWidget {{ background: {t.canvas}; }}
     QLineEdit#Search {{
         background: {t.field_bg}; border: none; border-radius: 8px; padding: 0 12px;
-        font-size: 13px; color: {t.text}; min-height: 36px; max-width: 360px; min-width: 160px;
+        font-size: 13px; color: {t.text}; min-height: 36px; max-width: 520px; min-width: 120px;
     }}
     QLineEdit#Search:disabled {{ color: {t.text_faint}; }}
     QLabel#ToolLabel {{ color: {t.text_muted}; font-size: 13px; }}
@@ -333,16 +355,32 @@ def _stylesheet(t: Theme | None = None) -> str:
         background: {t.chip_bg}; color: {t.chip_text}; border: 1px solid {t.chip_bg};
         font-weight: 600; padding: 9px 18px;
     }}
-    QPushButton#Primary:hover {{ background: {t.accent}; border-color: {t.accent}; color: #ffffff; }}
-    QPushButton#Primary:disabled {{ background: {t.border}; border-color: {t.border}; color: {t.text_faint}; }}
+    QPushButton#Primary:hover {{ background: {t.accent}; border-color: {t.accent}; color: {t.accent_text}; }}
+    QPushButton#Primary:disabled {{ background: {t.field_bg}; border-color: {t.border}; color: {t.text_muted}; }}
     QComboBox {{
         background: {t.surface}; color: {t.text}; border: 1px solid {t.border};
         border-radius: 6px; padding: 5px 8px; min-height: 20px;
     }}
     QComboBox:focus {{ border-color: {t.accent}; }}
+    QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: center right; width: 22px;
+        border: none; background: transparent; }}
+    QComboBox::down-arrow {{ image: url({down}); width: 12px; height: 12px; }}
+    QComboBox#Sort::drop-down {{ width: 18px; }}
     QComboBox QAbstractItemView {{ background: {t.surface}; color: {t.text};
         selection-background-color: {t.field_bg}; selection-color: {t.text}; }}
-    QSpinBox {{ background: {t.surface}; color: {t.text}; }}
+    QSpinBox, QDoubleSpinBox {{
+        background: {t.surface}; color: {t.text}; border: 1px solid {t.border};
+        border-radius: 6px; padding: 5px 4px 5px 8px; min-height: 20px;
+    }}
+    QSpinBox:focus, QDoubleSpinBox:focus {{ border-color: {t.accent}; }}
+    QSpinBox::up-button, QDoubleSpinBox::up-button {{ subcontrol-origin: border; subcontrol-position: top right;
+        width: 20px; border: none; background: transparent; }}
+    QSpinBox::down-button, QDoubleSpinBox::down-button {{ subcontrol-origin: border;
+        subcontrol-position: bottom right; width: 20px; border: none; background: transparent; }}
+    QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{ image: url({up}); width: 10px; height: 10px; }}
+    QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{ image: url({down}); width: 10px; height: 10px; }}
+    QSpinBox::up-button:hover, QSpinBox::down-button:hover, QDoubleSpinBox::up-button:hover,
+    QDoubleSpinBox::down-button:hover {{ background: {t.field_bg}; }}
     QProgressBar {{ border: 1px solid {t.border}; border-radius: 4px; background: {t.surface_alt};
         color: {t.text}; text-align: center; }}
     QProgressBar::chunk {{ background: {t.rating}; border-radius: 3px; }}

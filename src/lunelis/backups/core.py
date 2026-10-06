@@ -276,7 +276,7 @@ def backup_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
         f" WHERE f.root_id = ? AND {LIVE}", (root_id,))
         if (r[1].rsplit("/", 1)[0] if "/" in r[1] else "") == folder]
     have = {r[0]: r[1:] for r in conn.execute(
-        f"SELECT file_id, rel, size, mtime FROM backup_files WHERE set_id = ? AND file_id IN "
+        f"SELECT file_id, rel, size, mtime, problem FROM backup_files WHERE set_id = ? AND file_id IN "
         f"({','.join('?' * len(rows)) or 'NULL'})", [set_id, *[r[0] for r in rows]])}
     for fid, rel, size, mtime, sidecar, content_hash in rows:
         if should_cancel and should_cancel():
@@ -285,7 +285,7 @@ def backup_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
         target_rel = f"{rkey}/{rel}"
         prev = have.get(fid)
         try:
-            if prev and prev[1] == size and prev[2] == mtime:
+            if prev and prev[1] == size and prev[2] == mtime and not prev[3]:   # a flagged copy is redone
                 if prev[0] == target_rel:
                     continue
                 if _rename_in_backup(dest, prev[0], target_rel, sidecar):   # moved in the library: here too

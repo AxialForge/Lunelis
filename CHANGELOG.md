@@ -6,6 +6,82 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.37.4] - 2026-10-06
+
+From a button audit (every button, menu item and key, about 1,060 checks,
+driven offscreen and checked for what it actually does) and a screenshot
+audit of every screen in every theme.
+
+### Fixed
+
+- **Clear the card could delete the only copy after a re-import.** Files the
+  same card gave before were trusted without checking that their library copy
+  still existed. They're now imported again, and Clear the card checks every
+  file's bytes against its library copy right before deleting it.
+- **"Start migration…" never started** (it read a setting on the wrong thread
+  and always showed an error). It starts now.
+- **Setting aside exact duplicates lost the set-aside copy's stars, albums,
+  events and tags** once the quarantine was emptied. They move to the copy
+  that's kept, as they already did for near-duplicates.
+- **"Back up now" didn't repair a backup copy that Verify had flagged.** It
+  copies it afresh.
+- **Deleting one of your filters wiped the masks, tone curves, retouch spots and
+  lens settings of every photo using it.** Only the filter is written into
+  their sliders now; the rest of each edit stays. "Save as filter…" and
+  "Adjust sliders" had the same fault on the photo being edited.
+- **Photo-menu commands (Archive, New event, Add to album, Tag, Paste/Reset
+  edits, Remove pin…) changed hidden photos from other pages.** Like the
+  rating keys in 0.37.3, they now act only on the Library, the photo view and
+  the Edit page.
+- **Timelapse never finished on screen** (the file was made, but Make stayed
+  disabled until a restart).
+- **Undo:** New event can be undone, and undo brings back an event that a
+  move had emptied and removed. On the Edit page, Ctrl+Z after Paste to all or
+  Reset all takes the batch back. Undo/Redo no longer get stuck disabled.
+- **Library:** double-clicking a tag after "Show photos" (People, Map, On this
+  day…) showed an empty Library; those views now have their own chip and a tag
+  replaces them. Closing the Ask bar always takes its answer off.
+- **Duplicates:** buttons from an earlier group stayed on the detail panel and
+  acted on that group.
+- Slideshows at 1 second a photo can be made; cancelling a Create source pick
+  goes back to what was shown; Batch copies says the finished copies are kept.
+- Settings: a source added there appears in the table at once; "Start new
+  photos with" stays the same on the Edit and Import tabs; Start with Windows
+  shows the truth when Windows refuses; a network share is refused as the data
+  folder before Lunelis looks inside it.
+- People: renaming to "Unknown" is a message, not a crash; Ctrl+drag a face then
+  Cancel adds nothing. Tags: People and Places tags can't be renamed or deleted
+  out from under the People page and the photos' locations; a case-only rename
+  isn't warned as a merge.
+- Albums: "Added N photos" counted twice; removing the last shared album stops
+  the family gallery; removing the album you're viewing clears its filter; the
+  smart album menu says "Remove smart album".
+- Import: the preview says when an import was stopped; a USB drive's root isn't
+  added to Recent folders. Library status counts migrated originals in
+  quarantine and greys its per-source Rescan buttons during a scan. A missing
+  backup drive is named as such in Jobs; every job kind has a name; queued jobs
+  aren't counted as running.
+- Double-click on a slider resets it to its own default (Amount 100, brush 30…).
+- Move the Archive ticks every source, including one added this session.
+- The shortcut sheet names the page it was opened on and lists no key twice.
+- An HDR saved as TIFF over a .jpg name is "x.tif", not "x.jpg.tif".
+
+### Changed (look)
+
+- **The Import page fits small and scaled screens**: its footer is two rows,
+  long paths are shortened in the middle, and the Import button is always on
+  screen.
+- **The filter bar wraps onto a second row** instead of setting the window's
+  minimum width, so the Library fits 1366 x 768 at 125 % and the sidebar can
+  fold to icons there.
+- Combo and number boxes have themed arrows instead of Windows' grey boxes.
+- More readable faint text and sidebar footer in Graphite and Midnight;
+  disabled main buttons are readable in High contrast; dark text on the accent
+  colour in Midnight and High contrast.
+- Errors in the photo view are in plain words ("the file isn't a picture
+  Lunelis can read - it may be damaged") instead of Python messages.
+- The People tab reads "Strangers & not faces"; Quarantine says "1 file".
+
 ## [0.37.3] - 2026-10-05
 
 The rest of the 0.37.0 release audit's navigation, recovery and safety

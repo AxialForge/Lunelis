@@ -82,7 +82,9 @@ class MergeDialog(QDialog):
             return
         want = (".tif", ".tiff") if fmt == "tiff" else (".jpg", ".jpeg")
         if not path.lower().endswith(want):
-            path += want[0]
+            base, ext = os.path.splitext(path)
+            # "x.jpg" saved as TIFF becomes "x.tif", not "x.jpg.tif"
+            path = (base if ext.lower() in (".jpg", ".jpeg", ".tif", ".tiff", ".png") else path) + want[0]
         Settings(self.conn).set("merge_last_dir", os.path.dirname(path))
         self.options = MergeOptions(self.kind, path, fmt, self.align.isChecked(), self.half.isChecked(),
                                     self.crop.isChecked())

@@ -255,7 +255,8 @@ class WelcomeDialog(QDialog):
         if s["start_with_windows"]:
             lines.append("Lunelis starts with Windows, in the tray.")
         if s["models"]:
-            lines.append("Downloading in the background: " + ", ".join(s["models"]) + ".")
+            names = {"faces": "Faces", "scene": "Scene tags", "subject": "Subject masks", "sky": "Sky masks"}
+            lines.append("Downloading in the background: " + ", ".join(names.get(m, m) for m in s["models"]) + ".")
         lines.append(f"Your catalog, thumbnails and backups live in {paths.DATA_DIR}. "
                      "To keep them on another drive, use Settings > Advanced > Data folder.")
         return "\n\n".join(lines)

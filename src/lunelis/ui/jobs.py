@@ -153,7 +153,9 @@ class JobsDialog(QDialog):
         self.table.setRowCount(len(rows))
         for i, (jid, title, kind, state, status, done, total, read) in enumerate(rows):
             kind_text = {"duplicates": "Find duplicates", "verify": "Verify duplicates",
-                         "full_hash": "Hash everything", "integrity": "Check integrity"}.get(kind, kind)
+                         "full_hash": "Hash everything", "integrity": "Check integrity",
+                         "migrate": "Migration", "backup": "Backup", "backup_verify": "Verify backup",
+                         "scene_tags": "Scene tags", "faces": "Find faces"}.get(kind, kind)
             self.table.setItem(i, 0, QTableWidgetItem(f"{kind_text}: {title}"))
             self.table.setItem(i, 1, QTableWidgetItem(STATE_TEXT.get(state, state)))
             bar = self.table.cellWidget(i, 2) or QProgressBar()

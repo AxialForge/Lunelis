@@ -271,7 +271,9 @@ def create_import(conn: sqlite3.Connection, source: str, cfg: Settings_, name: s
 
     def add(rel, size, mtime, parent=None, kind=None) -> int:
         key = (rel, size, round(mtime, 1))
-        seen = key in before
+        dest = before.get(key)
+        # Only while its library copy is still there: copies deleted since must be imported again.
+        seen = key in before and bool(dest) and os.path.isfile(dest) and os.path.getsize(dest) == size
         return conn.execute(
             "INSERT INTO import_items (import_id, source_rel, size, mtime, parent_id, kind, state, note, dest_path)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -687,15 +689,21 @@ def clear_card(conn: sqlite3.Connection, import_id: int) -> tuple[int, list[str]
     this, after a confirmation that it can't be undone - no job ever does."""
     source, = conn.execute("SELECT source FROM imports WHERE id = ?", (import_id,)).fetchone()
     deleted, skipped = 0, []
-    rows = conn.execute("SELECT source_rel, size, mtime FROM import_items WHERE import_id = ?"
+    rows = conn.execute("SELECT source_rel, size, mtime, dest_path FROM import_items WHERE import_id = ?"
                         " AND state IN ('placed', 'already_in_library')", (import_id,)).fetchall()
     if not clearable(conn, import_id):
-        return 0, [r for r, _, _ in rows]
-    for rel, size, mtime in rows:
+        return 0, [r for r, _, _, _ in rows]
+    for rel, size, mtime, dest in rows:
         path = os.path.join(source, *rel.split("/"))
         try:
             st = os.stat(path)
             if st.st_size != size or abs(st.st_mtime - mtime) > 2:
+                skipped.append(rel)
+                continue
+            # The last word before deleting from the card: the library copy is
+            # there right now and holds exactly these bytes. Anything else stays.
+            if not dest or not os.path.isfile(dest) or os.path.getsize(dest) != size \
+                    or _sha256(dest) != _sha256(path):
                 skipped.append(rel)
                 continue
             os.remove(path)

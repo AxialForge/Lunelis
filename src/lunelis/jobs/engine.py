@@ -316,7 +316,11 @@ def run_job(conn: sqlite3.Connection, job_id: int, *, should_stop: Callable[[], 
             extra = {"options": options} if kind in OPTION_KINDS else {}
             res = fn(conn, root_id, folder, throttle=throttle, should_cancel=should_stop, workers=workers, **extra)
         except SourceOffline:
-            msg = f"Waiting for {root_path} to come back online"
+            import os
+            if kind.startswith("backup") and os.path.isdir(root_path):
+                msg = "Waiting for the backup drive to be connected"
+            else:
+                msg = f"Waiting for {root_path} to come back online"
             set_state(conn, job_id, "waiting", msg)
             return RunOutcome("waiting", msg)
         if res.cancelled:

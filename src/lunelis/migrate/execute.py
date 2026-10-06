@@ -137,7 +137,7 @@ def _quarantine_original(root: str, rel: str, sidecar: str | None, migration_id:
 
 def merge_user_data(conn: sqlite3.Connection, from_id: int, to_id: int) -> None:
     """Before a copy is set aside, anything the user did to it that the kept
-    copy lacks moves over: stars, label, flag, event."""
+    copy lacks moves over: stars, label, flag, albums, event, tags."""
     src = conn.execute("SELECT stars, flag, color_label FROM ratings WHERE file_id = ?", (from_id,)).fetchone()
     if src:
         dst = conn.execute("SELECT stars, flag, color_label FROM ratings WHERE file_id = ?", (to_id,)).fetchone()
@@ -153,6 +153,8 @@ def merge_user_data(conn: sqlite3.Connection, from_id: int, to_id: int) -> None:
                              " updated_at = datetime('now') WHERE file_id = ?", (stars, flag, label, to_id))
     conn.execute("INSERT OR IGNORE INTO album_files (album_id, file_id, position)"
                  " SELECT album_id, ?, position FROM album_files WHERE file_id = ?", (to_id, from_id))
+    conn.execute("INSERT OR IGNORE INTO file_tags (file_id, tag_id)"
+                 " SELECT ?, tag_id FROM file_tags WHERE file_id = ? AND confidence IS NULL", (to_id, from_id))
     ev = conn.execute("SELECT event_id FROM event_files WHERE file_id = ?", (from_id,)).fetchone()
     if ev and not conn.execute("SELECT 1 FROM event_files WHERE file_id = ?", (to_id,)).fetchone():
         from lunelis.events import model

@@ -54,7 +54,8 @@ def _figures(conn) -> tuple[list, list]:
     meta = q(f"SELECT COUNT(*) FROM files f JOIN roots r ON r.id = f.root_id LEFT JOIN exif e ON e.file_id = f.id"
              f" WHERE r.enabled = 1 AND {LIVE} AND e.file_id IS NULL")
     dupes = q("SELECT COUNT(*) FROM duplicate_groups WHERE resolved = 0")
-    quarantined = q("SELECT COUNT(*) FROM files WHERE quarantined_at IS NOT NULL")
+    quarantined = q("SELECT COUNT(*) FROM files WHERE quarantined_at IS NOT NULL") \
+        + q("SELECT COUNT(*) FROM migration_items WHERE quarantine_path IS NOT NULL")   # as the Quarantine page
     backup_sets = q("SELECT COUNT(*) FROM backup_sets")
     from lunelis.backups.protection import unprotected_count
     unprotected = unprotected_count(conn)
@@ -254,6 +255,10 @@ class StatusView(QWidget):
         self._running = running
         self.stop_b.setEnabled(running)
         self.rescan_b.setEnabled(not running)
+        for i in range(self.sources.rowCount()):           # each source's Rescan waits for the scan too
+            b = self.sources.cellWidget(i, 5)
+            if b is not None:
+                b.setEnabled(not running and b.property("source_on") is not False)
         if running:
             self.state.setText("Updating the library…")
             for mark, label, bar, detail in self.step_rows:
@@ -401,6 +406,7 @@ class StatusView(QWidget):
                 self.sources.setItem(i, c, it)
             self.sources.setItem(i, 4, QTableWidgetItem(_when(scanned)))
             b = QPushButton("Rescan", clicked=lambda _=False, rid=rid: self.rescan.emit([rid]))
+            b.setProperty("source_on", bool(enabled))
             b.setEnabled(bool(enabled) and not self._running)
             self.sources.setCellWidget(i, 5, b)
             if enabled:

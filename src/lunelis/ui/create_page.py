@@ -125,10 +125,12 @@ class PhotoPicker(QWidget):
 
     def _source_chosen(self, _i: int) -> None:
         key = self.source.currentData()
-        if key == "album" and not self._pick_album():
+        if (key == "album" and not self._pick_album()) or (key == "folder" and not self._pick_folder()):
+            self.source.blockSignals(True)                 # cancelled: back to what the strip shows
+            self.source.setCurrentIndex(max(0, self.source.findData(getattr(self, "_shown_source", "view"))))
+            self.source.blockSignals(False)
             return
-        if key == "folder" and not self._pick_folder():
-            return
+        self._shown_source = key
         self.load()
 
     def _pick_album(self) -> bool:
@@ -343,7 +345,11 @@ class Tool(QWidget):
             self._progress.close()
             self._progress = None
         self._enable()
-        if isinstance(result, (animation.Cancelled, batch.Cancelled)):
+        if isinstance(result, batch.Cancelled):
+            self.result.setText("Stopped - the copies finished before you stopped are kept in the output folder; "
+                                "none is half-made.")
+            return
+        if isinstance(result, animation.Cancelled):
             self.result.setText("Stopped - nothing half-made was kept.")
             return
         if isinstance(result, batch.BatchError):
@@ -977,8 +983,8 @@ class TimelapseTool(Tool):
         form.addRow("Size", self.size)
         self.deflicker = QCheckBox("Deflicker", checked=True)
         form.addRow("", self.deflicker)
-        self.window = QSpinBox(minimum=3, maximum=99, value=15, suffix=" frames")
-        form.addRow("Even out over", self.window)
+        self.smooth_over = QSpinBox(minimum=3, maximum=99, value=15, suffix=" frames")
+        form.addRow("Even out over", self.smooth_over)
         self.stabilize = QCheckBox("Stabilise")
         form.addRow("", self.stabilize)
         self.length = QLabel(objectName="Help")
@@ -990,7 +996,7 @@ class TimelapseTool(Tool):
         self.body.addStretch(1)
         self.fps.valueChanged.connect(self._length)
         self.picker.changed.connect(self._length)
-        self.deflicker.toggled.connect(self.window.setEnabled)
+        self.deflicker.toggled.connect(self.smooth_over.setEnabled)
 
     def _length(self, *_a) -> None:
         n = len(self.picker.ids())
@@ -999,7 +1005,7 @@ class TimelapseTool(Tool):
     def make(self) -> None:
         ids = self.picker.ids()
         opts = self.tl.TimelapseOptions(self.fps.value(), self.size.currentData(), self.deflicker.isChecked(),
-                                        self.window.value(), self.stabilize.isChecked())
+                                        self.smooth_over.value(), self.stabilize.isChecked())
         try:
             opts.check(len(ids))
         except ValueError as e:
@@ -1072,7 +1078,9 @@ class SlideshowTool(Tool):
 
     def make(self) -> None:
         ids = self.picker.ids()
-        opts = self.ss.SlideshowOptions(float(self.seconds.value()), 0.8, self.transition.currentData(),
+        # The transition fits in half a photo's time (at 1 s a photo: 0.5 s).
+        opts = self.ss.SlideshowOptions(float(self.seconds.value()), min(0.8, self.seconds.value() / 2),
+                                        self.transition.currentData(),
                                         self.zoom.isChecked(), self.fill.isChecked(), self.size.currentData(),
                                         self.music)
         try:

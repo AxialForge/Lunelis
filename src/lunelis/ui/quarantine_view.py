@@ -259,8 +259,10 @@ class QuarantineView(QWidget):
             self.summary.setText("Nothing in quarantine.")
         else:
             total = sum(e.size for e in self.items)
-            drives = ", ".join(f"{d} {n:,} ({_size(b)})" for d, (n, b) in per_drive.items())
-            self.summary.setText(f"{len(self.items):,} files · {_size(total)} · {drives}")
+            drives = ", ".join(f"{d} {n:,} file{'s' if n != 1 else ''} ({_size(b)})"
+                               for d, (n, b) in per_drive.items())
+            n = len(self.items)
+            self.summary.setText(f"{n:,} file{'s' if n != 1 else ''} · {_size(total)} · on {drives}")
         self._fill()
 
     def _visible(self) -> list[manage.Entry]:

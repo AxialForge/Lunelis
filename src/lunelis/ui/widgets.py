@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QListWidget
+from PySide6.QtWidgets import QLabel, QListWidget
 
 
 def row_toggles(lw: QListWidget) -> None:
@@ -57,3 +57,31 @@ def sharp(pm, edge: int, widget):
                     Qt.TransformationMode.SmoothTransformation)
     out.setDevicePixelRatio(ratio)
     return out
+
+
+class ElidedLabel(QLabel):
+    """A one-line label that shortens long text in the middle (a long folder path)
+    instead of making the window wider; the whole text is its tooltip."""
+
+    def __init__(self, text: str = "", parent=None) -> None:
+        super().__init__(parent)
+        from PySide6.QtWidgets import QSizePolicy
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._full = ""
+        self.setText(text)
+
+    def setText(self, text: str) -> None:
+        self._full = text or ""
+        self.setToolTip(self._full)
+        self._elide()
+
+    def text(self) -> str:
+        return self._full
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        self._elide()
+
+    def _elide(self) -> None:
+        super().setText(self.fontMetrics().elidedText(self._full, Qt.TextElideMode.ElideMiddle,
+                                                      max(40, self.width())))

@@ -533,7 +533,7 @@ class MainWindow(QMainWindow):
         from lunelis.ui.ask_bar import AskBar
         self.ask_bar = AskBar(self.conn)
         self.ask_bar.asked.connect(self._ask)
-        self.ask_bar.closed.connect(lambda: self.filter.ranked and self.set_filter(Filter()))
+        self.ask_bar.closed.connect(self._ask_closed)
         self.ask_bar.hide()
         col.addWidget(self.ask_bar)
         self.thumbs = ThumbCache(paths.THUMBNAIL_CACHE, self)
@@ -555,7 +555,7 @@ class MainWindow(QMainWindow):
         self.importer.autopilot.connect(self._autopilot_import)
         self.importer.review.connect(lambda: self.open_page("Review your shoot"))
         self._autopilot_thread: QThread | None = None
-        self.pages.addWidget(self.importer)
+        self.pages.addWidget(self.importer, scroll=False)          # fits the window: its own lists scroll
         self.events_page = EventsView(self.conn)
         self.events_page.show_event.connect(self.show_event)
         self.events_page.back.connect(lambda: self.open_page("Albums"))
@@ -564,6 +564,7 @@ class MainWindow(QMainWindow):
         self.albums_page.open_album.connect(self.show_album)
         self.albums_page.add_to_album.connect(self._dropped_on_album)
         self.albums_page.share_album.connect(self.share_album)
+        self.albums_page.changed.connect(self._albums_changed)
         self.gallery = None                            # the family gallery's server, once started
         if self.conn.execute("SELECT COUNT(*) FROM shares WHERE revoked_at IS NULL").fetchone()[0]:
             self._later(4000, self._gallery_server)
@@ -1045,6 +1046,12 @@ class MainWindow(QMainWindow):
             screen = "Edit panel"
         elif page is self.detail:
             screen = "Photo view"
+        elif page is getattr(self, "map_page", None):
+            screen = "Map"
+        elif page is getattr(self, "albums_page", None):
+            screen = "Albums"
+        elif page is getattr(self, "create_page", None):
+            screen = "Create"
         else:
             screen = "Library"
         ShortcutSheet(self, screen).exec()
@@ -1127,7 +1134,7 @@ class MainWindow(QMainWindow):
         h.setSpacing(16)
         self.search = QLineEdit(objectName="Search", placeholderText="Search: names, tags, places, cameras, 2024…")
         self.search.setClearButtonEnabled(True)
-        self.search.setMinimumWidth(160)                 # shrinks on small or scaled screens
+        self.search.setMinimumWidth(120)                 # shrinks on small or scaled screens
         self.search.setToolTip(
             "Every word has to match: file and folder names, tags, camera, lens, events, albums.\n"
             "Also: 2024, june 2024, raw, video, edited, picks, 4 stars, untagged,\n"
@@ -1138,7 +1145,8 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Escape"), self.search, activated=self.search.clear,
                   context=Qt.ShortcutContext.WidgetShortcut)
         self._search_completer_ready = False
-        h.addWidget(self.search)
+        self.search.setMaximumWidth(520)
+        h.addWidget(self.search, 3)                       # the search box takes the spare width
         ask_b = QPushButton("Ask", objectName="Ask", clicked=self.open_ask)
         ask_b.setToolTip("Ask your library in a sentence - \"sunset on a beach, 2024\" (Ctrl+Shift+F)")
         h.addWidget(ask_b)
@@ -1153,7 +1161,7 @@ class MainWindow(QMainWindow):
         self.sort.currentIndexChanged.connect(self._sort_changed)
         # Sized for a typical choice, not the longest one, so the Top bar can shrink.
         self.sort.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-        self.sort.setMinimumContentsLength(14)
+        self.sort.setMinimumContentsLength(10)
         h.addWidget(self.sort)
         h.addWidget(_divider())
         h.addWidget(QLabel("Grid size", objectName="ToolLabel"))
@@ -1170,12 +1178,21 @@ class MainWindow(QMainWindow):
         return bar
 
     def _build_filter_bar(self) -> QWidget:
+        # The filters wrap onto a second row on a narrow window rather than
+        # setting the window's minimum width (they needed ~1,225 px in one row).
+        from lunelis.ui.tag_editor import FlowLayout
+        from PySide6.QtWidgets import QSizePolicy
         bar = QWidget(objectName="FilterBar")
-        bar.setFixedHeight(44)
-        h = QHBoxLayout(bar)
-        h.setContentsMargins(24, 0, 24, 0)
-        h.setSpacing(8)
-        h.addWidget(QLabel("Filters:", objectName="FilterLabel"))
+        bar.setMinimumHeight(44)
+        outer = QVBoxLayout(bar)
+        outer.setContentsMargins(24, 5, 24, 5)
+        row = QWidget()
+        sp = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        sp.setHeightForWidth(True)
+        row.setSizePolicy(sp)
+        h = FlowLayout(row, spacing=8)
+        outer.addWidget(row)
+        h.addWidget(QLabel("Filters:", objectName="FilterLabel", minimumHeight=34))
         h.addWidget(self._filter_button("Rating", [
             ("Any rating", 0), *((("★" * n) + ("+" if n < 5 else ""), n) for n in range(1, 6)),
             ("Unrated", UNRATED)], "min_stars"))
@@ -1188,21 +1205,14 @@ class MainWindow(QMainWindow):
         self.tag_filter = TagFilter(self.conn)
         self.tag_filter.chosen.connect(self.show_tag)
         h.addWidget(self.tag_filter)
-        # Active filters as chips, in a strip that gives way on narrow windows
-        # (and scrolls with the wheel) instead of widening the window.
+        # Active filters as chips, flowing with the rest.
         chips_box = QWidget(objectName="ChipBox")
         self.chips = QHBoxLayout(chips_box)
         self.chips.setContentsMargins(0, 0, 0, 0)
         self.chips.setSpacing(6)
         self.chips.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        chip_strip = QScrollArea(objectName="ChipStrip", widgetResizable=True)
-        chip_strip.setFrameShape(QFrame.Shape.NoFrame)
-        chip_strip.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        chip_strip.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        chip_strip.setFixedHeight(34)
-        chip_strip.setMinimumWidth(0)
-        chip_strip.setWidget(chips_box)
-        h.addWidget(chip_strip, 1)
+        chips_box.setMinimumHeight(34)
+        h.addWidget(chips_box)
         self.clear_all = QPushButton("Clear all", objectName="ClearAll",
                                      clicked=lambda: self.set_filter(Filter()))
         self.clear_all.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1212,9 +1222,9 @@ class MainWindow(QMainWindow):
         self.stack_cb.setToolTip("Show each burst of shots as one photo with a frame count (S opens a stack)")
         self.stack_cb.setChecked(Settings(self.conn).get("stack_bursts"))
         self.stack_cb.toggled.connect(self._stack_toggled)
+        self.stack_cb.setMinimumHeight(34)
         h.addWidget(self.stack_cb)
-        h.addSpacing(12)
-        self.count = QLabel(objectName="Count")
+        self.count = QLabel(objectName="Count", minimumHeight=34)
         h.addWidget(self.count)
         return bar
 
@@ -1774,6 +1784,18 @@ class MainWindow(QMainWindow):
                 return port, False
         return self.gallery.port, True
 
+    def _albums_changed(self) -> None:
+        """An album or event was removed or renamed on the Albums page."""
+        from lunelis import gallery
+        if self.gallery is not None and self.gallery.running and not gallery.shares(self.conn):
+            self.gallery.stop()                        # its last shared album went: nothing listening
+        f = self.filter
+        gone = (f.album_id is not None and not self.conn.execute(
+                    "SELECT 1 FROM albums WHERE id = ?", (f.album_id,)).fetchone()) or                (f.event_id is not None and not self.conn.execute(
+                    "SELECT 1 FROM events WHERE id = ?", (f.event_id,)).fetchone())
+        if gone:
+            self.set_filter(Filter())                  # no chip for an album that isn't there any more
+
     def share_album(self, album_id: int, name: str) -> None:
         from lunelis import gallery
         from lunelis.ui.share_dialog import ShareDialog
@@ -1937,8 +1959,9 @@ class MainWindow(QMainWindow):
     def copy_edit(self) -> None:
         from lunelis.edit import store
         ids = self._edit_targets()
-        if self.pages.currentWidget() is self.detail:
-            self.detail.edit.save()
+        view = self._editing_view()
+        if view is not None:
+            view.edit.save()                           # what's on screen, not the last save
         if not ids:
             return
         fid = ids[0] if len(ids) == 1 or self.grid.current < 0 else self.index.file_id(self.grid.current)
@@ -2109,7 +2132,10 @@ class MainWindow(QMainWindow):
         b = self._nav.get("Library")
         if b is not None:
             b.setChecked(True)
-        self.set_filter(_replace(self.filter, tag=name))
+        f = self.filter
+        if f.ids is not None:                          # "show these photos" was a view, not a filter to keep
+            f = _replace(f, ids=None, ranked=False, smart=None, scope_name=None)
+        self.set_filter(_replace(f, tag=name))
 
     def tag_photos(self) -> None:
         from lunelis.ui.tag_editor import TagDialog
@@ -2482,6 +2508,11 @@ class MainWindow(QMainWindow):
         self.open_page("Library")
         self.ask_bar.open()
 
+    def _ask_closed(self) -> None:
+        """Closing the Ask bar takes its answer off the Library, ranked or not."""
+        if self.filter.ranked or (self.filter.scope_name or "").startswith("Asked: "):
+            self.set_filter(Filter())
+
     def _ask(self, asked) -> None:
         """Show the answer to a sentence (ask.py) in the library, best first."""
         from lunelis import ask
@@ -2709,6 +2740,8 @@ class MainWindow(QMainWindow):
         self.reload()
 
     def _selected_or_warn(self) -> list[int]:
+        if not self._on_photo_page():
+            return []                                  # a key on Stats must not change hidden photos
         ids = list(self.grid.selected)
         if not ids:
             QMessageBox.information(self, "Nothing selected", "Select some photos in the library first.")
@@ -2732,6 +2765,7 @@ class MainWindow(QMainWindow):
         name, ok = QInputDialog.getText(self, "New event", f"Name for an event of {len(ids):,} photos:")
         if not ok or not name.strip() or not self._confirm_move(ids, f"\"{name.strip()}\""):
             return
+        self._history().before(self.conn, "new event", "events", ids)     # Ctrl+Z takes it back
         events.create(self.conn, name, ids)
         self.status.setText(f"Event \"{name.strip()}\" made from {len(ids):,} photos")
         self.events_page.refresh()
@@ -2814,10 +2848,11 @@ class MainWindow(QMainWindow):
         counts = dict(self.conn.execute(
             "SELECT state, COUNT(*) FROM jobs WHERE state IN ('running','queued','waiting','paused')"
             " GROUP BY state").fetchall())
-        active = counts.get("running", 0) + counts.get("queued", 0)
         parts = []
-        if active:
-            parts.append(f"{active} running")
+        if counts.get("running"):
+            parts.append(f"{counts['running']} running")
+        if counts.get("queued"):
+            parts.append(f"{counts['queued']} queued")
         if counts.get("waiting"):
             parts.append(f"{counts['waiting']} waiting")
         if counts.get("paused"):
@@ -2867,12 +2902,15 @@ class MainWindow(QMainWindow):
             parts.append(("Tag: " + f.tag.replace("|", " › "), "tag", None))
         if f.ranked:
             parts.append((f.scope_name or "Best matches", "ranked", None))
+        elif f.ids is not None and not f.smart:
+            parts.append((f.scope_name or f"{len(f.ids):,} photos", "ids", None))
         elif f.smart:
             parts.append((f"Smart album: {f.scope_name or ''}".rstrip(": "), "smart", None))
         if f.folder is not None:
             parts.append((f"Folder: {f.scope_name or ''}".rstrip(": "), "folder", None))
         # Some chips stand for several fields: an answer is its ids, order and rules.
         groups = {"ranked": {"ids": None, "ranked": False, "smart": None, "scope_name": None},
+                  "ids": {"ids": None, "scope_name": None},
                   "smart": {"smart": None, "scope_name": None}, "folder": {"folder": None, "scope_name": None}}
         for text, attr, cleared in parts:
             chip = QPushButton(f"{text}  ✕", objectName="Chip")
@@ -2886,6 +2924,8 @@ class MainWindow(QMainWindow):
     # --- rating --------------------------------------------------------------
 
     def _targets(self) -> list[int]:
+        if not self._on_photo_page():
+            return []                                  # off the photo pages there's nothing to act on
         if self.pages.currentWidget() is getattr(self, "edit_page", None) and self.edit_page.current() is not None:
             return [self.edit_page.current()]          # the Edit page: the photo being edited
         if self.grid.selected:
@@ -2951,16 +2991,17 @@ class MainWindow(QMainWindow):
         """Ctrl+Z: the photo being edited undoes its edit; otherwise the last
         rating, label or flag change is taken back."""
         for page, view in ((self.detail, self.detail), (self.edit_page, self.edit_page.view)):
-            if self.pages.currentWidget() is page and view.edit.active:
+            if self.pages.currentWidget() is page and view.edit.active and view.edit.pos > 0:
                 view.edit.undo()
-                return
-        self._step(undo=True)
+                return                                 # (nothing left in the photo's own steps: a
+        self._step(undo=True)                          # batch paste/reset is in the window's history)
 
     def redo(self) -> None:
         """Ctrl+Shift+Z / Ctrl+Y: the photo being edited redoes its edit; otherwise
         the last thing undone comes back."""
         for page, view in ((self.detail, self.detail), (self.edit_page, self.edit_page.view)):
-            if self.pages.currentWidget() is page and view.edit.active:
+            if self.pages.currentWidget() is page and view.edit.active \
+                    and view.edit.pos < len(view.edit.history) - 1:
                 view.edit.redo()
                 return
         self._step(undo=False)
@@ -2975,7 +3016,8 @@ class MainWindow(QMainWindow):
         h = self._history()
         self.undo_action.setText(f"&Undo {h.next_undo()}" if h.next_undo() else "&Undo")
         self.redo_action.setText(f"&Redo {h.next_redo()}" if h.next_redo() else "&Redo")
-        self.redo_action.setEnabled(h.next_redo() is not None)
+        # Both stay enabled: the menu only refreshes on opening, and a disabled
+        # action would swallow Ctrl+Z / Ctrl+Shift+Z pressed after a later change.
 
     def _step(self, undo: bool) -> None:
         if self._bg().busy("edits"):
@@ -3079,6 +3121,8 @@ class MainWindow(QMainWindow):
         except (RootOverlap, RootUnavailable) as e:
             QMessageBox.warning(self, "Can't add that folder", plain(e))
             return
+        if self.pages.currentWidget() is getattr(self, "settings_page", None):
+            self.settings_page.refresh()                   # its Sources table shows the new one at once
         self.start([root_id])
 
     def rescan_all(self) -> None:

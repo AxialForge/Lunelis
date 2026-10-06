@@ -6,6 +6,10 @@ with the build, in each package's `*.dist-info` folder inside the Lunelis
 program folder (`_internal`), and at the links given here. Where a licence
 asks for the source code, it is at the link given.
 
+Because the bundled FFmpeg and pillow-heif builds include GPL-2.0 components (x264 and
+x265), the Windows build as a whole is distributed under the GPL-2.0-or-later. Lunelis's own
+source code stays MIT-licensed, and the source of each GPL component is at the link below.
+
 This list is for information. It is not legal advice.
 
 ## Libraries in the program

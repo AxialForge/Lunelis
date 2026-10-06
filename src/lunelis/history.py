@@ -68,19 +68,32 @@ def _cap_events(conn, ids, _arg):
     out = {fid: None for fid in ids}
     for c in _chunks(ids):
         out.update(conn.execute(f"SELECT file_id, event_id FROM event_files WHERE file_id IN ({','.join('?' * len(c))})", c))
-    return out
+    # The events themselves too: moving every photo out of one deletes it, and
+    # undo has to be able to bring it back.
+    rows = {}
+    for eid in {e for e in out.values() if e is not None}:
+        r = conn.execute("SELECT name, start_at, end_at, source, created_at FROM events WHERE id = ?", (eid,)).fetchone()
+        if r:
+            rows[eid] = tuple(r)
+    return {"files": out, "events": rows}
 
 
 def _res_events(conn, ids, _arg, snap):
     from lunelis.events import model as events
+    files, rows = (snap["files"], snap["events"]) if "files" in snap else (snap, {})
     by_event: dict[int | None, list[int]] = {}
-    for fid, eid in snap.items():
+    for fid, eid in files.items():
         by_event.setdefault(eid, []).append(fid)
     existing = {r[0] for r in conn.execute("SELECT id FROM events")}
     for eid, fids in by_event.items():
         if eid is None:
             events.remove_files(conn, fids)
-        elif eid in existing:
+            continue
+        if eid not in existing and eid in rows:
+            conn.execute("INSERT INTO events (id, name, start_at, end_at, source, created_at)"
+                         " VALUES (?, ?, ?, ?, ?, ?)", (eid, *rows[eid]))
+            existing.add(eid)
+        if eid in existing:
             events.add_files(conn, eid, fids, commit=False)
     conn.commit()
 

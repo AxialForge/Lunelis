@@ -176,8 +176,10 @@ class SceneReview(QWidget):
         if tag:
             pct = self.threshold.value()
             count = self.conn.execute(
-                "SELECT COUNT(*) FROM file_tags ft JOIN tags t ON t.id = ft.tag_id WHERE t.name = ?"
-                " AND ft.confidence IS NOT NULL AND ft.confidence >= ?", (tag, pct / 100)).fetchone()[0]
+                "SELECT COUNT(*) FROM file_tags ft JOIN tags t ON t.id = ft.tag_id JOIN files f ON f.id = ft.file_id"
+                " WHERE t.name = ? AND ft.confidence IS NOT NULL AND ft.confidence >= ?"
+                " AND f.missing_since IS NULL AND f.excluded = 0 AND f.quarantined_at IS NULL",
+                (tag, pct / 100)).fetchone()[0]
             if not count:
                 self.summary.setText(f"No {tag.split('|')[-1]} suggestions at or above {pct} %.")
                 return

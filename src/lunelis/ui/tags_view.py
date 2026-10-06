@@ -126,13 +126,25 @@ class TagsView(QWidget):
         m.addAction("Delete…", lambda: self.delete(name))
         m.exec(self.tree.viewport().mapToGlobal(pos))
 
+    def _managed(self, name: str) -> bool:
+        """People|… and Places|… tags are kept in step with the People page and
+        the photos' locations: changing them here would put the two out of step."""
+        root = name.split(tags.SEP, 1)[0]
+        where = {"People": "Rename, merge or forget the person on the People page - the tags follow.",
+                 "Places": "Place tags follow each photo's location - change a pin on the Map instead."}.get(root)
+        if where:
+            QMessageBox.information(self, "Tags", f"'{name.replace(tags.SEP, ' > ')}' is kept by Lunelis. {where}")
+        return bool(where)
+
     def rename(self, name: str) -> None:
+        if self._managed(name):
+            return
         new, ok = QInputDialog.getText(self, "Rename tag", "New name (use > to nest):",
                                        text=name.replace(tags.SEP, " > "))
         if not ok:
             return
         target = tags.SEP.join(p.strip() for p in new.replace(" > ", tags.SEP).replace(">", tags.SEP).split(tags.SEP))
-        if target != name and target.lower() in {n.lower() for n in tags.names(self.conn)} and \
+        if target.lower() != name.lower() and target.lower() in {n.lower() for n in tags.names(self.conn)} and \
                 QMessageBox.question(self, "Merge tags?",
                                      f"'{new}' already exists - renaming merges the two, which can't be undone. "
                                      "Go ahead?") != QMessageBox.StandardButton.Yes:
@@ -144,6 +156,8 @@ class TagsView(QWidget):
         self.refresh()
 
     def merge(self, name: str) -> None:
+        if self._managed(name):
+            return
         others = [n for n in tags.names(self.conn) if n != name and not n.startswith(name + tags.SEP)]
         if not others:
             return
@@ -167,6 +181,8 @@ class TagsView(QWidget):
             self.refresh()
 
     def delete(self, name: str) -> None:
+        if self._managed(name):
+            return
         cond, params = tags.filter_sql(name)
         n = self.conn.execute(f"SELECT COUNT(*) FROM files f WHERE {cond}", params).fetchone()[0]
         answer = QMessageBox.question(

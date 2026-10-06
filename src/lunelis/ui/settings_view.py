@@ -330,8 +330,7 @@ class SettingsView(QWidget):
         card, v = self._card("Editing", "Edits never change your files: they're kept in the catalog and the "
                                         "photo's sidecar, and shown from a rendered copy in the cache.")
         self.edit_filter = QComboBox()
-        self.edit_filter.currentIndexChanged.connect(
-            lambda _: self._set("import_filter", self.edit_filter.currentData()))
+        self.edit_filter.currentIndexChanged.connect(lambda _: self._import_filter(self.edit_filter))
         self._row(v, "Start new photos with", self.edit_filter,
                   help="A filter every imported photo gets as its starting edit (same as on the Import tab).")
         self.live = QComboBox()
@@ -1096,6 +1095,16 @@ class SettingsView(QWidget):
         self._spins[key] = s
         return s
 
+    def _import_filter(self, combo) -> None:
+        """"Start new photos with" is on both the Edit and Import tabs: one setting."""
+        if not self._set("import_filter", combo.currentData()):
+            return
+        for other in (self.edit_filter, self.import_filter):
+            if other is not combo:
+                other.blockSignals(True)
+                other.setCurrentIndex(max(0, other.findData(combo.currentData())))
+                other.blockSignals(False)
+
     def _set(self, key: str, value) -> bool:
         if self._loading:
             return False
@@ -1191,8 +1200,7 @@ class SettingsView(QWidget):
                                                        self.refresh())),
                   help="Must be outside every source, so half-imported files are never cataloged.")
         self.import_filter = QComboBox()
-        self.import_filter.currentIndexChanged.connect(
-            lambda _: self._set("import_filter", self.import_filter.currentData()))
+        self.import_filter.currentIndexChanged.connect(lambda _: self._import_filter(self.import_filter))
         self._row(v, "Start new photos with", self.import_filter,
                   help="A filter every imported photo gets, as a starting point. It's an edit like any "
                        "other: change or reset it per photo; the files themselves are never touched.")
@@ -1298,7 +1306,7 @@ class SettingsView(QWidget):
     def _backups(self) -> QFrame:
         card, v = self._card(
             "Catalog backups",
-            "The catalog holds things XMP can't - picks, jobs, and soon events and albums - so it's "
+            "The catalog holds things XMP can't - picks, jobs, events and albums - so it's "
             "backed up automatically, and before anything moves files.")
         self.backup_folder = self._path_field()
         self._row(v, "Backup folder", self.backup_folder,
@@ -1811,6 +1819,10 @@ class SettingsView(QWidget):
         if not picked:
             return
         new = Path(os.path.normpath(picked))
+        if paths.is_network_path(new):
+            QMessageBox.warning(self, "Data folder", "The data folder has to be on a drive in this PC - the "
+                                "catalog can't live on a network share.")
+            return
         if new.name.lower() != "lunelis" and any(new.iterdir()):
             new = new / "Lunelis"            # a non-empty pick gets its own subfolder
         try:
@@ -1845,6 +1857,9 @@ class SettingsView(QWidget):
             set_autostart(on)
         except OSError as e:
             self.saved.setText(f"Couldn't change Start with Windows: {e}")
+            self.autostart_cb.blockSignals(True)
+            self.autostart_cb.setChecked(not on)          # show what Windows actually has
+            self.autostart_cb.blockSignals(False)
             return
         self._set("start_with_windows", on)
         self.autostart_changed.emit(on)

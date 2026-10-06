@@ -1274,7 +1274,7 @@ class DetailView(QWidget):
             QMessageBox.information(self, "Strangers", "\"Unknown\" is kept for strangers: choose Stranger "
                                     "instead, and the photo is tagged People > Unknown.")
             return None
-        return name if ok and name else None
+        return name if ok else None                # "" = OK with no name: a box without a name
 
     def _face_menu(self, face_id: int, at) -> None:
         from PySide6.QtWidgets import QMenu
@@ -1321,7 +1321,10 @@ class DetailView(QWidget):
             return
         from lunelis.recognize import faces
         name = self._ask_name("A face Lunelis missed")
-        faces.add_face(self.conn, self.info.file_id, box, name)
+        if name is None:
+            self.canvas.update()                     # cancelled: no box is added
+            return
+        faces.add_face(self.conn, self.info.file_id, box, name or None)
         self._face_changed()
 
     def keyPressEvent(self, e) -> None:
