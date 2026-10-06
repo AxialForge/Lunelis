@@ -109,6 +109,12 @@ def restore(snapshot_zip: Path, catalog_path: Path) -> Path:
             if side.exists():
                 os.replace(side, Path(str(keep) + suffix))
     os.replace(tmp, catalog_path)
+    # An older catalog may number later photos differently: its thumbnails are
+    # rebuilt (catalog/cachecheck.py) rather than trusted.
+    try:
+        (catalog_path.parent / "cache" / "catalog.id").unlink()
+    except OSError:
+        pass
     return catalog_path
 
 

@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.37.7] - 2026-10-06
+
+### Fixed
+
+- **Thumbnails of another library's photos.** Thumbnails, edit previews, face
+  crops and mask maps are stored by photo number. After starting with a
+  different catalog (a fresh install, or a restored or older catalog), its
+  photos - numbered from 1 again - showed the old library's thumbnails: the
+  grid and the filmstrip showed one picture while the photo view showed
+  another, and previews seemed slow to "load" as the right picture replaced
+  the wrong one. The cache now records which catalog it belongs to; when it
+  doesn't match, the old one is set aside and every thumbnail is made again
+  (once - on a big library this takes a while, as a full scan does). Restoring
+  a catalog backup rebuilds them too.
+
 ## [0.37.6] - 2026-10-06
 
 ### Fixed

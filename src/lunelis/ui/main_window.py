@@ -506,6 +506,17 @@ class MainWindow(QMainWindow):
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
         self.conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+        from lunelis.catalog import cachecheck
+        try:
+            # Thumbnails are stored by photo number: another catalog's would sit
+            # beside the wrong photos. Rebuilt when the cache isn't this catalog's.
+            self._cache_rebuilt = cachecheck.ensure(self.conn, paths.DATA_DIR)
+        except OSError as e:
+            LOG.warning("Couldn't check the cache: %s", e)
+            self._cache_rebuilt = False
+        if self._cache_rebuilt:
+            QTimer.singleShot(1500, lambda: self.status.setText(
+                "The thumbnails on file were made for a different catalog - making this library's own"))
         self.apply_theme()
         from lunelis.ui import photoinfo
         photoinfo.set_date_format(Settings(self.conn).get("date_format"))
