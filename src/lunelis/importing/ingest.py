@@ -454,19 +454,19 @@ def _in_library_already(conn: sqlite3.Connection, path: str, size: int) -> tuple
         taken = read_file(path).get("captured_at")
     except Exception:
         taken = None
-    found = _already_in_library(conn, path, size, taken)
-    if not found:
-        return None
     try:
-        mine = _sha256(path)
-        return (found, mine) if _sha256(found) == mine else None
+        return _already_in_library(conn, path, size, taken)
     except OSError:
         return None
 
 
-def _already_in_library(conn: sqlite3.Connection, path: str, size: int, taken: str | None) -> str | None:
-    """The library file with the same size, capture time and sampled
-    fingerprint (identical files share all three), or None."""
+def _already_in_library(conn: sqlite3.Connection, path: str, size: int, taken: str | None,
+                        digest: str | None = None) -> tuple[str, str] | None:
+    """(library path, sha256) of the library file holding exactly these bytes,
+    or None. Size, capture time and the sampled fingerprint pick the
+    candidates; only a full SHA-256 match counts - a card file may be cleared
+    on the strength of this. The file's own digest is worked out only when a
+    candidate turns up, unless it's passed in."""
     rows = conn.execute(
         "SELECT f.id, r.path, f.rel_path, f.sample_hash FROM files f JOIN roots r ON r.id = f.root_id"
         " LEFT JOIN exif e ON e.file_id = f.id WHERE f.size_bytes = ? AND f.missing_since IS NULL AND f.excluded = 0"
@@ -482,8 +482,16 @@ def _already_in_library(conn: sqlite3.Connection, path: str, size: int, taken: s
             except OSError:
                 continue
             conn.execute("UPDATE files SET sample_hash = ? WHERE id = ?", (known, fid))
-        if known == mine:
-            return os.path.join(root, *rel.split("/"))
+        if known != mine:
+            continue
+        if digest is None:
+            digest = _sha256(path)
+        found = os.path.join(root, *rel.split("/"))
+        try:
+            if _sha256(found) == digest:
+                return found, digest
+        except OSError:
+            continue
     return None
 
 
@@ -555,8 +563,9 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
                 meta = {}
             taken_s = meta.get("captured_at")
             taken = datetime.fromisoformat(taken_s[:19]) if taken_s else None
-            found = _already_in_library(conn, staged, size, taken_s)
+            found = _already_in_library(conn, staged, size, taken_s, digest) if digest else None
             if found:
+                found = found[0]
                 os.unlink(staged)
                 conn.execute("UPDATE import_items SET state = 'already_in_library', dest_path = ?,"
                              " staged_path = NULL WHERE id = ?", (found, item))
@@ -633,19 +642,15 @@ def _place_sidecar(conn, item, parent, rel, size, digest, staged, should_stop) -
         return                                            # its file isn't filed yet: next pass
     dest = os.path.join(os.path.dirname(p_dest), os.path.basename(rel))
     if os.path.exists(dest):
-        same = os.path.getsize(dest) == size and _sha256(dest) == digest
-        kind, = conn.execute("SELECT kind FROM import_items WHERE id = ?", (item,)).fetchone()
-        if not same and kind == "companion":
-            # A photo or video of its own: never "kept" in favour of another file -
-            # it stays on the card (and the card isn't safe to format).
+        if not (os.path.getsize(dest) == size and digest and _sha256(dest) == digest):
+            # A different file has the name. It's kept, and this one stays on the
+            # card: its bytes aren't in the library, so the card isn't safe to format.
             conn.execute("UPDATE import_items SET state = 'failed', error = ? WHERE id = ?",
                          ("A different file with this name is already beside its photo - left on the card", item))
             return
         os.unlink(staged)
-        conn.execute("UPDATE import_items SET state = 'already_in_library', dest_path = ?, staged_path = NULL,"
-                     " note = ? WHERE id = ?",
-                     (dest, None if same else "A different file of that name is already there - it was kept",
-                      item))
+        conn.execute("UPDATE import_items SET state = 'already_in_library', dest_path = ?, staged_path = NULL"
+                     " WHERE id = ?", (dest, item))
         return
     if _copy_hashed(staged, dest, should_stop) != digest or _sha256(dest) != digest:
         os.unlink(dest)

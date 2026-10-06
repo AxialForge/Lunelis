@@ -679,9 +679,12 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
   hand-written worker slots). Its worker opens its OWN connection: it only
   sees COMMITTED data - write, commit, then refresh (tests too: a test that
   writes without commit and then refreshes a page sees the old figures).
-  Tests wait with `page.bg.wait()`. A lambda connected to a signal emitted on
-  another thread runs THERE unless connected with QueuedConnection - connect
-  worker signals to QObject methods (Background does) or pass the type.
+  Tests wait with `page.bg.wait()`. A lambda (or plain function) connected to
+  a signal emitted on another thread runs THERE - on PySide6 6.11 even when
+  connected with QueuedConnection (audit LRA-055: the "Folder unavailable"
+  QMessageBox opened on the scan thread). Connect worker signals to bound
+  methods of a QObject that lives on the GUI thread (`@Slot`), never lambdas;
+  tests/test_audit_wiring.py checks main_window for it.
 
 - **Cancel must not be a slot of a worker moved to its thread.**
   `progress.canceled.connect(worker.cancel)` (worker = a QObject after
@@ -689,6 +692,20 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
   the job has finished, so Cancel did nothing for exports and merges. Use
   `canceled.connect(lambda: worker.cancel())` - it runs on the GUI thread and
   only sets a flag. (The mirror image of the lambda-on-worker-signal gotcha.)
+
+- **A sampled hash is a candidate filter, never proof of identity.**
+  `sample_hash` reads three 64 KB slices; two files can share size, capture
+  time and slices and differ in between. Anything that deletes or skips
+  copying on "it's already there" (import's `already_in_library`, Clear the
+  card) must compare the full SHA-256 (audit LRA-001: Clear the card deleted a
+  photo whose bytes were nowhere in the library).
+
+- **Foreign keys without ON DELETE can't be altered - use triggers.**
+  `migrations.job_id` and `migration_items.file_id` (migration 16) had no ON
+  DELETE, so "Clear finished" and emptying quarantine failed after any
+  migration. SQLite can't change a foreign key without rebuilding the table,
+  and rebuilding `migrations` would cascade-delete `migration_items`. Migration
+  40 adds BEFORE DELETE triggers instead.
 
 - **Never open the real catalog with a normal sqlite3 connection - not even to
   read.** 2026-10-01 a stale WAL from a different (211-page) database sat next

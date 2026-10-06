@@ -404,9 +404,9 @@ begin
     end;
   Models := '';
   if ModelsPage.Values[0] then Models := Models + '"scene"';
-  if ModelsPage.Values[1] then begin if Models <> '' then Models := Models + ', '; Models := Models + '"subject"'; end;
-  if ModelsPage.Values[2] then begin if Models <> '' then Models := Models + ', '; Models := Models + '"sky"'; end;
-  if ModelsPage.Values[3] then begin if Models <> '' then Models := Models + ', '; Models := Models + '"faces"'; end;
+  if ModelsPage.Values[1] then begin if Models <> '' then Models := Models + ', '; Models := Models + '"faces"'; end;
+  if ModelsPage.Values[2] then begin if Models <> '' then Models := Models + ', '; Models := Models + '"subject"'; end;
+  if ModelsPage.Values[3] then begin if Models <> '' then Models := Models + ', '; Models := Models + '"sky"'; end;
   Data := DataPage.Values[0];
   if SameFolder(Data, DefaultDataDir) then Data := '';
   Json := '{"version": 1, "data_dir": ' + JsonStr(Data)

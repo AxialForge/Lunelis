@@ -286,12 +286,14 @@ def backup_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
         prev = have.get(fid)
         try:
             if prev and prev[1] == size and prev[2] == mtime:
-                if prev[0] != target_rel:                         # moved in the library: rename here too
-                    _rename_in_backup(dest, prev[0], target_rel, sidecar)
+                if prev[0] == target_rel:
+                    continue
+                if _rename_in_backup(dest, prev[0], target_rel, sidecar):   # moved in the library: here too
                     conn.execute("UPDATE backup_files SET rel = ? WHERE set_id = ? AND file_id = ?",
                                  (target_rel, set_id, fid))
                     conn.commit()
-                continue
+                    continue
+                prev = None                                       # its old copy is gone: copy it afresh
             if shutil.disk_usage(dest).free < size + FREE_MARGIN:
                 _set_status(conn, set_id, "The backup drive is full - free some space or choose fewer sources")
                 result.cancelled = True
@@ -299,6 +301,8 @@ def backup_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
             if prev:                                              # changed: keep the old copy
                 _keep_previous(dest, prev[0])
             src, dst = _abs(root, rel), _abs(dest, target_rel)
+            if os.path.exists(dst) and not (prev and prev[0] == target_rel):
+                _keep_previous(dest, target_rel)                  # a file this set doesn't know: keep it
             digest = _copy_hashed(src, dst, throttle, should_cancel)
             if digest is None:
                 result.cancelled = True
@@ -327,14 +331,20 @@ def backup_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
     return result
 
 
-def _rename_in_backup(dest: str, old_rel: str, new_rel: str, sidecar: str | None) -> None:
+def _rename_in_backup(dest: str, old_rel: str, new_rel: str, sidecar: str | None) -> bool:
+    """Move a backed-up copy to its file's new place. False when there's no
+    copy to move (the caller then copies afresh); a file already at the new
+    place that the set doesn't know about is kept in previous-versions."""
     old, new = _abs(dest, old_rel), _abs(dest, new_rel)
-    if not os.path.exists(old) or os.path.exists(new):
-        return
+    if not os.path.exists(old):
+        return False
+    if os.path.exists(new):
+        _keep_previous(dest, new_rel)
     os.makedirs(os.path.dirname(new), exist_ok=True)
     os.replace(old, new)
     if sidecar and os.path.exists(os.path.join(os.path.dirname(old), sidecar)):
         os.replace(os.path.join(os.path.dirname(old), sidecar), os.path.join(os.path.dirname(new), sidecar))
+    return True
 
 
 def _keep_previous(dest: str, rel: str) -> None:

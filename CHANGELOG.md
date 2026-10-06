@@ -6,6 +6,43 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-10-05
+
+Safety fixes from the 0.37.0 release audit.
+
+### Fixed
+
+- **Clear the card could delete a photo that wasn't in the library.** A card
+  file was counted "already in your library" when a library file had the
+  same size, capture time and sampled fingerprint, without comparing every
+  byte. Clear the card then deleted it. A card file now counts as already in
+  the library only when its full SHA-256 matches; anything else is copied
+  and verified as usual.
+- **A camera sidecar kept out by a different file was deleted from the card.**
+  When a different file already had a sidecar's name (a Sony XML, an iPhone
+  AAE) beside its photo, the card's own sidecar was marked as in the library
+  and Clear the card removed it. It now stays on the card, and the card is
+  not reported safe to format.
+- **The installer downloaded the wrong optional models.** Ticking Faces
+  fetched the subject-mask model, Subject fetched Sky, and Sky fetched Faces
+  (installers 0.35.0 to 0.37.0). Settings > Faces/Edit can download the
+  right ones.
+- **A sleeping NAS could crash or hang Lunelis at scan time.** The "Folder
+  unavailable" message was opened from the background thread. It now opens
+  on the window's own thread, as do the scan's status messages and the model
+  download progress.
+- **A backup could report "Up to date" for a file it couldn't restore.** When
+  a moved photo's new place in the backup already held another file, the set
+  was pointed at that file. The unknown file is now kept in
+  previous-versions and the photo is backed up afresh.
+- **"Clear finished" in the Jobs panel failed after any migration,** and
+  emptying the quarantine could fail for duplicates a migration set aside
+  (catalog schema 40).
+- **One failing background job stopped all the others for the session,** with
+  nothing in the log. The job is now marked Failed with the error, it is
+  logged, and the next job runs. A step of the library pass that fails no
+  longer skips the steps after it; the finish message names it.
+
 ## [0.37.0] - 2026-10-05
 
 From the first round of testing the installed app.

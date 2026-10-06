@@ -853,6 +853,23 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    40,
+    "clearing finished jobs and emptying quarantine never trip over a migration's records",
+    """
+    -- migrations.job_id and migration_items.file_id were made without ON DELETE
+    -- (migration 16); SQLite can't alter a foreign key, so triggers do it.
+    CREATE TRIGGER IF NOT EXISTS jobs_release_migrations BEFORE DELETE ON jobs
+    BEGIN
+        UPDATE migrations SET job_id = NULL WHERE job_id = OLD.id;
+    END;
+    CREATE TRIGGER IF NOT EXISTS files_drop_migration_items BEFORE DELETE ON files
+    BEGIN
+        DELETE FROM migration_items WHERE file_id = OLD.id;
+    END;
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 

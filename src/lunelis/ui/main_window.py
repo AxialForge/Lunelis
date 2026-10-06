@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 
-from PySide6.QtCore import QObject, QSize, QThread, QTimer, Qt, Signal
+from PySide6.QtCore import QObject, QSize, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QSizePolicy,
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from lunelis import paths
+from lunelis.log import LOG
 from lunelis.catalog import backup, ratings
 from lunelis.catalog.schema import open_catalog
 from lunelis.importers.metadata import ExtractResult, extract_pending
@@ -109,6 +110,7 @@ class LibraryWorker(QObject):
     similar_done = Signal(object)    # int near-duplicate groups (only when new photos were compared)
     noticed_done = Signal(int)       # new Lunelis noticed suggestions
     stacks_done = Signal(object)     # int burst stacks (None when stacking is off)
+    steps_failed = Signal(object)    # list[str]: steps that stopped on an error (logged)
     finished = Signal()
 
     def __init__(self, root_ids: list[int]) -> None:
@@ -126,88 +128,127 @@ class LibraryWorker(QObject):
     def run(self) -> None:
         conn = _thread_catalog()
         stop = lambda: self._cancel  # noqa: E731
+        failed: list[str] = []
+
+        def guarded(what: str, fn) -> None:
+            # One step's bug must not skip the rest of the pass, nor vanish:
+            # it's logged, the others still run, and the finish says so.
+            if self._cancel:
+                return
+            try:
+                fn()
+            except Exception:
+                LOG.exception("Library pass: %s failed", what)
+                try:
+                    if conn.in_transaction:
+                        conn.rollback()
+                except Exception:
+                    pass
+                if what not in failed:
+                    failed.append(what)
         try:
             for root_id in self.root_ids:
                 if self._cancel:
                     break
-                try:
-                    self._say(0, "Scanning…")
-                    self.root_done.emit(scan_root(
-                        conn, root_id, should_cancel=stop,
-                        on_progress=lambda n, d: self._say(0, f"Scanning… {n:,} files  —  {d}"),
-                    ))
-                except RootUnavailable as e:
-                    self.root_failed.emit(str(e))
+
+                def scan(root_id=root_id) -> None:
+                    try:
+                        self._say(0, "Scanning…")
+                        self.root_done.emit(scan_root(
+                            conn, root_id, should_cancel=stop,
+                            on_progress=lambda n, d: self._say(0, f"Scanning… {n:,} files  —  {d}"),
+                        ))
+                    except RootUnavailable as e:
+                        self.root_failed.emit(str(e))
+                guarded("scanning", scan)
             # Files moved/renamed outside Lunelis keep their catalog entry
             # (cheap tier now; the EXIF and hash tiers after metadata).
-            linked = 0
-            if not self._cancel:
-                linked += relink(conn, use_hashes=False, sidecar_store=self._store(conn),
-                                 thumbnail_cache=paths.THUMBNAIL_CACHE).linked
+            linked = [0]
+
+            def relink_cheap() -> None:
+                linked[0] += relink(conn, use_hashes=False, sidecar_store=self._store(conn),
+                                    thumbnail_cache=paths.THUMBNAIL_CACHE).linked
+            guarded("finding moved files", relink_cheap)
+
             # Sidecars changed outside Lunelis (darktable, a culling tool) -> catalog.
-            if not self._cancel:
+            def sidecars() -> None:
                 self._say(1, "Reading sidecars…")
                 self.sidecars_done.emit(sync.import_sidecars(
                     conn, should_cancel=stop,
                     on_progress=lambda d, t, f: self._say(1, f"Reading sidecars… {d:,} / {t:,}", d, t),
                 ))
-            if not self._cancel:
+            guarded("reading sidecars", sidecars)
+
+            def metadata() -> None:
                 self._say(2, "Reading metadata…")
                 self.meta_done.emit(extract_pending(
                     conn, should_cancel=stop,
                     on_progress=lambda d, t, f: self._say(2, f"Reading metadata… {d:,} / {t:,}", d, t),
                 ))
+            guarded("reading metadata", metadata)
+
             # Google Takeout exports: dates/GPS from the JSON sidecars, for files
             # whose own metadata has none (needs the metadata pass first).
-            if not self._cancel:
+            def takeout() -> None:
                 for rid in takeout_roots(conn):
                     if rid in self.root_ids:
                         self._say(3, "Reading Google Takeout dates…")
                         self.takeout_done.emit(import_takeout(conn, rid))
+            guarded("reading Google Takeout", takeout)
+
             # Burst stacks from the capture times just read (~0.6 s on 159k).
-            if not self._cancel:
+            def bursts() -> None:
                 self._say(4, "Finding burst shots…")
                 self.stacks_done.emit(stacks.rebuild_from_settings(conn))
                 from lunelis import pairs
                 pairs.rebuild_from_settings(conn)                    # RAW+JPEG shots as one photo
+            guarded("finding bursts", bursts)
+
             # The search index, for whatever the scan and metadata changed (~1.5 s for all 159k).
-            if not self._cancel:
+            def index() -> None:
                 from lunelis import search
                 if search.pending(conn):
                     self._say(5, "Updating the search index…")
                     search.refresh(conn)
-            if not self._cancel:
-                linked += relink(conn, sidecar_store=self._store(conn),
-                                 thumbnail_cache=paths.THUMBNAIL_CACHE).linked
-            if linked:
-                self.relinked.emit(linked)
+            guarded("updating the search index", index)
+
+            def relink_full() -> None:
+                linked[0] += relink(conn, sidecar_store=self._store(conn),
+                                    thumbnail_cache=paths.THUMBNAIL_CACHE).linked
+            guarded("finding moved files", relink_full)
+            if linked[0]:
+                self.relinked.emit(linked[0])
+
             # Thumbnails after metadata: RAW previews need the EXIF orientation.
-            if not self._cancel:
+            def thumbs() -> None:
                 self._say(6, "Making thumbnails…")
                 self.thumb_done.emit(thumbnails.generate_pending(
                     conn, paths.THUMBNAIL_CACHE, should_cancel=stop,
                     on_progress=lambda d, t, f: self._say(6, f"Making thumbnails… {d:,} / {t:,}", d, t),
                 ))
+            guarded("making thumbnails", thumbs)
+
             # Near-duplicate fingerprints come from the thumbnails just made
             # (local cache, no NAS reads); regroup only when there are new ones.
-            if not self._cancel:
+            def near() -> None:
                 groups = similar.refresh(
                     conn, paths.THUMBNAIL_CACHE, should_cancel=stop,
                     on_progress=lambda d, t: self._say(7, f"Comparing photos… {d:,} / {t:,}", d, t))
                 if groups is not None:
                     self.similar_done.emit(groups)
+            guarded("comparing photos", near)
             # Scene suggestions for photos the model hasn't seen (thumbnails only).
-            if not self._cancel:
-                self._scene_tags(conn, stop)
-            if not self._cancel:
-                self._faces(conn, stop)
-            if not self._cancel:
-                self._places(conn, stop)
-            if not self._cancel:
-                self._noticed(conn, stop)
-            if not self._cancel:
+            guarded("scene tags", lambda: self._scene_tags(conn, stop))
+            guarded("faces", lambda: self._faces(conn, stop))
+            guarded("places", lambda: self._places(conn, stop))
+            guarded("suggestions", lambda: self._noticed(conn, stop))
+
+            def damage() -> None:
                 self._say(8, "Checking for damaged files…")
                 self.damage_done.emit(check_damage(conn))
+            guarded("checking for damaged files", damage)
+            if failed:
+                self.steps_failed.emit(failed)
         finally:
             conn.close()
             self.finished.emit()
@@ -338,6 +379,10 @@ class XmpWriter(QObject):
         conn = _thread_catalog()
         try:
             self.done.emit(sync.export_pending(conn))
+        except Exception:
+            LOG.exception("Writing sidecars failed")
+            from types import SimpleNamespace
+            self.done.emit(SimpleNamespace(done=0, failed=0, error=True))   # so the thread still ends
         finally:
             conn.close()
 
@@ -1467,20 +1512,29 @@ class MainWindow(QMainWindow):
                     except Exception as e:              # no network, checksum mismatch: say so, carry on
                         sig.done.emit(kind, False, str(e))
                 sig.finished.emit()
-        queued = Qt.ConnectionType.QueuedConnection
-        sig.progress.connect(lambda k, d, t: self.status.setText(
-            f"Downloading the {names[k]}… {d * 100 // max(1, t)} %"), queued)
-
-        def one_done(kind: str, ok: bool, message: str) -> None:
-            if ok and kind == "scene":
-                Settings(self.conn).set("scene_tags_auto", True)
-            if ok and kind == "faces":
-                Settings(self.conn).set("faces_auto", True)
-            self.status.setText(f"The {names[kind]} is ready" if ok else
-                                f"The {names[kind]} didn't download: {message} (Settings can try again)")
-        sig.done.connect(one_done, queued)
-        sig.finished.connect(lambda: setattr(self, "_model_sig", None), queued)
+        self._model_names = names
+        sig.progress.connect(self._model_progress)            # bound slots: queued to this thread
+        sig.done.connect(self._model_done)
+        sig.finished.connect(self._model_finished)
         QThreadPool.globalInstance().start(Job())
+
+    @Slot(str, int, int)
+    def _model_progress(self, kind: str, done: int, total: int) -> None:
+        self.status.setText(f"Downloading the {self._model_names[kind]}… {done * 100 // max(1, total)} %")
+
+    @Slot(str, bool, str)
+    def _model_done(self, kind: str, ok: bool, message: str) -> None:
+        if ok and kind == "scene":
+            Settings(self.conn).set("scene_tags_auto", True)
+        if ok and kind == "faces":
+            Settings(self.conn).set("faces_auto", True)
+        name = self._model_names[kind]
+        self.status.setText(f"The {name} is ready" if ok else
+                            f"The {name} didn't download: {message} (Settings can try again)")
+
+    @Slot()
+    def _model_finished(self) -> None:
+        self._model_sig = None
 
     def _autostart_changed(self, on: bool) -> None:
         if self._auto_action is not None:
@@ -1726,9 +1780,33 @@ class MainWindow(QMainWindow):
         self._autopilot = AutopilotWorker()
         self._autopilot.moveToThread(self._autopilot_thread)
         self._autopilot_thread.started.connect(self._autopilot.run)
-        self._autopilot.progress.connect(lambda t: self.status.setText(f"Autopilot: {t}…"))
+        self._autopilot.progress.connect(self._autopilot_progress)
         self._autopilot.done.connect(self._autopilot_done)
         self._autopilot_thread.start()
+
+    # Worker signals go to bound methods, never lambdas: a lambda runs on the
+    # worker's own thread (PySide6), and a dialog or label touched there can
+    # crash or hang the app.
+    @Slot(str)
+    def _autopilot_progress(self, text: str) -> None:
+        self.status.setText(f"Autopilot: {text}…")
+
+    @Slot(str)
+    def _on_root_failed(self, message: str) -> None:
+        if not getattr(self, "_quitting", False):
+            QMessageBox.warning(self, "Folder unavailable", message)
+
+    @Slot(int)
+    def _on_relinked(self, n: int) -> None:
+        self.status.setText(f"Recognised {n:,} moved file{'s' if n != 1 else ''} - ratings kept")
+
+    @Slot(object)
+    def _on_steps_failed(self, steps) -> None:
+        self._steps_failed = list(steps)
+
+    @Slot(object)
+    def _on_takeout_done(self, r) -> None:
+        self.status.setText(f"Google Takeout: dates for {r.dated:,} files, locations for {r.located:,}")
 
     @unless_closed
     def _autopilot_done(self, reviewable: int) -> None:
@@ -2911,7 +2989,11 @@ class MainWindow(QMainWindow):
         self._xmp_thread.deleteLater()
         self._xmp_worker.deleteLater()
         self._xmp_thread = None
-        if r.failed:
+        if getattr(r, "error", False):
+            self.status.setText("Writing sidecars stopped on an error - the changes are kept in the catalog"
+                                " (Help > Report a problem has the details)")
+            self._later(300_000, self._write_sidecars)
+        elif r.failed:
             self.status.setText(f"Couldn't write {r.failed:,} sidecar(s) — kept in the catalog, "
                                 "will retry (folder offline or read-only?)")
             self._later(60_000, self._write_sidecars)
@@ -2959,16 +3041,15 @@ class MainWindow(QMainWindow):
         self._worker.progress.connect(self.status_page.step_text)
         self.status_page.set_running(True)
         self._worker.root_done.connect(self._on_root_done)
-        self._worker.root_failed.connect(lambda m: QMessageBox.warning(self, "Folder unavailable", m))
+        self._worker.root_failed.connect(self._on_root_failed)
         self._worker.meta_done.connect(self._on_meta_done)
         self._worker.thumb_done.connect(self._on_thumb_done)
-        self._worker.relinked.connect(
-            lambda n: self.status.setText(f"Recognised {n:,} moved file{'s' if n != 1 else ''} - ratings kept"))
+        self._worker.relinked.connect(self._on_relinked)
         self._worker.damage_done.connect(self._on_damage_done)
         self._worker.similar_done.connect(self._on_similar_done)
         self._worker.noticed_done.connect(self._on_noticed)
-        self._worker.takeout_done.connect(lambda r: self.status.setText(
-            f"Google Takeout: dates for {r.dated:,} files, locations for {r.located:,}"))
+        self._worker.takeout_done.connect(self._on_takeout_done)
+        self._worker.steps_failed.connect(self._on_steps_failed)
         self._worker.finished.connect(self._on_finished)
         self._set_busy(True)
         self._thread.start()
@@ -3135,6 +3216,7 @@ class MainWindow(QMainWindow):
         self._worker.deleteLater()
         self._thread = self._worker = None
         self._set_busy(False)
+        failed, self._steps_failed = getattr(self, "_steps_failed", None), None
         pending = getattr(self, "_pending_setup_roots", None)
         if pending:                                    # folders from the first-run setup, added mid-scan
             self._pending_setup_roots = None
@@ -3147,6 +3229,9 @@ class MainWindow(QMainWindow):
         if linked:
             self.status.setText(f"Added {linked:,} imported photos to their event")
         self.reload()
+        if failed:
+            self.status.setText("Finished, but these stopped on an error: " + ", ".join(failed)
+                                + " (the rest ran; Help > Report a problem has the details)")
         self._run_autopilot()
 
     def _set_busy(self, busy: bool) -> None:

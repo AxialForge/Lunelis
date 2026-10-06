@@ -87,6 +87,8 @@ Tags are full-path names (`Places|Ohio`, shown as Places > Ohio) in `tags`;
 - `sidecars`: for files with these extensions (`*` = any), these neighbours
   (`{stem}` = name without extension, `{name}` = full name) are copied,
   verified and filed **with** their file, never on their own, never renamed.
+  When a different file already has a sidecar's name beside its photo, the
+  card's sidecar stays on the card (0.37.1) and the card is not safe to format.
 - `companions` (0.18, optional, same shape as `sidecars`): neighbours that are
   photos or videos themselves - an iPhone Live Photo's `{stem}.MOV` beside its
   `.HEIC` / `.JPG`. They're cataloged like any photo, but filed in the same

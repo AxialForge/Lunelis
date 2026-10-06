@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from lunelis import paths
 from lunelis.catalog.schema import open_catalog
 from lunelis.jobs import engine
+from lunelis.log import LOG
 
 WAKE_WAITING_S = engine.OFFLINE_RETRY_S
 
@@ -71,7 +72,18 @@ class JobRunner(QObject):
                     continue
                 self.current, self._stop_current = job, False
                 self.changed.emit()
-                engine.run_job(conn, job, should_stop=lambda: self._stop_current or self._quit)
+                try:
+                    engine.run_job(conn, job, should_stop=lambda: self._stop_current or self._quit)
+                except Exception as e:
+                    # One job's bug must not end every background job for the
+                    # session: log it, mark that job failed, carry on with the rest.
+                    LOG.exception("Background job %s failed", job)
+                    try:
+                        if conn.in_transaction:
+                            conn.rollback()
+                        engine.set_state(conn, job, "failed", f"Stopped by an error: {type(e).__name__}: {e}"[:300])
+                    except Exception:
+                        LOG.exception("Couldn't mark job %s failed", job)
                 if job in self._cancel_ids:
                     engine.cancel(conn, job)
                     self._cancel_ids.discard(job)
