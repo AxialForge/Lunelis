@@ -405,6 +405,34 @@ class _ResetSlider(QSlider):
         self.reset.emit()
 
 
+# What each slider does, drawn on its track (as in Lightroom and darktable):
+# left end -> right end. Sliders not listed keep the plain track.
+_RAINBOW = ("#e5484d", "#f2c230", "#3fae5a", "#2fb5c8", "#3f7fd9", "#c25ad6", "#e5484d")
+SLIDER_TRACKS: dict[str, tuple[str, ...]] = {
+    "exposure": ("#141414", "#8a8a8a", "#f4f4f4"),
+    "contrast": ("#a4a4a4", "#7a7a7a", "#1c1c1c"),
+    "highlights": ("#5a5a5a", "#f4f4f4"),
+    "shadows": ("#141414", "#9a9a9a"),
+    "whites": ("#8a8a8a", "#ffffff"),
+    "blacks": ("#000000", "#7a7a7a"),
+    "temp": ("#3d7fd9", "#c9c9c9", "#f2b230"),
+    "tint": ("#3fae5a", "#c9c9c9", "#d65ac7"),
+    "vibrance": ("#9a9a9a", "#c9a07a", "#ff6a3d"),
+    "saturation": ("#9a9a9a", "#d07a8e", "#ff2d55"),
+    "hue": _RAINBOW,
+    "fade": ("#141414", "#8a8a8a"),
+    "vignette": ("#141414", "#9a9a9a", "#f4f4f4"),
+}
+
+
+def _track_style(colors: tuple[str, ...]) -> str:
+    n = len(colors) - 1
+    stops = ", ".join(f"stop:{i / n:.3f} {c}" for i, c in enumerate(colors))
+    return (f"QSlider::groove:horizontal {{ height: 6px; border-radius: 3px; border: none;"
+            f" background: qlineargradient(x1:0, y1:0, x2:1, y2:0, {stops}); }}"
+            " QSlider::sub-page:horizontal, QSlider::add-page:horizontal { background: transparent; }")
+
+
 class ParamSlider(QWidget):
     """Name, a number you can type into, and the slider. Double-click the
     name or the slider to put it back to 0."""
@@ -434,6 +462,11 @@ class ParamSlider(QWidget):
         self.number.valueChanged.connect(self._typed)
         self.slider = _ResetSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(round(lo * self.scale), round(hi * self.scale))
+        if key in SLIDER_TRACKS:
+            self.slider.setStyleSheet(_track_style(SLIDER_TRACKS[key]))
+        elif lo < 0 < hi:
+            # Both ways from 0: no fill from the left end (it made 0 look like halfway).
+            self.slider.setStyleSheet("QSlider::sub-page:horizontal { background: transparent; }")
         self.slider.setToolTip("Double-click to reset")
         self.slider.valueChanged.connect(self._changed)
         self.slider.sliderReleased.connect(lambda: self.moved.emit(self.key, self.current(), True))
@@ -603,6 +636,7 @@ class DevelopPanel(QScrollArea):
                                "if you say so")
         v.addWidget(self._wrap_row(self.auto_b, self.look_b, self.reset_b, self.before_b, self.proof_b))
         vrow = QHBoxLayout()
+        vrow.setSpacing(8)
         vrow.addWidget(QLabel("Version"))
         self.copy_box = QComboBox()
         self.copy_box.setToolTip("Virtual copies: other edits of this photo, without copying the file")
@@ -613,7 +647,8 @@ class DevelopPanel(QScrollArea):
         self.copy_new_b = QPushButton("New copy", clicked=lambda: self.copy_new.emit())
         self.copy_new_b.setToolTip("Start another edit of this photo from this one")
         vrow.addWidget(self.copy_new_b)
-        self.copy_more = QToolButton(text="⋯", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.copy_more = QToolButton(text="⋯", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup,
+                                     objectName="MenuButton")
         m = QMenu(self.copy_more)
         self.copy_export_a = m.addAction("Export this copy…", lambda: self.copy_export.emit())
         self.copy_delete_a = m.addAction("Delete this copy", lambda: self.copy_delete.emit())
@@ -654,7 +689,8 @@ class DevelopPanel(QScrollArea):
         self.save_filter_b.setToolTip("Keep this look as your own filter, for any photo")
         self.unpack_b = QPushButton("Adjust sliders", clicked=lambda: self.unpack_filter.emit())
         self.unpack_b.setToolTip("Move the filter's values into the sliders below to fine-tune each one")
-        pre = QToolButton(text="Presets ▾", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        pre = QToolButton(text="Presets ▾", popupMode=QToolButton.ToolButtonPopupMode.InstantPopup,
+                          objectName="MenuButton")
         pm = QMenu(pre)
         pm.addAction("Import presets…", lambda: self.presets_import.emit())
         pm.addAction("Export my filters…", lambda: self.presets_export.emit())

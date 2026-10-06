@@ -73,7 +73,12 @@ class JobRunner(QObject):
                 self.current, self._stop_current = job, False
                 self.changed.emit()
                 try:
-                    engine.run_job(conn, job, should_stop=lambda: self._stop_current or self._quit)
+                    from lunelis import pace
+
+                    def stop() -> bool:
+                        pace.breathe(lambda: self._stop_current or self._quit)   # a video plays: wait
+                        return self._stop_current or self._quit
+                    engine.run_job(conn, job, should_stop=stop)
                 except Exception as e:
                     # One job's bug must not end every background job for the
                     # session: log it, mark that job failed, carry on with the rest.

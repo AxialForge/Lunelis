@@ -1,6 +1,7 @@
 """Lunelis entry point: `python -m lunelis` or the `lunelis` gui-script."""
 from __future__ import annotations
 
+import os
 import sys
 
 from PySide6.QtCore import Qt, QTimer
@@ -60,6 +61,13 @@ def main() -> int:
         rest = sys.argv[i + 1:]
         return run(rest[0] if rest else None, rest[1:])
     _wait_for_previous()
+    if paths.FROZEN:
+        # Out of the program folder: an update renames it, and Windows won't
+        # rename a folder a process is standing in.
+        try:
+            os.chdir(os.path.expanduser("~"))
+        except OSError:
+            pass
     # Early dev builds kept the catalog + cache in the project folder; move
     # them into the data folder once (a same-drive rename, instant).
     paths.adopt_legacy_data()
@@ -105,6 +113,8 @@ def main() -> int:
         log.LOG.info("updated to %s", paths.version())
         QTimer.singleShot(1500, lambda: window.status.setText(f"Updated to Lunelis {paths.version()}"))
     if "--update-failed" in sys.argv:
+        from lunelis import updater
+        log.LOG.error("The update wasn't applied. The swap script said:\n%s", updater.last_apply_log())
         QTimer.singleShot(1500, lambda: QMessageBox.warning(
             window, "Update", "The update couldn't be installed (a file was in use, or the program folder "
             "needs administrator rights), so this version was started again. Details are in the log; putting "

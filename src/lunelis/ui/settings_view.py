@@ -91,6 +91,7 @@ class SettingsView(QWidget):
     library_changed = Signal()       # a source turned on/off, a folder skipped/unskipped
     rescan = Signal(list)            # root ids to scan now
     add_source = Signal()
+    remove_source = Signal(int, str)  # root id, path: the window checks, backs up, removes
     rewrite_sidecars = Signal()      # every rating was marked pending: write them out
     tray_changed = Signal(bool)
     autostart_changed = Signal(bool)
@@ -1139,6 +1140,10 @@ class SettingsView(QWidget):
         v.addWidget(self.roots)
         buttons = QHBoxLayout()
         buttons.addWidget(QPushButton("Add a folder…", clicked=lambda: self.add_source.emit()))
+        self.remove_source_b = QPushButton("Remove a source…", clicked=self._remove_source)
+        self.remove_source_b.setToolTip("Take the selected source out of Lunelis - the folder and its photos "
+                                        "on disk are not touched")
+        buttons.addWidget(self.remove_source_b)
         buttons.addWidget(QPushButton("Skip a folder inside a source…", clicked=self._skip_folder))
         buttons.addStretch(1)
         v.addLayout(buttons)
@@ -1585,6 +1590,14 @@ class SettingsView(QWidget):
         self.cancel_move_b.setVisible(pending is not None)
 
     # --- sources -------------------------------------------------------------------------------
+
+    def _remove_source(self) -> None:
+        row = self.roots.currentRow()
+        item = self.roots.item(row, 0) if row >= 0 else None
+        if item is None:
+            QMessageBox.information(self, "Remove a source", "Select a source in the table first.")
+            return
+        self.remove_source.emit(item.data(Qt.ItemDataRole.UserRole), self.roots.item(row, 1).text())
 
     def _root_toggled(self, item: QTableWidgetItem) -> None:
         if item.column() != 0 or self._loading:

@@ -165,27 +165,43 @@ def install_dir() -> Path | None:
 APPLY_PS1 = r"""
 param([int]$ProcessId, [string]$Install, [string]$New)
 $ErrorActionPreference = 'Stop'
-try { Wait-Process -Id $ProcessId -Timeout 90 -ErrorAction SilentlyContinue } catch {}
+# Never stand in the folder being swapped: a process's working folder can't be
+# renamed (the 0.34-0.37 updater failed exactly so when Lunelis was started
+# from the Start menu, whose working folder is the program folder).
+Set-Location -LiteralPath $PSScriptRoot
+[Environment]::CurrentDirectory = $PSScriptRoot      # the process's own folder, which holds the lock
+$log = Join-Path $PSScriptRoot 'apply-update.log'
+function Say([string]$m) { Add-Content -LiteralPath $log -Value ((Get-Date -Format 's') + ' ' + $m) }
+Say "Waiting for Lunelis (process $ProcessId) to close"
+try { Wait-Process -Id $ProcessId -Timeout 300 -ErrorAction SilentlyContinue } catch {}
+if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
+    Say 'Lunelis is still running after 5 minutes - update not applied; it is offered again next time'
+    exit 1
+}
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $oldName = (Split-Path $Install -Leaf) + '.old-' + $stamp
 $renamed = $false
-for ($i = 0; $i -lt 40 -and -not $renamed; $i++) {
+$why = ''
+for ($i = 0; $i -lt 60 -and -not $renamed; $i++) {
     try { Rename-Item -LiteralPath $Install -NewName $oldName; $renamed = $true }
-    catch { Start-Sleep -Milliseconds 500 }
+    catch { $why = $_.Exception.Message; Start-Sleep -Milliseconds 500 }
 }
 if (-not $renamed) {
     # Couldn't swap (a file in use, or a protected folder): keep the old version running.
-    Start-Process -FilePath (Join-Path $Install 'Lunelis.exe') -ArgumentList '--update-failed'
+    Say "Couldn't rename $Install : $why"
+    Start-Process -FilePath (Join-Path $Install 'Lunelis.exe') -ArgumentList '--update-failed' -WorkingDirectory $PSScriptRoot
     exit 1
 }
 try {
     Move-Item -LiteralPath $New -Destination $Install
-    Start-Process -FilePath (Join-Path $Install 'Lunelis.exe') -ArgumentList '--updated'
+    Say "Swapped in the new version; starting it"
+    Start-Process -FilePath (Join-Path $Install 'Lunelis.exe') -ArgumentList '--updated' -WorkingDirectory $PSScriptRoot
 } catch {
     # Put the old version back.
+    Say ("The swap failed, putting the old version back: " + $_.Exception.Message)
     if (Test-Path -LiteralPath $Install) { Remove-Item -LiteralPath $Install -Recurse -Force }
     Rename-Item -LiteralPath (Join-Path (Split-Path $Install -Parent) $oldName) -NewName (Split-Path $Install -Leaf)
-    Start-Process -FilePath (Join-Path $Install 'Lunelis.exe') -ArgumentList '--update-failed'
+    Start-Process -FilePath (Join-Path $Install 'Lunelis.exe') -ArgumentList '--update-failed' -WorkingDirectory $PSScriptRoot
     exit 1
 }
 """
@@ -258,7 +274,17 @@ def apply(staged: Path) -> None:
     flags = 0x00000008 | 0x00000200 if sys.platform == "win32" else 0   # DETACHED_PROCESS | NEW_PROCESS_GROUP
     subprocess.Popen(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden",
                       "-File", str(script), "-ProcessId", str(os.getpid()), "-Install", str(target),
-                      "-New", str(staged)], creationflags=flags, close_fds=True)
+                      "-New", str(staged)], creationflags=flags, close_fds=True,
+                     cwd=str(updates_dir()))           # not the program folder: it's about to be renamed
+
+
+def last_apply_log() -> str:
+    """What the last swap script wrote (for Help > Report a problem and the
+    "couldn't be installed" message)."""
+    try:
+        return (updates_dir() / "apply-update.log").read_text(encoding="utf-8")[-2000:]
+    except OSError:
+        return ""
 
 
 def cleanup() -> int:

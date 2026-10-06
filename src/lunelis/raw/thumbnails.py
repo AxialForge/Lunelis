@@ -261,6 +261,8 @@ def _make_one(cache_dir: Path, file_id: int, root: str, rel_path: str,
               log_preview: str = "builtin") -> tuple[str | None, str | None]:
     """(thumbnail rel path, error). Never raises. An edited photo's
     thumbnail shows the edit (edit/render.py)."""
+    from lunelis import pace
+    pace.breathe()                                # a video is playing: wait for it
     try:
         path = os.path.join(root, *rel_path.split("/"))
         if stack and edit_cache is not None:

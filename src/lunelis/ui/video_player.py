@@ -222,6 +222,8 @@ class VideoPlayer(QWidget):
 
     def stop(self) -> None:
         """Leaving the clip: stop and let go of the file."""
+        from lunelis import pace
+        pace.set_playing(False)
         self.player.stop()
         self.player.setSource(QUrl())
         self.path = None
@@ -254,7 +256,15 @@ class VideoPlayer(QWidget):
 
     def _state(self, state) -> None:
         from PySide6.QtMultimedia import QMediaPlayer
-        self.play_b.setText("❚❚" if state == QMediaPlayer.PlaybackState.PlayingState else "▶")
+        from lunelis import pace
+        playing = state == QMediaPlayer.PlaybackState.PlayingState
+        self.play_b.setText("❚❚" if playing else "▶")
+        pace.set_playing(playing)                  # background work waits while it plays
+
+    def hideEvent(self, e) -> None:
+        from lunelis import pace
+        pace.set_playing(False)                    # off screen: nothing to give way to
+        super().hideEvent(e)
 
     def _error(self, _err, text: str) -> None:
         self.note.setText(f"Couldn't play this file: {text or 'unknown format'}. "

@@ -125,6 +125,10 @@ when it was last scanned.
   disk or in the catalog is deleted, so turning it back on brings everything
   back, ratings included.
 - **Add a folder...**: the same as **Library > Add folder...** (`Ctrl+O`).
+- **Remove a source...**: takes the selected folder out of Lunelis. Its photos leave the
+  library, with the ratings, tags, albums, faces and edits kept only in the catalog;
+  nothing on disk changes, and the catalog is backed up first (Settings > Backups >
+  Restore undoes it). Turning a source off instead keeps everything for later.
 - **Skip a folder inside a source...**: Lunelis leaves that folder alone,
   for example an exports folder or an editing cache. Photos already cataloged
   there disappear from the library straight away, but their ratings are kept.

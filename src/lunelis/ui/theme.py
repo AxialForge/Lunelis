@@ -347,6 +347,12 @@ def _stylesheet(t: Theme | None = None) -> str:
     QPushButton:focus {{ border-color: {t.accent}; }}
     QPushButton:disabled {{ color: {t.text_faint}; border-color: {t.border}; }}
     QPushButton:flat {{ border: none; background: transparent; }}
+    QToolButton#MenuButton {{
+        background: {t.surface}; color: {t.text}; border: 1px solid {t.border}; border-radius: 6px;
+        padding: 6px 10px; min-height: 20px;
+    }}
+    QToolButton#MenuButton:hover {{ border-color: {t.accent}; }}
+    QToolButton#MenuButton::menu-indicator {{ image: none; width: 0px; }}
     QFrame#CreateCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; }}
     QFrame#CreateCard:hover, QFrame#CreateCard:focus {{ border-color: {t.accent}; }}
     QFrame#CreateCard QLabel {{ border: none; background: transparent; }}

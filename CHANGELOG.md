@@ -6,6 +6,40 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.37.6] - 2026-10-06
+
+### Fixed
+
+- **Updates downloaded but never installed.** When Lunelis had been started
+  from the Start menu, the update script ran inside the program folder it was
+  trying to replace, and Windows refused to rename a folder in use: after 20
+  seconds it gave up. The script now runs from its own folder (and Lunelis no
+  longer sits in its program folder at all), waits up to five minutes for
+  Lunelis to close, and writes what it did to `updates\apply-update.log`
+  (shown in the log if an update fails). **To get this fix, install 0.37.6 with
+  its setup.exe once** - the updater in 0.37.5 and earlier still has the fault.
+- **Videos played at a frame or two a second while the library was being
+  updated.** Video frames reach the screen through the window's own thread, and
+  the library pass, thumbnails and background jobs kept Python busy. While a
+  clip plays, that work now waits between files and carries on when you pause
+  or leave the video (measured: 12 to 30 frames a second under the same load).
+
+### Added
+
+- **Remove a source** (Settings > Library): takes a folder out of Lunelis. Its
+  catalog entries go - with the ratings, tags, albums, faces and edits kept only
+  in the catalog - and nothing on disk changes. The catalog is backed up first,
+  and it refuses while a migration or job still uses the source.
+- **Coloured slider tracks on the Edit panel**: Temperature blue to yellow, Tint
+  green to magenta, Hue a rainbow, Saturation and Vibrance grey to vivid, the
+  light sliders dark to light. Sliders that go both ways from 0 no longer fill
+  from the left (0 looked like halfway).
+
+### Changed
+
+- The Presets and ⋯ buttons on the Edit panel are styled like the other buttons
+  (they showed two arrows).
+
 ## [0.37.5] - 2026-10-06
 
 From a full migration rehearsal (two overlapping pools into one library,

@@ -339,6 +339,8 @@ def pending_count(conn: sqlite3.Connection) -> int:
 
 def _read_one(root: str, rel_path: str) -> tuple[str | None, dict | None, str | None]:
     """(format, columns, error) for one file. Never raises."""
+    from lunelis import pace
+    pace.breathe()                         # a video is playing: wait for it
     path = os.path.join(root, *rel_path.split("/"))
     try:
         with open(path, "rb") as fh:

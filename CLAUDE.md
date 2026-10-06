@@ -693,6 +693,23 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
   `canceled.connect(lambda: worker.cancel())` - it runs on the GUI thread and
   only sets a flag. (The mirror image of the lambda-on-worker-signal gotcha.)
 
+- **The updater's swap script must not stand in the program folder.** A
+  process's working folder can't be renamed on Windows, and Lunelis started
+  from the Start menu has the program folder as its working folder; the
+  PowerShell it launched inherited it, so every Rename-Item failed "in use" and
+  updates never applied (0.34-0.37.5). `Set-Location` alone isn't enough - it
+  moves PowerShell's location, not the process's folder: the script also sets
+  `[Environment]::CurrentDirectory`, Popen gets `cwd=updates_dir()`, and the
+  packaged app chdirs to the home folder at start. tests/test_updater_swap.py
+  runs the real script.
+
+- **Background work must give way to video playback** (`lunelis/pace.py`).
+  Video frames are presented through the GUI thread; Python worker threads
+  holding the GIL (library pass, thumbnails, jobs) starved it to ~1 fps on the
+  real display (offscreen measurements looked fine - test on QT_QPA_PLATFORM=
+  windows). Every per-file worker function and job stop-callback calls
+  `pace.breathe()`; VideoPlayer sets the flag while playing.
+
 - **A sampled hash is a candidate filter, never proof of identity.**
   `sample_hash` reads three 64 KB slices; two files can share size, capture
   time and slices and differ in between. Anything that deletes or skips

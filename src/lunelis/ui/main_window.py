@@ -122,6 +122,8 @@ class LibraryWorker(QObject):
         self._cancel = True
 
     def _say(self, i: int, text: str, done: int = 0, total: int = 0) -> None:
+        from lunelis import pace
+        pace.breathe(lambda: self._cancel)          # every step reports progress often: give way here
         self.step.emit(i, done, total)       # the step first, so its text lands on the right row
         self.progress.emit(text)
 
@@ -662,6 +664,7 @@ class MainWindow(QMainWindow):
         self.settings_page.library_changed.connect(self.reload)
         self.settings_page.rescan.connect(self._rescan_roots)
         self.settings_page.add_source.connect(self.add_folder)
+        self.settings_page.remove_source.connect(self.remove_source)
         self.settings_page.scene_job.connect(self._tag_the_library)
         self.settings_page.faces_job.connect(self._find_faces)
         self.settings_page.open_people.connect(lambda: self.open_page("People"))
@@ -3124,6 +3127,41 @@ class MainWindow(QMainWindow):
         if self.pages.currentWidget() is getattr(self, "settings_page", None):
             self.settings_page.refresh()                   # its Sources table shows the new one at once
         self.start([root_id])
+
+    def remove_source(self, root_id: int, path: str) -> None:
+        """Settings > Library > Remove a source: out of the catalog, files untouched."""
+        from lunelis.importers.scan import RootInUse, remove_root
+        if self._thread is not None:
+            QMessageBox.information(self, "Remove a source", "The library is being updated - press Stop (or "
+                                    "wait for it to finish), then remove the source.")
+            return
+        n = self.conn.execute("SELECT COUNT(*) FROM files WHERE root_id = ?", (root_id,)).fetchone()[0]
+        box = QMessageBox(QMessageBox.Icon.Warning, "Remove a source",
+                          f"Take {path} out of Lunelis?\n\n"
+                          f"Its {n:,} photos and videos leave the library, and with them the ratings, labels, "
+                          "tags, albums, faces, places and edits Lunelis keeps for them in its catalog.\n\n"
+                          "Nothing on disk changes: the folder, the photos and any sidecars beside them stay "
+                          "exactly as they are. Adding the folder again catalogs it afresh (ratings saved in "
+                          "sidecars come back; the rest doesn't).\n\n"
+                          "The catalog is backed up first, so Settings > Backups > Restore can undo this.",
+                          parent=self)
+        remove = box.addButton("Remove from Lunelis", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        if box.clickedButton() is not remove:
+            return
+        try:
+            backup.snapshot(self.conn, backup.backup_dir(Settings(self.conn), paths.DATA_DIR), "before-remove-source")
+            removed = remove_root(self.conn, root_id)
+        except RootInUse as e:
+            QMessageBox.information(self, "Remove a source", str(e))
+            return
+        except Exception as e:
+            QMessageBox.warning(self, "Remove a source", f"Couldn't remove it: {plain(e)}\n\nNothing was changed.")
+            return
+        self.status.setText(f"Removed {path} from Lunelis ({removed:,} photos and videos; nothing on disk changed)")
+        self.settings_page.refresh()
+        self.reload()
 
     def rescan_all(self) -> None:
         ids = [r["id"] for r in self.conn.execute("SELECT id FROM roots WHERE enabled = 1")]

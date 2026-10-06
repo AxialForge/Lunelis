@@ -125,6 +125,38 @@ def add_root(conn: sqlite3.Connection, path: str | Path) -> int:
     return cur.lastrowid
 
 
+class RootInUse(Exception):
+    """The source can't be removed right now (a migration or job uses it)."""
+
+
+def remove_root(conn: sqlite3.Connection, root_id: int) -> int:
+    """Take a source out of the library: its catalog entries go (and with them
+    ratings, tags, albums, faces and edits kept only in the catalog). Nothing
+    on disk is touched - the folder, the photos and their sidecars stay as they
+    are, and adding the folder again catalogs it afresh. Returns how many
+    files were removed from the catalog."""
+    if conn.execute("SELECT 1 FROM migrations WHERE state IN ('running', 'done') AND ("
+                    " target_root_id = ? OR id IN (SELECT migration_id FROM migration_items"
+                    " WHERE src_root = ? AND state IN ('copied', 'kept')))", (root_id, root_id)).fetchone():
+        raise RootInUse("A migration still depends on this source - finish it (release the originals) first.")
+    if conn.execute("SELECT 1 FROM job_folders jf JOIN jobs j ON j.id = jf.job_id WHERE jf.root_id = ?"
+                    " AND j.state IN ('running', 'queued', 'waiting', 'paused')", (root_id,)).fetchone():
+        raise RootInUse("A background job is working in this source - let it finish or cancel it in Jobs first.")
+    n = conn.execute("SELECT COUNT(*) FROM files WHERE root_id = ?", (root_id,)).fetchone()[0]
+    conn.commit()
+    try:                                             # one transaction: all of it or none of it
+        conn.execute("DELETE FROM files WHERE root_id = ?", (root_id,))     # cascades to its rows
+        conn.execute("DELETE FROM excluded_folders WHERE root_id = ?", (root_id,))
+        conn.execute("DELETE FROM job_folders WHERE root_id = ?", (root_id,))
+        conn.execute("UPDATE migrations SET target_root_id = NULL WHERE target_root_id = ?", (root_id,))
+        conn.execute("DELETE FROM roots WHERE id = ?", (root_id,))
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    return n
+
+
 # --- walking ---------------------------------------------------------------
 
 def _iso_utc(ts: float) -> str:
