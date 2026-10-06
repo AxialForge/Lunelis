@@ -108,6 +108,27 @@ def is_network_path(path: str | os.PathLike) -> bool:
     return False
 
 
+def has_recycle_bin(path: str | os.PathLike) -> bool:
+    """Whether Windows keeps a deleted file from here in the Recycle Bin. Not
+    for shares, removable drives (USB sticks, cards) or FAT/exFAT volumes:
+    there a "recycle" is a permanent delete that still reports success."""
+    if is_network_path(path):
+        return False
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    drive = os.path.splitdrive(os.path.abspath(str(path)))[0]
+    if not drive:
+        return False
+    root = drive + "\\"
+    if ctypes.windll.kernel32.GetDriveTypeW(root) != 3:              # DRIVE_FIXED only
+        return False
+    fs = ctypes.create_unicode_buffer(32)
+    if not ctypes.windll.kernel32.GetVolumeInformationW(root, None, 0, None, None, None, fs, 32):
+        return False
+    return fs.value.upper() in ("NTFS", "REFS")
+
+
 def _inside(a: Path, b: Path) -> bool:
     a, b = os.path.normcase(os.path.abspath(a)), os.path.normcase(os.path.abspath(b))
     return a == b or a.startswith(b.rstrip("\\/") + os.sep)

@@ -89,17 +89,18 @@ def render_outputs(path: str, is_raw: bool, file_id: int, stack: Stack, filter_p
     return write_thumbnail(thumb_cache, file_id, thumb)
 
 
-def clear_outputs(path: str, file_id: int, orientation: int | None, thumb_cache: Path, edit_cache: Path) -> str | None:
-    """Back to the original: drop the proxy, re-make the plain thumbnail."""
+def clear_outputs(path: str, file_id: int, orientation: int | None, thumb_cache: Path, edit_cache: Path) -> str:
+    """Back to the original: re-make the plain thumbnail, then drop the proxy.
+    Raises when the original can't be read (offline, damaged): the edited
+    thumbnail and proxy then stay as they were rather than leaving a blank."""
     from lunelis.raw.thumbnails import render, write_thumbnail
+    img = render(path, orientation)
+    rel = write_thumbnail(thumb_cache, file_id, img)
     try:
         proxy_path(edit_cache, file_id).unlink()
     except FileNotFoundError:
         pass
-    try:
-        return write_thumbnail(thumb_cache, file_id, render(path, orientation))
-    except Exception:
-        return None
+    return rel
 
 
 def edited_thumbnail(path: str, is_raw: bool, file_id: int, stack: Stack, filter_params: dict | None,

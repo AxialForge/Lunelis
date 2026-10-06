@@ -1903,6 +1903,7 @@ class BatchOutputs(QObject):
 
     progress = Signal(int, int)
     one = Signal(int)                      # file id whose thumbnail changed
+    failed = Signal(int, str)              # how many couldn't be rendered, the first error
     finished = Signal()
 
     def __init__(self, file_ids: list[int]) -> None:
@@ -1917,7 +1918,9 @@ class BatchOutputs(QObject):
         import os
         from lunelis import paths
         from lunelis.catalog.schema import open_catalog
+        from lunelis.log import LOG
         conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+        failures, first = 0, ""
         try:
             for i, fid in enumerate(self.file_ids, 1):
                 if self._cancel:
@@ -1936,9 +1939,13 @@ class BatchOutputs(QObject):
                                                   store.filter_params(conn, stack.filter),
                                                   paths.THUMBNAIL_CACHE, paths.EDIT_CACHE)
                         self.one.emit(fid)
-                    except Exception:
-                        pass                   # unreadable file: its thumbnail stays as it was
+                    except Exception as e:     # unreadable file: its thumbnail stays as it was
+                        LOG.warning("Edit render failed for %s: %s", path, e)
+                        failures += 1
+                        first = first or f"{os.path.basename(path)}: {type(e).__name__}: {e}"
                 self.progress.emit(i, len(self.file_ids))
+            if failures:
+                self.failed.emit(failures, first[:200])
         finally:
             conn.close()
             self.finished.emit()

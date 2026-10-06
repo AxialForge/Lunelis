@@ -78,9 +78,8 @@ def probe(fh: BinaryIO) -> dict:
     if loc:
         m = _ISO6709.match(loc)
         if m:
-            lat, lon = float(m.group(1)), float(m.group(2))
-            if lat == 0 and lon == 0:
-                lat = lon = None
+            from lunelis.importers.metadata import valid_gps
+            lat, lon = valid_gps(float(m.group(1)), float(m.group(2)))
 
     return {
         "captured_at": captured,

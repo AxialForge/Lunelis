@@ -10,8 +10,16 @@ datas = [("assets", "assets"), ("src/lunelis/darktable/lunelis.lua", "lunelis/da
          ("src/lunelis/importing/camera_profiles.json", "lunelis/importing"),
          ("src/lunelis/create/presets.json", "lunelis/create"),
          ("src/lunelis/recognize/scene_labels.json", "lunelis/recognize"),
-         ("src/lunelis/geo/places.tsv.gz", "lunelis/geo"), ("src/lunelis/geo/ATTRIBUTION.txt", "lunelis/geo")] \
+         ("src/lunelis/geo/places.tsv.gz", "lunelis/geo"), ("src/lunelis/geo/ATTRIBUTION.txt", "lunelis/geo"),
+         ("THIRD-PARTY-LICENSES.md", "."), ("LICENSE", ".")] \
     + copy_metadata("lunelis") + collect_data_files("lensfunpy")      # lensfun's lens database
+# Each bundled library's own licence texts (its dist-info folder), as THIRD-PARTY-LICENSES.md says.
+for _dist in ("PySide6", "PySide6_Essentials", "shiboken6", "Pillow", "pillow_heif", "rawpy", "av", "exifread",
+              "piexif", "numpy", "onnxruntime", "lensfunpy", "opencv-python-headless"):
+    try:
+        datas += copy_metadata(_dist)
+    except Exception:                       # a renamed distribution must not break the build
+        print(f"no metadata for {_dist}")
 binaries = collect_dynamic_libs("rawpy") + collect_dynamic_libs("pillow_heif") + collect_dynamic_libs("av") \
     + collect_dynamic_libs("onnxruntime") + collect_dynamic_libs("lensfunpy")
 hiddenimports = collect_submodules("av") + collect_submodules("lunelis") + collect_submodules("onnxruntime") \

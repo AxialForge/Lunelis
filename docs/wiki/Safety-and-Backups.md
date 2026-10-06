@@ -6,10 +6,24 @@
 |---|---|
 | **Never** | Modifies, renames or deletes your photos and videos |
 | **Never** | Puts its own files (catalog, thumbnails, backups) in your photo folders |
-| **Never** | Sends anything over the internet - no accounts, no telemetry |
+| **Never** | Sends your photos, their details or how you use Lunelis anywhere - no accounts, no telemetry |
 | **Only when you ask** | Moves duplicate copies into `_Lunelis Quarantine` (a rename on the same drive) |
 | **Only if you choose it** | Writes `.xmp` sidecars next to photos (the default keeps them in a central folder) |
 | **Only existing ones** | Updates rating/label in sidecars darktable or Lightroom already made (can be turned off) |
+
+## What goes over the network
+
+Lunelis works without an internet connection. These are the only times it
+uses the network. None of them sends your photos; only "Open map" passes one
+photo's coordinates, to your own browser:
+
+| When | What | Turn it off |
+|---|---|---|
+| Once a day (on by default) | Asks GitHub whether a newer Lunelis is out (`api.github.com`) | Settings > Updates > "Check for updates when Lunelis starts" |
+| When you click Download | Fetches an update or an optional AI model from GitHub, checked against its published SHA-256 | Don't click it |
+| When the online map is on | Fetches map tiles from OpenStreetMap; it sees which tiles (roughly where) you look at | Settings > Places > "Show map pictures on the Map" |
+| When you click "Open map" on a photo | Opens openstreetmap.org in your browser at that photo's coordinates | Don't click it |
+| While you share an album with family | Runs a small web server on your home network (LAN only, never the internet) | Stop sharing |
 
 ## The Library status page
 

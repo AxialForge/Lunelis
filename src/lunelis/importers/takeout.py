@@ -74,12 +74,23 @@ def target_name(json_path: str, title: str) -> str:
     return f"{stem}({m.group(1)}).{ext}" if dot else f"{title}({m.group(1)})"
 
 
+MAX_JSON_BYTES = 4 << 20                  # Google's are a few KB; anything huge isn't one of them
+
+
 def _parse(path: str) -> dict | None:
+    """The useful fields of one Takeout JSON, or None. Never raises: one odd
+    file (deeply nested, huge, wrong types) must not stop the pass."""
     try:
-        with open(path, encoding="utf-8") as fh:
-            d = json.load(fh)
-    except (OSError, ValueError):
+        if os.path.getsize(path) > MAX_JSON_BYTES:
+            return None
+        return _parse_json(path)
+    except Exception:                    # RecursionError, MemoryError, odd types...
         return None
+
+
+def _parse_json(path: str) -> dict | None:
+    with open(path, encoding="utf-8") as fh:
+        d = json.load(fh)
     if not isinstance(d, dict) or not isinstance(d.get("title"), str):
         return None
 

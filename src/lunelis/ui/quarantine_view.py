@@ -145,15 +145,15 @@ class ConfirmEmpty(QDialog):
         if local:
             lines.append(f"• {len(local):,} on this PC go to the Recycle Bin (you can still get them back there).")
         if net:
-            lines.append(f"• {len(net):,} on network drives are DELETED - Windows has no Recycle Bin for "
-                         "network shares, so they can't be recovered.")
+            lines.append(f"• {len(net):,} on network, USB or memory-card drives are DELETED - Windows has no "
+                         "Recycle Bin there, so they can't be recovered.")
         if bad:
             lines.append(f"• {len(bad):,} stay in quarantine: the copy that was kept can't be found.")
         lines += ["", "The catalog is backed up first. Every file removed is written to a log."]
         text = QLabel("\n".join(lines))
         text.setWordWrap(True)
         v.addWidget(text)
-        self.agree = QCheckBox("I understand the network files can't be recovered")
+        self.agree = QCheckBox("I understand those files can't be recovered")
         self.agree.setVisible(bool(net))
         v.addWidget(self.agree)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)

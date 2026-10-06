@@ -208,6 +208,18 @@ def export_pending(conn: sqlite3.Connection, *, on_progress: ProgressFn | None =
                            if row["tag_names"] else ())
         empty = fields == XmpFields()          # e.g. a pick-only change: nothing XMP can hold
         folder = os.path.dirname(os.path.join(row["root"], *row["rel_path"].split("/")))
+        # The central store first, on its own: an existing sidecar beside the
+        # photo that can't be updated (unreadable XML, a read-only share) is
+        # an extra and must not keep the store from getting the change.
+        if mode == "central":
+            try:
+                path = central_path(store_dir, row["root_id"], row["root"],
+                                    row["rel_path"], row["filename"])
+                if not (empty and not os.path.exists(path)):
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    write_sidecar(path, fields)
+            except Exception as e:
+                return False, None, f"{type(e).__name__}: {e}"[:300]
         beside_name = None
         try:
             # Next to the photo.
@@ -220,16 +232,12 @@ def export_pending(conn: sqlite3.Connection, *, on_progress: ProgressFn | None =
                 path = os.path.join(folder, beside_name)
                 write_sidecar(path, fields)
                 beside_mtime = _iso_utc_mtime(path)
-            # The central store.
-            if mode == "central":
-                path = central_path(store_dir, row["root_id"], row["root"],
-                                    row["rel_path"], row["filename"])
-                if not (empty and not os.path.exists(path)):
-                    os.makedirs(os.path.dirname(path), exist_ok=True)
-                    write_sidecar(path, fields)
             return beside_name, beside_mtime, None
         except Exception as e:
-            return False, None, f"{type(e).__name__}: {e}"[:300]
+            err = f"{type(e).__name__}: {e}"[:300]
+            if mode == "beside":
+                return False, None, err            # the one place it goes: stays pending
+            return None, None, f"The sidecar beside the photo wasn't updated: {err}"[:300]
 
     cleared: list[tuple] = []
     failed: list[tuple] = []
@@ -257,6 +265,8 @@ def export_pending(conn: sqlite3.Connection, *, on_progress: ProgressFn | None =
             failed.append((err, row["id"]))    # NAS offline, read-only share...: stays pending
             return False
         cleared.append((row["id"], row["stars"], row["flag"], row["color_label"]))
+        if err:
+            failed.append((err, row["id"]))    # saved where it belongs; the extra copy said why not
         if name:
             sidecars.append((name, mtime, mtime, row["id"]))
         return True

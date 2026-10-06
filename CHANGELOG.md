@@ -6,6 +6,54 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.37.2] - 2026-10-05
+
+More fixes from the 0.37.0 release audit: one odd file or a dropped NAS no
+longer stops or spoils a pass, and failures say so.
+
+### Fixed
+
+- **A NAS that drops in the middle of a scan** no longer marks every remaining
+  file as unreadable for good. Those files are left for the next scan, when
+  the share is back.
+- **One unusual file can't stop the library pass.** A deeply nested Google
+  Takeout JSON no longer ends the scan early, and an image that declares an
+  enormous size is refused before it's decoded (only one very large image is
+  decoded at a time, so eight at once can't use up the memory).
+- **Impossible GPS positions** (a latitude of 999, say) are ignored rather than
+  turned into a real town's place tag; **impossible dates** (30 February,
+  99:99:99) are ignored rather than stored. A card import with such a date no
+  longer fails.
+- **A sidecar beside the photo that can't be updated** (damaged XML, a
+  read-only share) no longer stops ratings and tags from reaching the
+  central sidecar store; it is noted on the photo instead.
+- **Reset all / Paste to all on the Edit page** report the photos they couldn't
+  render, and resetting an unreadable photo keeps its edited thumbnail
+  instead of leaving a blank tile.
+- **Empty quarantine on a USB stick or memory card** said files would go to
+  the Recycle Bin; Windows deletes them for good there. Removable drives and
+  FAT/exFAT volumes are now treated like network drives: the dialog says the
+  files can't be recovered, asks you to confirm, and checks every byte of the
+  kept copy first.
+- A card import that can't read a file's date says so on the import item
+  instead of silently filing the file as undated.
+
+### Added
+
+- **Problems** in the photo's Info panel: shows when Lunelis couldn't read the
+  camera details (Canon CR3 for now), make the thumbnail, or save to the
+  sidecar beside the photo.
+- **Third-party licences**: the build ships `THIRD-PARTY-LICENSES.md` and each
+  library's own licence texts; Help > About Lunelis > Third-party licences
+  opens the list.
+- The Welcome window's last page says what Lunelis sends over the network:
+  only the daily update check, which Settings > Updates can turn off.
+
+### Changed
+
+- The wiki no longer says Lunelis makes no network calls. Safety and backups
+  lists every time it uses the network and how to turn each off.
+
 ## [0.37.1] - 2026-10-05
 
 Safety fixes from the 0.37.0 release audit.

@@ -495,6 +495,14 @@ def _already_in_library(conn: sqlite3.Connection, path: str, size: int, taken: s
     return None
 
 
+def _taken(value: str | None) -> datetime | None:
+    """A capture time read from a file, or None when there isn't a usable one."""
+    try:
+        return datetime.fromisoformat(value[:19]) if value else None
+    except ValueError:
+        return None
+
+
 def _event_start(conn: sqlite3.Connection, import_id: int, name: str | None,
                  staged: list[str]) -> datetime | None:
     # A named import is an event, filed by its start date: the earliest
@@ -512,8 +520,8 @@ def _event_start(conn: sqlite3.Connection, import_id: int, name: str | None,
             at = read_file(path).get("captured_at")
         except Exception:
             continue
-        if at:
-            t = datetime.fromisoformat(at[:19])
+        t = _taken(at)
+        if t is not None:
             earliest = t if earliest is None or t < earliest else earliest
     if earliest is not None:
         conn.execute("UPDATE imports SET event_start = ? WHERE id = ?", (earliest.isoformat(), import_id))
@@ -557,12 +565,15 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
                 on_progress(n, len(todo), rel)
             continue
         try:
+            unread = None
             try:
                 meta = read_file(staged)
-            except Exception:
-                meta = {}
+            except Exception as e:
+                meta, unread = {}, f"Couldn't read its date ({type(e).__name__}) - filed as undated"
             taken_s = meta.get("captured_at")
-            taken = datetime.fromisoformat(taken_s[:19]) if taken_s else None
+            taken = _taken(taken_s)
+            if taken is None:
+                taken_s = None
             found = _already_in_library(conn, staged, size, taken_s, digest) if digest else None
             if found:
                 found = found[0]
@@ -605,7 +616,7 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
                     raise OSError("library copy doesn't match the card")
                 os.unlink(staged)                          # only now: the library copy is verified
                 conn.execute("UPDATE import_items SET state = 'placed', dest_path = ?, staged_path = NULL,"
-                             " error = NULL WHERE id = ?", (dest, item))
+                             " error = NULL, note = COALESCE(?, note) WHERE id = ?", (dest, unread, item))
         except InterruptedError:
             break
         except OSError as e:

@@ -329,3 +329,18 @@ def test_catalog_only_mode_writes_nothing_new(lib, tmp_path):
 def test_root_key_handles_drive_roots():
     assert sync.root_key(3, "D:\\") == "3-D"
     assert sync.root_key(2, r"\\nas\share\Photos") == "2-Photos"
+
+
+def test_an_unreadable_sidecar_beside_the_photo_doesnt_block_the_central_store(lib, tmp_path):
+    # audit LRA-007
+    conn, root, root_id = lib
+    Settings(conn).set("sidecar_mode", "central")                   # update_existing defaults on
+    (root / "cull.xmp").write_bytes(b"<x:xmpmeta \xff\xfe not xml")
+    set_ratings(conn, _ids(conn, "cull.ARW"), stars=3)
+    sync.export_pending(conn)
+    assert read_sidecar(sync.central_path(tmp_path / "store", root_id, str(root), "cull.ARW", "cull.ARW")).stars == 3
+    assert pending_count(conn) == 0
+    err = conn.execute("SELECT xmp_error FROM ratings WHERE file_id = ?", (_ids(conn, "cull.ARW")[0],)).fetchone()[0]
+    assert err and "beside the photo" in err
+    from lunelis.ui.photoinfo import problems
+    assert any("beside the photo" in p for p in problems(conn, _ids(conn, "cull.ARW")[0]))

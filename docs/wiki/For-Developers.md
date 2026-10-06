@@ -16,7 +16,11 @@ Change one only with a version bump and a loader for the old form.
 ## Stack
 
 Python 3.13 · PySide6 (Qt) · SQLite · exifread · rawpy (LibRaw) · Pillow +
-pillow-heif · PyAV (FFmpeg). No server, no network calls.
+pillow-heif · PyAV (FFmpeg). No telemetry and no accounts. Network use is
+limited to the daily update check (on by default, switchable), downloads the
+user starts (updates, models), OpenStreetMap tiles when the online map is on,
+and the LAN-only family gallery server while an album is shared - listed in
+[Safety and backups](Safety-and-Backups#what-goes-over-the-network).
 
 ## Running
 

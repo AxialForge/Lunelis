@@ -1421,11 +1421,26 @@ class MainWindow(QMainWindow):
             self.report_problem()
 
     def about(self) -> None:
-        QMessageBox.about(
-            self, "About Lunelis",
-            f"<b>Lunelis {paths.version()}</b><br>A local, Windows-first photo library.<br><br>"
-            f"Data folder: {paths.DATA_DIR}<br>"
-            "Your photos are never changed; everything Lunelis keeps is in the data folder.")
+        from html import escape
+        box = QMessageBox(self)
+        box.setWindowTitle("About Lunelis")
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setText(f"<b>Lunelis {paths.version()}</b><br>A local, Windows-first photo library. MIT licence.<br><br>"
+                    f"Data folder: {escape(str(paths.DATA_DIR))}<br>"
+                    "Your photos are never changed; everything Lunelis keeps is in the data folder.<br><br>"
+                    "Lunelis is built on Qt, Python, Pillow, LibRaw, FFmpeg, OpenCV, ONNX Runtime, lensfun and "
+                    "other open-source software, and uses place names from GeoNames (CC BY 4.0).")
+        notices = box.addButton("Third-party licences", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() is notices:
+            path = paths.PROJECT_ROOT / "THIRD-PARTY-LICENSES.md"
+            if path.exists():
+                import subprocess                         # Notepad: .md often has no app set
+                subprocess.Popen(["notepad.exe", str(path)])
+            else:
+                QMessageBox.information(self, "Third-party licences",
+                                        "The list is at github.com/AxialForge/Lunelis in THIRD-PARTY-LICENSES.md.")
 
     def set_tray_enabled(self, enabled: bool) -> None:
         """Tray on: closing the window keeps Lunelis running and watching for
@@ -2189,12 +2204,18 @@ class MainWindow(QMainWindow):
         self._batch_thread.started.connect(self._batch.run)
         self._batch.one.connect(self._photo_edited)
         self._batch.progress.connect(self._batch_progress)
+        self._batch.failed.connect(self._batch_failed)
         self._batch.finished.connect(self._batch_finished)
         self._batch_thread.start()
 
     def _batch_progress(self, i: int, n: int) -> None:
         if n > 1:
             self.status.setText(f"Rendering edits… {i:,} / {n:,}")
+
+    @Slot(int, str)
+    def _batch_failed(self, n: int, first: str) -> None:
+        self.status.setText(f"{n:,} photo{'s' if n != 1 else ''} couldn't be rendered and keep their old"
+                            f" thumbnail{'s' if n != 1 else ''} (offline or unreadable?) - {first}")
 
     @unless_closed
     def _batch_finished(self) -> None:

@@ -633,7 +633,7 @@ class InfoPanel(QScrollArea):
         for key, heading in (("when", "Taken"), ("camera", "Camera"), ("lens", "Lens"), ("exposure", "Exposure"),
                              ("dimensions", "Size"), ("event", "Event"), ("location", "Location"),
                              ("albums", "Albums"), ("status", "Condition"), ("backup", "Backup"), ("path", "File"),
-                             ("sidecar", "Sidecar")):
+                             ("sidecar", "Sidecar"), ("problems", "Problems")):
             h = self._heading(heading)
             lab = QLabel()
             lab.setWordWrap(True)
@@ -777,6 +777,7 @@ class InfoPanel(QScrollArea):
         put("backup", info.protection)
         put("path", photoinfo.breakable(info.path))
         put("sidecar", info.sidecar or "")
+        put("problems", "<br>".join(escape(p) for p in info.problems), rich=True)
 
 
 # --- the page ------------------------------------------------------------------------------------

@@ -114,6 +114,7 @@ class PhotoInfo:
     motion_video: int | None = None    # an Android motion photo's embedded video, in bytes
     pinned: bool = False               # the location is a pin dropped on the Map, not the camera's GPS
     protection: str = ""               # the Backup line (backups/protection.py), filled by load()
+    problems: tuple[str, ...] = ()     # what Lunelis couldn't read or write for this file, filled by load()
 
     @property
     def path(self) -> str:
@@ -198,4 +199,26 @@ def load(conn: sqlite3.Connection, file_id: int) -> PhotoInfo | None:
     info = PhotoInfo(r[0], r[1], r[2], r[3], r[4], r[5], bool(r[6]), r[7], *r[8:-1], pinned=bool(r[-1]))
     from lunelis.backups.protection import of
     info.protection = of(conn, file_id).text()
+    info.problems = problems(conn, file_id)
     return info
+
+
+def problems(conn: sqlite3.Connection, file_id: int) -> tuple[str, ...]:
+    """Plain-words lines for anything Lunelis tried and failed to do with this
+    file, so a stuck sidecar or an unread format isn't silent."""
+    out = []
+    r = conn.execute("SELECT read_error FROM exif WHERE file_id = ?", (file_id,)).fetchone()
+    if r and r[0]:
+        if r[0].startswith("NotImplementedError"):
+            out.append("Lunelis can't read this format's camera details yet ("
+                       + r[0].split(":", 1)[-1].strip() + ")")
+        else:
+            out.append(f"Couldn't read the camera details: {r[0]}")
+    r = conn.execute("SELECT thumb_error FROM files WHERE id = ?", (file_id,)).fetchone()
+    if r and r[0]:
+        out.append(f"Couldn't make a thumbnail: {r[0]}")
+    r = conn.execute("SELECT xmp_error, xmp_pending FROM ratings WHERE file_id = ?", (file_id,)).fetchone()
+    if r and r[0]:
+        out.append(("Rating and tags not saved to the sidecar yet (will retry): " if r[1] else "")
+                   + r[0])
+    return tuple(out)

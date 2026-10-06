@@ -168,6 +168,15 @@ def run(report: str | None, samples: list[str] | None = None) -> int:
         return tag
     check("Place list (GeoNames)", place_list)
 
+    def licence_notices():
+        # About > Third-party licences opens this; the build ships it beside the libraries.
+        from lunelis import paths
+        path = paths.PROJECT_ROOT / "THIRD-PARTY-LICENSES.md"
+        if not path.exists():
+            raise RuntimeError(f"{path} is missing")
+        return f"{path.stat().st_size:,} bytes"
+    check("Third-party licence notices", licence_notices)
+
     def worker_thumbnails():
         # Pages that read thumbnails on a worker thread (On this day, Library status) decode with Pillow.
         import tempfile

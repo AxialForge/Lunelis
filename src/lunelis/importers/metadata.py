@@ -27,6 +27,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Callable
 
 import exifread
@@ -54,6 +55,7 @@ CancelFn = Callable[[], bool]
 class ExtractResult:
     read: int = 0
     failed: int = 0          # stored with read_error; not retried until the file changes
+    offline: int = 0         # left pending: the share or drive was unreachable
     cancelled: bool = False
     seconds: float = 0.0
 
@@ -166,11 +168,24 @@ def _datetime(tags: dict) -> str | None:
     if not m or m.group(1) == "0000" or not (1 <= int(m.group(2)) <= 12):
         return None
     y, mo, d, hh, mm, ss = m.groups()
+    try:                                   # 2024:02:30 or 99:99:99 is not a time
+        datetime(int(y), int(mo), int(d), int(hh), int(mm), int(ss))
+    except ValueError:
+        return None
     iso = f"{y}-{mo}-{d}T{hh}:{mm}:{ss}"
     sub = _text(tags.get("EXIF SubSecTimeOriginal"))
     if sub and sub.isdigit():
-        iso += "." + sub
+        iso += "." + sub[:6]
     return iso
+
+
+def valid_gps(lat: float | None, lon: float | None) -> tuple[float | None, float | None]:
+    """(lat, lon) when both are on the globe and not the 0,0 "no fix", else
+    (None, None): a wrong coordinate would become a wrong place tag."""
+    if lat is None or lon is None or not (-90 <= lat <= 90 and -180 <= lon <= 180) \
+            or (lat == 0 and lon == 0):
+        return None, None
+    return lat, lon
 
 
 def _gps(tags: dict, axis: str) -> float | None:
@@ -200,9 +215,7 @@ def _keep_in_raw_json(key: str, tag) -> bool:
 
 def to_row(tags: dict) -> dict:
     """Map exifread tags onto the `exif` columns."""
-    lat, lon = _gps(tags, "Latitude"), _gps(tags, "Longitude")
-    if lat == 0 and lon == 0:              # "no fix" written as 0,0
-        lat = lon = None
+    lat, lon = valid_gps(_gps(tags, "Latitude"), _gps(tags, "Longitude"))
     flash = _int(tags.get("EXIF Flash"))
     raw = {k: _text(v) for k, v in tags.items() if _keep_in_raw_json(k, v)}
     return {
@@ -332,6 +345,9 @@ def _read_one(root: str, rel_path: str) -> tuple[str | None, dict | None, str | 
             fmt, row = read_open(fh, rel_path)
         return fmt, row, None
     except Exception as e:                # one bad file must never stop the run
+        from lunelis.dupes.hashing import OFFLINE, offline_error
+        if offline_error(e, root):
+            return None, None, OFFLINE + str(e)
         return getattr(e, "fmt", None), None, f"{type(e).__name__}: {e}"[:300]
 
 
@@ -347,6 +363,7 @@ def extract_pending(conn: sqlite3.Connection, *,
     this thread. Resumable: rows are committed per batch, and an interrupted
     run leaves the rest pending for next time.
     """
+    from lunelis.dupes.hashing import OFFLINE
     started = time.perf_counter()
     result = ExtractResult()
     todo = conn.execute(PENDING_SQL + " ORDER BY f.root_id, f.rel_path").fetchall()
@@ -369,7 +386,9 @@ def extract_pending(conn: sqlite3.Connection, *,
                         f.cancel()
                     break
                 fmt, row, err = fut.result()
-                if row is not None:
+                if err and err.startswith(OFFLINE):
+                    result.offline += 1              # left pending: read when the share is back
+                elif row is not None:
                     batch.append((file_id, *_db_values(row), mtime, None))
                     if row.get("motion_video"):
                         motion.append((row["motion_video"], file_id))

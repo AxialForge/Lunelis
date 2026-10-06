@@ -13,6 +13,7 @@ Both take an optional Throttle so a job can be capped in MB/s.
 from __future__ import annotations
 
 import hashlib
+import os
 import threading
 import time
 
@@ -29,6 +30,17 @@ class SourceOffline(OSError):
 
 def is_network_error(e: OSError) -> bool:
     return getattr(e, "winerror", None) in NETWORK_ERRORS
+
+
+OFFLINE = "offline: "                  # an error that says nothing about the file itself
+
+
+def offline_error(e: BaseException, root: str) -> bool:
+    """The share (or drive) went away, rather than this file being bad: the
+    file is left pending and tried again, never marked as unreadable."""
+    if not isinstance(e, OSError):
+        return False
+    return is_network_error(e) or not os.path.isdir(root)
 
 
 class Throttle:

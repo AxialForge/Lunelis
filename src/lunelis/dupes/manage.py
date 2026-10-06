@@ -168,8 +168,10 @@ def restore_entry(conn: sqlite3.Connection, e: Entry) -> str:
 # --- emptying ------------------------------------------------------------------------------------
 
 def _is_network(path: str) -> bool:
-    from lunelis.paths import is_network_path
-    return is_network_path(path)
+    """No Recycle Bin here: a share, a removable drive or a FAT/exFAT volume.
+    Files here are deleted for good, so they get the stricter checks."""
+    from lunelis.paths import has_recycle_bin
+    return not has_recycle_bin(path)
 
 
 def _recycle(path: str) -> None:

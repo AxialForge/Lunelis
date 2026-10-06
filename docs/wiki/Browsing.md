@@ -73,6 +73,9 @@ Double-click a photo, or select it and press Enter, to open it large:
   labels and Pick/Reject, then date, camera, lens, exposure, dimensions,
   event (click to see the whole event), location (with a map link),
   condition if the file is damaged, where the file is, and its sidecar.
+  **Problems** appears only when Lunelis couldn't do something with the
+  file: read its camera details (a Canon CR3, for now), make its thumbnail,
+  or save a rating to the sidecar beside it.
   **Shooting details** lists what the camera recorded: mode, metering,
   focus and drive mode, flash, white balance, picture style,
   stabilization, DRO/HDR, 35 mm focal length, time zone, serial number,

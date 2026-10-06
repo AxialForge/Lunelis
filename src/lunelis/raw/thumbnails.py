@@ -23,6 +23,7 @@ import io
 import os
 import sqlite3
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -38,6 +39,12 @@ from lunelis.raw.previews import best_preview, raf_jpeg_candidate, tiff_jpeg_can
 
 pillow_heif.register_heif_opener()
 Image.MAX_IMAGE_PIXELS = 400_000_000        # 100MP+ panoramas are legitimate here
+# A huge image costs bytes-per-pixel times its size to decode (a 300-byte PNG
+# can declare 19000 x 19000: ~3 GB). Past BIG_PIXELS only one decodes at a
+# time, so eight workers can't add that up; past the cap it's refused before
+# any decoding (Pillow itself only refuses at twice MAX_IMAGE_PIXELS).
+BIG_PIXELS = 60_000_000
+_BIG = threading.Lock()
 
 THUMB_EDGE = 512
 JPEG_QUALITY = 80
@@ -55,6 +62,7 @@ _SRGB = ImageCms.createProfile("sRGB")
 class ThumbResult:
     made: int = 0
     failed: int = 0
+    offline: int = 0                    # left for later: the share or drive was unreachable
     cancelled: bool = False
     seconds: float = 0.0
 
@@ -185,6 +193,16 @@ def render(path: str, orientation: int | None = None, edge: int = THUMB_EDGE,
             else:
                 if img.format in ("JPEG", "MPO"):
                     img.draft("RGB", (edge, edge))
+                w, h = img.size
+                if w * h > Image.MAX_IMAGE_PIXELS:
+                    raise ValueError(f"{w} x {h} pixels is more than Lunelis opens")
+                if w * h > BIG_PIXELS:
+                    with _BIG:                    # one huge decode at a time
+                        img.load()
+                        img = ImageOps.exif_transpose(img)
+                        img = _to_srgb(img)
+                        img.thumbnail((edge, edge), Image.Resampling.LANCZOS)
+                    return img
                 img.load()                        # before the file handle closes
                 img = ImageOps.exif_transpose(img)  # standard images carry their own
 
@@ -253,6 +271,9 @@ def _make_one(cache_dir: Path, file_id: int, root: str, rel_path: str,
         img = render(path, orientation, log_preview=log_preview)
         return write_thumbnail(cache_dir, file_id, img), None
     except Exception as e:
+        from lunelis.dupes.hashing import OFFLINE, offline_error
+        if offline_error(e, root):
+            return None, OFFLINE + str(e)
         return None, f"{type(e).__name__}: {e}"[:300]
 
 
@@ -310,6 +331,10 @@ def generate_pending(conn: sqlite3.Connection, cache_dir: Path, *,
                         f.cancel()
                     break
                 thumb, err = fut.result()
+                if err and err.startswith("offline: "):
+                    result.offline += 1              # left pending: made when the share is back
+                    done += 1
+                    continue
                 updates.append((thumb, err, file_id))
                 if thumb:
                     result.made += 1
