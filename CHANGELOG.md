@@ -6,6 +6,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-10-07
+
+### Added
+
+- **The new library layout for migrations** (Migrate > Folders, on by default):
+  `Library/Photos and Videos/2024/6-19-2024 Air Show/` with **Photos**,
+  **Videos** and - for each timelapse the 0.39 engine found - **Timelapse/
+  18-00 (786 frames)** inside. A day with several events is named after its
+  first. Photos with no date go to `Library/Undated/Photos` (or `Videos`); an
+  option files them by their modified date instead when that date is
+  believable (not in the future, not before 1995, not the day a whole folder
+  was copied). Photos can have a folder per camera or keep the folder they
+  came from. A RAW+JPEG pair always lands together.
+- **The Lunelis folder** (Settings > Advanced): one folder beside the Library
+  for everything Lunelis makes or keeps - Exports by year, a folder per
+  Create tool (Timelapses, Collages, ...), import Staging, catalog Backups,
+  and Duplicates, Trash and Migration logs for the next releases. A folder
+  you chose for one of these still wins.
+- **Changing where sidecars go keeps things tidy:** leaving the central store
+  offers to move its folder to the Trash (it only repeats the catalog);
+  leaving "beside the photos" keeps the sidecars already there, for other
+  apps.
+
 ## [0.39.0] - 2026-10-07
 
 ### Added
