@@ -127,7 +127,7 @@ def pictures_folder() -> Path:
 
 def output_dir(conn: sqlite3.Connection, tool: str | None = None) -> Path:
     """Where a Create tool writes: the folder chosen for Create, else the
-    tool's folder in the Lunelis folder, else Pictures\Lunelis creations."""
+    tool's folder in the Lunelis folder, else Pictures/Lunelis creations."""
     from lunelis import lunelis_folder
     from lunelis.settings import Settings
     s = Settings(conn)
