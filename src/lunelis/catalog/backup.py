@@ -31,7 +31,9 @@ _NAME = re.compile(r"^catalog-(\d{8}-\d{6})-([a-z0-9-]+)\.zip$")
 
 
 def backup_dir(settings: Settings, data_dir: Path) -> Path:
-    return Path(settings.get("catalog_backup_dir") or data_dir / "backups")
+    from lunelis import lunelis_folder
+    return Path(settings.get("catalog_backup_dir")
+                or lunelis_folder.path(settings, lunelis_folder.BACKUPS_CATALOG) or data_dir / "backups")
 
 
 def list_snapshots(folder: Path) -> list[Path]:

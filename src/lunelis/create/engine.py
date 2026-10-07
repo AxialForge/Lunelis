@@ -125,10 +125,16 @@ def pictures_folder() -> Path:
     return Path.home() / "Pictures"
 
 
-def output_dir(conn: sqlite3.Connection) -> Path:
+def output_dir(conn: sqlite3.Connection, tool: str | None = None) -> Path:
+    """Where a Create tool writes: the folder chosen for Create, else the
+    tool's folder in the Lunelis folder, else Pictures\Lunelis creations."""
+    from lunelis import lunelis_folder
     from lunelis.settings import Settings
-    chosen = Settings(conn).get("create_output_dir")
-    return Path(chosen) if chosen else pictures_folder() / OUTPUT_FOLDER_NAME
+    s = Settings(conn)
+    chosen = s.get("create_output_dir")
+    if chosen:
+        return Path(chosen)
+    return lunelis_folder.create(s, tool) or pictures_folder() / OUTPUT_FOLDER_NAME
 
 
 def stamp(what: str, when: datetime | None = None) -> str:

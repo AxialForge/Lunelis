@@ -65,7 +65,10 @@ class ExportDialog(QDialog):
         pw.setLayout(prow)
         form.addRow("Preset", pw)
         row = QHBoxLayout()
-        self.folder = QLineEdit(last.get("folder") or os.path.join(os.path.expanduser("~"), "Pictures", "Lunelis exports"))
+        from lunelis import lunelis_folder
+        yearly = lunelis_folder.exports(Settings(conn))         # Lunelis folder: Exports\<this year>
+        self.folder = QLineEdit(str(yearly) if yearly else
+                                last.get("folder") or os.path.join(os.path.expanduser("~"), "Pictures", "Lunelis exports"))
         row.addWidget(self.folder, 1)
         row.addWidget(QPushButton("Change…", clicked=self._pick))
         w = QWidget()

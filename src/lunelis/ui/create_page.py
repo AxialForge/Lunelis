@@ -309,7 +309,7 @@ class Tool(QWidget):
         self.make_b.setEnabled(len(self.picker.ids()) >= self.minimum and self._thread is None)
 
     def out_dir(self) -> Path:
-        return engine.output_dir(self.conn)
+        return engine.output_dir(self.conn, self.title_text)
 
     def make(self) -> None:
         raise NotImplementedError

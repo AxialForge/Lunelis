@@ -68,6 +68,12 @@ class Settings_:
     reserve_bytes: int
 
 
+def _lunelis_staging(s) -> str | None:
+    from lunelis import lunelis_folder
+    p = lunelis_folder.path(s, lunelis_folder.STAGING)
+    return str(p) if p else None
+
+
 def load_settings(conn: sqlite3.Connection, data_dir: Path) -> Settings_:
     from lunelis.settings import Settings
     s = Settings(conn)
@@ -75,7 +81,7 @@ def load_settings(conn: sqlite3.Connection, data_dir: Path) -> Settings_:
         destination=s.get("import_destination"),
         template=s.get("import_template"),
         staging_local=s.get("import_staging_local") or str(data_dir / "staging"),
-        staging_network=s.get("import_staging_network"),
+        staging_network=s.get("import_staging_network") or _lunelis_staging(s),
         reserve_bytes=int(s.get("import_local_reserve_gb") * 1e9),
     )
 

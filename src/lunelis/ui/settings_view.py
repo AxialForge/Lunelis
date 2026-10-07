@@ -181,7 +181,7 @@ class SettingsView(QWidget):
             "Backups": [self._backups],
             "darktable": [self._darktable],
             "Updates": [self._updates],
-            "Advanced": [self._data_folder, self._logs],
+            "Advanced": [self._lunelis_folder, self._data_folder, self._logs],
         }
         for name in self.TABS:
             # '&' marks a keyboard shortcut in Qt labels; '&&' is a literal ampersand.
@@ -1410,6 +1410,37 @@ class SettingsView(QWidget):
         v.addLayout(row)
         return card
 
+    def _lunelis_folder(self) -> QFrame:
+        card, v = self._card(
+            "Lunelis folder",
+            "One folder, beside your Library, for everything Lunelis makes or keeps: Exports (by year), "
+            "each Create tool's folder, import Staging, catalog Backups, and - for migrations - Duplicates, "
+            "Trash and Migration logs. Your Library then holds only photos and videos. A folder chosen for "
+            "one of these elsewhere in Settings still wins.")
+        self.lunelis_dir = self._path_field("Not set - each thing keeps its own folder")
+        self._row(v, "Folder", self.lunelis_dir,
+                  QPushButton("Choose…", clicked=self._choose_lunelis_folder),
+                  QPushButton("Clear", clicked=lambda: (self._set("lunelis_folder", None), self.refresh())))
+        return card
+
+    def _choose_lunelis_folder(self) -> None:
+        current = Settings(self.conn).get("lunelis_folder") or ""
+        picked = QFileDialog.getExistingDirectory(self, "The Lunelis folder (beside your Library)", current)
+        if not picked:
+            return
+        picked = os.path.normpath(picked)
+        if self._root_for(picked) is not None:
+            QMessageBox.warning(self, "Lunelis folder", "That folder is inside one of your photo sources. Choose "
+                                "a folder beside the Library, not in it - Lunelis's files would show up as photos.")
+            return
+        self._set("lunelis_folder", picked)
+        from lunelis import lunelis_folder
+        try:
+            lunelis_folder.make_folders(Settings(self.conn))
+        except OSError as e:
+            QMessageBox.warning(self, "Lunelis folder", f"Saved, but its folders couldn't be made yet: {e}")
+        self.refresh()
+
     def _data_folder(self) -> QFrame:
         card, v = self._card(
             "Data folder",
@@ -1549,6 +1580,7 @@ class SettingsView(QWidget):
             for key, spin in self._spins.items():
                 spin.setValue(s.get(key) if isinstance(spin, QDoubleSpinBox) else int(s.get(key)))
             self.backup_folder.setText(s.get("catalog_backup_dir") or "")
+            self.lunelis_dir.setText(s.get("lunelis_folder") or "")
             self.backup_folder.setPlaceholderText(f"Default: {paths.BACKUP_DIR}")
             self._load_backup_status()
             self.data_dir.setText(str(paths.DATA_DIR))
