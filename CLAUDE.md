@@ -631,6 +631,14 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
 
 ## Gotchas / constraints
 
+- **Timelapse detection needs every gap >= 1 s and interval >= 2 s (0.39).**
+  EXIF times without sub-seconds put handheld frames in the same second, and
+  a tolerance of max(1 s, 5 %) then accepted gaps of 0 - the first run on the
+  real library "found" 31 timelapses, a third of them walking-around shooting
+  with hundreds of pauses. A pause now bridges only when the next 5 gaps are
+  steady, and a run with more than 2 + n/200 pauses is split. Test new rules
+  against a catalog backup copy (immutable=1), not just synthetic shoots.
+
 - **Never launch powershell.exe with DETACHED_PROCESS (0.38.1).** With no
   console it exits 0 immediately WITHOUT running `-File` - the updater
   "closed and did nothing" from 0.34 to 0.38.0 and every swap test passed,

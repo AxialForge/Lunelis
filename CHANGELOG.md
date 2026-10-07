@@ -6,6 +6,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-10-07
+
+### Added
+
+- **The timelapse engine.** After each scan Lunelis looks through the whole
+  library (about a second) for interval shoots: 100 frames or more from one
+  camera and lens at a steady interval of 2 s or longer. A RAW+JPEG pair
+  counts as one frame, and exposure may change (sunsets, ramping). A pause of
+  up to 30 minutes - a battery or card swap - keeps one timelapse; Settings
+  can split it there instead. Walking around shooting a frame every second or
+  two isn't mistaken for one. On the real library: 19 timelapses of 107 to
+  2,999 frames.
+- **Timelapses page** (Bring in & organize): each one with its first frame,
+  date, camera, frames, interval and playing time, and Build timelapse...,
+  Show photos, Confirm, Dismiss, Stack / Unstack and - for 50 frames or
+  fewer - It's a burst. Timelapses of 500 frames or more stack into one tile
+  by themselves (switchable on the page; the size in Settings).
+- **Build timelapse...** in Info on any frame of a timelapse, which opens
+  Create > Timelapse with its frames. Nothing is ever built automatically.
+- **Photo > Make a timelapse from the selection** for shorter sets, and
+  **Photo > Stack > This burst is a timelapse.**
+- Settings > Library > Helpers: look for timelapses after each scan, the
+  fewest frames, split at pauses, and the size that stacks by itself.
+
+### Changed
+
+- A burst stack holds at most 50 frames; a longer fast run isn't a burst.
+- "Lunelis noticed" no longer offers timelapses - the engine finds them; its
+  open timelapse offers were cleared.
+
 ## [0.38.1] - 2026-10-06
 
 ### Fixed
