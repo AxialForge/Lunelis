@@ -134,3 +134,49 @@ def test_walking_around_shooting_is_not_a_timelapse(conn):
             k += 1
         t += timedelta(seconds=40)
     assert timelapses.refresh(conn) == 0
+
+
+def test_the_page_info_button_and_menu(tmp_path):
+    """The Timelapses page lists and answers; Info offers Build only on a frame
+    of a timelapse, and it opens Create > Timelapse with the frames."""
+    from test_audit_navigation import _window
+    w, ids = _window(tmp_path, 3)
+    try:
+        conn = w.conn
+        many = shoot(conn, 120, 5, folder="tlw")
+        timelapses.refresh(conn)
+        w.open_page("Timelapses")
+        page = w.timelapses_page
+        assert page.cards and "1 timelapse" in page.summary.text()
+        [sid] = page.cards
+        built = []
+        page.build.disconnect()
+        page.build.connect(built.append)
+        from PySide6.QtWidgets import QPushButton
+        card = page.cards[sid]
+        labels = {b.text(): b for b in card.findChildren(QPushButton)}
+        assert {"Build timelapse…", "Show photos", "Confirm", "Dismiss", "Stack"} <= set(labels)
+        labels["Build timelapse…"].click()
+        assert built == [many]
+        page.cards[sid].findChildren(QPushButton)  # still alive
+        {b.text(): b for b in page.cards[sid].findChildren(QPushButton)}["Stack"].click()
+        assert timelapses.get(conn, sid).stacked
+        # Info: only a frame of a timelapse offers Build.
+        w.reload()
+        w.open_detail(ids[0])
+        assert w.detail.panel.timelapse_b.isHidden()
+        w.detail._offer_timelapse(many[5])
+        assert not w.detail.panel.timelapse_b.isHidden() and "120 frames" in w.detail.panel.timelapse_b.text()
+        # Photo > Make a timelapse from the selection.
+        w.close_detail()
+        w.open_page("Library")
+        w.grid.selected = set(ids[:2])
+        w.timelapse_from_selection()
+        assert any(q.origin == "manual" and sorted(q.file_ids) == sorted(ids[:2])
+                   for q in timelapses.all_sequences(conn))
+        # Build: the frames go to Create > Timelapse.
+        w.build_timelapse(many)
+        assert w.pages.currentWidget() is w.create_page
+    finally:
+        w._quitting = True
+        w.close()

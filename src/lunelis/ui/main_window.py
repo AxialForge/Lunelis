@@ -69,7 +69,7 @@ RATE_CONFIRM = 500                         # ask before rating / labelling / fla
 NAV = [
     ("Photos", ["Library", "Albums", "People", "Tags", "Edit", "Map", "On this day", "Stats"]),
     ("Create", ["Create"]),
-    ("Bring in & organize", ["Import", "Migrate", "Duplicates", "Damaged files"]),
+    ("Bring in & organize", ["Import", "Migrate", "Duplicates", "Timelapses", "Damaged files"]),
     ("Keep safe", ["Library status", "Backups", "Quarantine", "Sensor dust"]),
 ]
 BOTTOM_NAV = ["Settings"]
@@ -204,6 +204,9 @@ class LibraryWorker(QObject):
                 self.stacks_done.emit(stacks.rebuild_from_settings(conn))
                 from lunelis import pairs
                 pairs.rebuild_from_settings(conn)                    # RAW+JPEG shots as one photo
+                from lunelis import timelapses
+                self._say(4, "Finding timelapses…")
+                timelapses.refresh(conn)                             # interval shoots, for review (~1 s)
             guarded("finding bursts", bursts)
 
             # The search index, for whatever the scan and metadata changed (~1.5 s for all 159k).
@@ -566,6 +569,12 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.dupes)
         self.damaged = DamagedView(self.conn)
         self.pages.addWidget(self.damaged)
+        from lunelis.ui.timelapses_view import TimelapsesView
+        self.timelapses_page = TimelapsesView(self.conn)
+        self.timelapses_page.show_ids.connect(self.show_photos)
+        self.timelapses_page.build.connect(self.build_timelapse)
+        self.timelapses_page.changed.connect(self.reload_later)
+        self.pages.addWidget(self.timelapses_page, scroll=False)
         self.importer = ImportView(self.conn)
         self.importer.imported.connect(self._after_import)
         self.importer.autopilot.connect(self._autopilot_import)
@@ -602,6 +611,7 @@ class MainWindow(QMainWindow):
         self.detail.show_event.connect(self.show_event)
         self.detail.show_on_map.connect(self._show_on_map)
         self.detail.rotate_requested.connect(self.rotate)
+        self.detail.build_timelapse.connect(self.build_timelapse)
         self.detail.edited.connect(self._photo_edited)
         self.detail.tags_changed.connect(lambda: self.filter.tag and self.reload())
         self.detail.faces_changed.connect(lambda: self.filter.tag and self.reload())
@@ -904,6 +914,9 @@ class MainWindow(QMainWindow):
         self.addAction(a)
         st.addAction(QAction("Make this the stack &cover", self, triggered=self.set_stack_cover))
         st.addAction(QAction("&Unstack (show every frame, for good)", self, triggered=self.unstack))
+        st.addAction(QAction("This burst is a &timelapse", self, triggered=self.burst_is_timelapse))
+        self.photo_menu.addAction(QAction("Make a &timelapse from the selection", self,
+                                          triggered=self.timelapse_from_selection))
         a = QAction("E&xport…", self, shortcut="Ctrl+Shift+E", triggered=self.export_photos)
         self.photo_menu.addAction(a)
         self.addAction(a)
@@ -2452,6 +2465,9 @@ class MainWindow(QMainWindow):
         elif name == "Duplicates":
             self.pages.setCurrentWidget(self.dupes)
             self.dupes.refresh()
+        elif name == "Timelapses":
+            self.pages.setCurrentWidget(self.timelapses_page)
+            self.timelapses_page.refresh()
         else:
             self.pages.setCurrentWidget(self.damaged)
             self.damaged.refresh()
@@ -2782,6 +2798,41 @@ class MainWindow(QMainWindow):
         n = stacks.unstack(self.conn, cur[1])
         self.index.expanded.discard(cur[1])
         self.status.setText(f"Unstacked {n} frames - they'll stay separate")
+        self.reload()
+
+    # --- timelapses (timelapses.py) ------------------------------------------------------
+
+    def build_timelapse(self, ids: list) -> None:
+        """Build timelapse...: its frames selected, then Create > Timelapse."""
+        self.show_photos(list(ids), f"Timelapse, {len(ids):,} frames")
+        self.open_page("Create")
+        self.create_page.open_tool("timelapse")
+
+    def timelapse_from_selection(self) -> None:
+        ids = self._selected_or_warn()
+        if not ids:
+            return
+        from lunelis import timelapses
+        try:
+            timelapses.make_manual(self.conn, ids)
+        except ValueError as e:
+            QMessageBox.information(self, "Timelapse", str(e).capitalize() + ".")
+            return
+        self.status.setText(f"Made a timelapse of {len(ids):,} frames - it's on the Timelapses page")
+
+    def burst_is_timelapse(self) -> None:
+        cur = self._current_stack()
+        if not cur:
+            self.status.setText("That photo isn't part of a burst stack")
+            return
+        from lunelis import timelapses
+        try:
+            timelapses.burst_to_timelapse(self.conn, cur[1])
+        except ValueError as e:
+            QMessageBox.information(self, "Timelapse", str(e).capitalize() + ".")
+            return
+        self.index.expanded.discard(cur[1])
+        self.status.setText("Unstacked - it's a timelapse now, on the Timelapses page")
         self.reload()
 
     def _selected_or_warn(self) -> list[int]:

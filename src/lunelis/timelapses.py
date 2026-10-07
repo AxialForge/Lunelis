@@ -282,9 +282,11 @@ def make_manual(conn: sqlite3.Connection, ids: list[int]) -> int:
     if len(ids) < 2:
         raise ValueError("a timelapse needs at least two photos")
     q = ",".join("?" * len(ids))
+    # A RAW+JPEG pair is one frame: the JPEG half goes when its RAW is there too.
     order = [r[0] for r in conn.execute(
         f"SELECT f.id FROM files f LEFT JOIN exif e ON e.file_id = f.id WHERE f.id IN ({q})"
-        f" ORDER BY e.captured_at, f.rel_path", ids)]
+        f" AND NOT (f.pair_of IS NOT NULL AND f.pair_of IN ({q}))"
+        f" ORDER BY e.captured_at, f.rel_path", ids + ids)]
     # A photo is in one timelapse: take it out of any other.
     for sid, fids in conn.execute("SELECT id, file_ids FROM sequences WHERE status != 'dismissed'").fetchall():
         if set(order) & set(json.loads(fids)):

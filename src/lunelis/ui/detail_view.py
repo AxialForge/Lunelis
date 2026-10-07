@@ -718,6 +718,10 @@ class InfoPanel(QScrollArea):
         self.all_meta.hide()
         self.v.addWidget(self.all_meta)
         self.v.addSpacing(8)
+        # A frame of a timelapse (timelapses.py): build it from here. Never automatic.
+        self.timelapse_b = QPushButton("Build timelapse…", objectName="Primary")
+        self.timelapse_b.hide()
+        self.v.addWidget(self.timelapse_b)
         self.folder_b = QPushButton("Show in folder", clicked=self._show_in_folder)
         self.open_b = QPushButton("Open with default app", clicked=self._open)
         for b in (self.folder_b, self.open_b):
@@ -848,6 +852,7 @@ class DetailView(QWidget):
     show_event = Signal(int, str)
     show_on_map = Signal(float, float)
     rotate_requested = Signal(int)     # -1 left, 1 right (turns.py)
+    build_timelapse = Signal(list)     # Info > Build timelapse...: its frames
     edited = Signal(int)               # a photo's edit was saved and its thumbnail re-rendered
     faces_changed = Signal()           # a face was named or corrected here (People tags changed)
     show_person = Signal(int)          # "All photos of Ann" from a face's menu
@@ -1149,6 +1154,7 @@ class DetailView(QWidget):
         self.stars.setText("★" * i.stars + "☆" * (5 - i.stars) if i.stars else "")
         self.stars.setStyleSheet(f"color: {themes.current().rating}; font-size: 15px;")
         self.panel.show_info(i)
+        self._offer_timelapse(i.file_id)
         from lunelis.tags import model as tags
         self.panel.tag_box.set_tags(tags.tags_of(self.conn, i.file_id))
         from lunelis.catalog.exifblob import unpack_dict
@@ -1227,6 +1233,20 @@ class DetailView(QWidget):
         self.thumb_made.emit(file_id)
         if self.info and self.info.file_id == file_id and not self.canvas.sharp:
             self._show_image()
+
+    def _offer_timelapse(self, file_id: int) -> None:
+        from lunelis import timelapses
+        sid = timelapses.sequence_of(self.conn, file_id)
+        q = timelapses.get(self.conn, sid) if sid else None
+        b = self.panel.timelapse_b
+        b.setVisible(q is not None)
+        self._timelapse_frames = list(q.file_ids) if q is not None else []
+        if q is not None:
+            b.setText(f"Build timelapse… ({len(q.file_ids):,} frames)")
+            b.setToolTip("This photo is a frame of a timelapse: make the video in Create > Timelapse")
+            if not getattr(self, "_timelapse_hooked", False):
+                b.clicked.connect(lambda: self.build_timelapse.emit(list(self._timelapse_frames)))
+                self._timelapse_hooked = True
 
     def reshow(self) -> None:
         """The photo again from the start, e.g. after Rotate left / right."""

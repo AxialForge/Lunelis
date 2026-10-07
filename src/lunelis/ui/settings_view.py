@@ -434,7 +434,19 @@ class SettingsView(QWidget):
         card, v = self._card("Shoots, videos and the autopilot",
                              "What Lunelis does for you after a scan or an import - all of it only suggests, "
                              "or can be undone.")
-        self.noticed_cb = QCheckBox("After each scan, look for brackets, panoramas, focus stacks and timelapses")
+        self.timelapse_cb = QCheckBox("After each scan, look for timelapses (steady-interval shoots)")
+        self.timelapse_cb.toggled.connect(lambda on: self._set("timelapse_detect", on))
+        v.addWidget(self.timelapse_cb)
+        self.tl_min = self._spin("timelapse_min_frames", 10, 10000, " frames")
+        self._row(v, "A timelapse has at least", self.tl_min,
+                  help="Shorter sets: select them, then Photo > Make a timelapse from the selection.")
+        self.tl_split = QCheckBox("Split a timelapse where it pauses (a battery or card swap)")
+        self.tl_split.toggled.connect(lambda on: self._set("timelapse_split_gaps", on))
+        v.addWidget(self.tl_split)
+        self.tl_stack = self._spin("timelapse_auto_stack_frames", 50, 100000, " frames")
+        self._row(v, "Stack timelapses by themselves from", self.tl_stack,
+                  help="Shown as one tile in the library; turn it on or off on the Timelapses page.")
+        self.noticed_cb = QCheckBox("After each scan, look for brackets, panoramas, focus stacks and star trails")
         self.noticed_cb.setToolTip("Suggestions wait on the Library status page; nothing is built by itself")
         self.noticed_cb.toggled.connect(lambda on: self._set("noticed_auto", on))
         v.addWidget(self.noticed_cb)
@@ -460,6 +472,9 @@ class SettingsView(QWidget):
         return card
 
     def _load_helpers(self) -> None:
+        s0 = Settings(self.conn)
+        self.timelapse_cb.setChecked(bool(s0.get("timelapse_detect")))
+        self.tl_split.setChecked(bool(s0.get("timelapse_split_gaps")))
         skip = set(Settings(self.conn).get("autopilot_skip"))
         for stage, cb in self.autopilot_stages.items():
             cb.setChecked(stage not in skip)

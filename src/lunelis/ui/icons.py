@@ -45,6 +45,7 @@ _PATHS = {
     "create": '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/>'
               '<rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
     "status": '<path d="M3 12h4.2l2.6-6.5 4.4 13 2.6-6.5H21"/>',
+    "timelapse": '<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2.5M9.5 3h5M12 3v2.5"/>',
     "collapse": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/><path d="M15.5 9.5l-2.5 2.5 2.5 2.5"/>',
     "expand": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/><path d="M13 9.5l2.5 2.5-2.5 2.5"/>',
 }
@@ -53,7 +54,7 @@ NAV_ICONS = {"Library": "library", "Albums": "albums", "Tags": "tags", "Import":
              "Duplicates": "duplicates", "Damaged files": "damaged", "Backups": "backups",
              "Quarantine": "quarantine", "Settings": "settings", "Library status": "status",
              "Edit": "edit", "Create": "create", "Stats": "stats", "Map": "map", "On this day": "calendar",
-             "Sensor dust": "dust", "People": "people"}
+             "Sensor dust": "dust", "People": "people", "Timelapses": "timelapse"}
 
 
 def _pixmap(name: str, color: str, size: int) -> QPixmap:
