@@ -178,7 +178,7 @@ def central_path(store: str | os.PathLike, root_id: int, root_path: str,
 
 
 def trash_dir(settings) -> Path:
-    """Where Lunelis puts what it retires: the Lunelis folder's Trash, else <data folder>\Trash."""
+    """Where Lunelis puts what it retires: the Lunelis folder's Trash, else <data folder>/Trash."""
     from lunelis import lunelis_folder, paths
     return lunelis_folder.path(settings, lunelis_folder.TRASH) or Path(paths.DATA_DIR) / "Trash"
 
