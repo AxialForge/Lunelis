@@ -47,6 +47,10 @@ class Options:
     skip_damaged_copies: bool = True    # skip a damaged file when an intact copy exists
     include_videos: bool = True
     only_archived: bool = False         # just the Archive: move it out to an archive drive
+    # 0.40: the new library layout (layout.py) - Library\Photos and Videos\...\Photos|Videos|Timelapse
+    library_layout: bool = False
+    undated_by_mtime: bool = False      # file an undated photo by a believable modified date
+    photo_subfolders: str = "none"      # none | camera | original
 
 
 @dataclass
@@ -189,6 +193,8 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
         if r[9]:
             pair_event.setdefault(pair_key(r), (r[9], r[10]))
 
+    lay = _layout_inputs(conn, by_id, options) if options.library_layout else None
+
     dest: dict[int, str] = {}
     by_pair: dict[tuple[str, str], list[int]] = defaultdict(list)
     for fid, r in by_id.items():
@@ -196,11 +202,14 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
             continue
         ev_name, ev_start = (r[9], r[10]) if r[9] else pair_event.get(pair_key(r), (None, None))
         src_dir = r[3].rsplit("/", 1)[0] if "/" in r[3] else ""
-        # In a migration the "import name" of a photo is its event's name, so
-        # the user's usual template names event folders ("6-17-2024 Myrtle Beach").
-        folder = render(template, Context(
-            taken=_dt(r[7]), camera=r[8], event=ev_name, event_start=_dt(ev_start), import_name=ev_name,
-            original_folder=src_dir.rsplit("/", 1)[-1] or None))
+        if lay is not None:
+            folder = _layout_folder(lay, options, template, r, ev_name, ev_start, src_dir)
+        else:
+            # In a migration the "import name" of a photo is its event's name, so
+            # the user's usual template names event folders ("6-17-2024 Myrtle Beach").
+            folder = render(template, Context(
+                taken=_dt(r[7]), camera=r[8], event=ev_name, event_start=_dt(ev_start), import_name=ev_name,
+                original_folder=src_dir.rsplit("/", 1)[-1] or None))
         dest[fid] = folder
         by_pair[(folder.lower(), r[4].rsplit(".", 1)[0].lower())].append(fid)
 
@@ -274,6 +283,48 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
     return mid
 
 
+def _layout_inputs(conn: sqlite3.Connection, by_id: dict, options: Options) -> dict:
+    """What the library layout needs beyond the rows: each day's first event,
+    each timelapse frame's folder, and each source folder's modified times."""
+    from lunelis.migrate import layout
+    rows = [(_dt(r[7]), r[9], _dt(r[10])) for r in by_id.values()]
+    days = layout.first_event_of_day(rows)
+    frames: dict[int, tuple[datetime | None, int]] = {}
+    partner = {fid: p for fid, p in conn.execute("SELECT id, pair_of FROM files WHERE pair_of IS NOT NULL")}
+    halves: dict[int, list[int]] = defaultdict(list)
+    for fid, p in partner.items():
+        halves[p].append(fid)
+    for ids, in conn.execute("SELECT file_ids FROM sequences WHERE status != 'dismissed' AND kind = 'timelapse'"):
+        fids = json.loads(ids)
+        start = _dt(by_id[fids[0]][7]) if fids and fids[0] in by_id else None
+        for f in fids:
+            for g in [f, *halves.get(f, []), partner.get(f)]:
+                if g is not None:
+                    frames[g] = (start, len(fids))
+    folder_mtimes: dict[tuple, list[float]] = defaultdict(list)
+    if options.undated_by_mtime:
+        for r in by_id.values():
+            folder_mtimes[(r[1], r[3].rsplit("/", 1)[0] if "/" in r[3] else "")].append(r[13])
+    return {"days": days, "frames": frames, "folder_mtimes": folder_mtimes,
+            "opts": layout.LayoutOptions(options.undated_by_mtime, options.photo_subfolders)}
+
+
+def _layout_folder(lay: dict, options: Options, template: str, r, ev_name, ev_start, src_dir: str) -> str:
+    from lunelis.migrate import layout
+    taken, start = _dt(r[7]), _dt(ev_start)
+    day = (start or taken).date() if (start or taken) else None
+    if day in lay["days"]:                         # the whole day takes its first event's name
+        ev_name = lay["days"][day][0]
+    mtime_date = None
+    if taken is None and start is None and options.undated_by_mtime and layout.believable_mtime(
+            r[13], lay["folder_mtimes"].get((r[1], src_dir), [])):
+        mtime_date = datetime.fromtimestamp(r[13])
+    kind = layout.media_kind(r[6], VIDEO_FORMATS)
+    return layout.place(lay["opts"], taken=taken, kind=kind, event=ev_name, event_start=start, camera=r[8],
+                        original_folder=src_dir.rsplit("/", 1)[-1] or None,
+                        timelapse=lay["frames"].get(r[0]), mtime_date=mtime_date)
+
+
 def summary(conn: sqlite3.Connection, migration_id: int) -> Summary:
     target, template, options, state = conn.execute(
         "SELECT target, template, options, state FROM migrations WHERE id = ?", (migration_id,)).fetchone()
@@ -289,7 +340,7 @@ def summary(conn: sqlite3.Connection, migration_id: int) -> Summary:
             top = dest_rel.split("/", 1)[0] if "/" in dest_rel else ""
             folders[top][0] += 1
             folders[top][1] += size
-            if dest_rel.startswith("Undated/"):
+            if dest_rel.startswith(("Undated/", "Library/Undated/")):
                 s.undated += 1
             if note and note.startswith("Name taken"):
                 s.sibling_folders += 1
