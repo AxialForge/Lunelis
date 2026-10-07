@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-07
+
+### Added
+
+- **Google Takeout page** (Bring in & organize): add the folder Unpacker V2
+  extracted a Takeout export to, and once it's scanned every photo and video
+  in it is listed by year, then album, with a tick box at each level. What's
+  already in your library - an identical or near-identical copy outside the
+  Takeout folders - is marked and unticked to begin with; Google's
+  `-edited` copies and `(1)` repeats are marked. Filter to what's in your
+  library, the edits, the repeats or what's unticked; the selected photo is
+  shown beside the list.
+- **Migrations follow the ticks:** unticked Takeout items stay where they
+  are, the plan says how many, and the accounted-for report lists them as
+  left in place. The JSON files never go to the Library - their dates,
+  places and descriptions are already in the catalog.
+
 ## [0.41.0] - 2026-10-07
 
 ### Added
