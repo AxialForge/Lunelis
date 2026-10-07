@@ -52,3 +52,14 @@ def test_a_cross_drive_move_verifies_before_removing(tmp_path, monkeypatch):
         pass
     assert src.exists() and not dst2.exists()
     monkeypatch.setattr(os, "rename", real)
+
+
+def test_trash_retention_only_offers_what_is_past_its_time():
+    from datetime import datetime, timezone
+    from lunelis.dupes.manage import Entry, due
+    now = datetime(2026, 10, 7, tzinfo=timezone.utc)
+    old = Entry("f1", "migration", "a", "b", 1, "2026-06-01T00:00:00+00:00", None, None, 1, None, False)
+    new = Entry("f2", "migration", "a", "b", 1, "2026-10-01T00:00:00+00:00", None, None, 2, None, False)
+    assert due([old, new], 0, now) == []                       # forever: nothing offered
+    assert due([old, new], 30, now) == [old]
+    assert due([old, new], 365, now) == []

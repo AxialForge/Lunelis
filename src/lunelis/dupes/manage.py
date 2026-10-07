@@ -131,6 +131,26 @@ def _why(conn: sqlite3.Connection, fid: int) -> tuple[str, int | None, bool]:
     return "duplicate", None, True
 
 
+def due(items: list[Entry], keep_days: int, now=None) -> list[Entry]:
+    """The set-aside files kept longer than `keep_days` (0 = kept forever:
+    none). They're only offered: nothing is removed until the user says so."""
+    if not keep_days:
+        return []
+    from datetime import datetime, timedelta, timezone
+    now = now or datetime.now(timezone.utc)
+    out = []
+    for e in items:
+        try:
+            when = datetime.fromisoformat((e.when or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        if now - when >= timedelta(days=keep_days):
+            out.append(e)
+    return out
+
+
 def summary(items: list[Entry]) -> dict[str, tuple[int, int]]:
     """Drive -> (files, bytes)."""
     out: dict[str, tuple[int, int]] = {}

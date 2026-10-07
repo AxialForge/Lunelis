@@ -217,9 +217,20 @@ class QuarantineView(QWidget):
         self.show_b = QPushButton("Show in Explorer", clicked=self._show)
         self.empty_b = QPushButton("Empty selected…", clicked=lambda: self._empty(self._selected()))
         self.empty_all_b = QPushButton("Empty all…", clicked=lambda: self._empty(self._visible()))
+        # Kept for a while, then offered for removal - never removed without asking.
+        self.keep = QComboBox()
+        for label, days in (("Keep set-aside files forever", 0), ("Offer to remove after 30 days", 30),
+                            ("Offer to remove after 90 days", 90), ("Offer to remove after a year", 365)):
+            self.keep.addItem(label, days)
+        from lunelis.settings import Settings
+        self.keep.setCurrentIndex(max(0, self.keep.findData(Settings(self.conn).get("trash_keep_days"))))
+        self.keep.currentIndexChanged.connect(self._keep_changed)
+        self.due_b = QPushButton("Remove what's past its time…", clicked=lambda: self._empty(self._due()))
         for b in (self.restore_b, self.show_b):
             row.addWidget(b)
         row.addStretch(1)
+        row.addWidget(self.keep)
+        row.addWidget(self.due_b)
         for b in (self.empty_b, self.empty_all_b):
             row.addWidget(b)
         v.addLayout(row)
@@ -264,6 +275,15 @@ class QuarantineView(QWidget):
             n = len(self.items)
             self.summary.setText(f"{n:,} file{'s' if n != 1 else ''} · {_size(total)} · on {drives}")
         self._fill()
+
+    def _due(self) -> list[manage.Entry]:
+        from lunelis.settings import Settings
+        return manage.due(self.items, Settings(self.conn).get("trash_keep_days"))
+
+    def _keep_changed(self, _i: int) -> None:
+        from lunelis.settings import Settings
+        Settings(self.conn).set("trash_keep_days", self.keep.currentData())
+        self._buttons()
 
     def _visible(self) -> list[manage.Entry]:
         r = self.reason.currentData()
@@ -312,6 +332,9 @@ class QuarantineView(QWidget):
         self.show_b.setEnabled(sel)
         self.empty_b.setEnabled(sel and idle)
         self.empty_all_b.setEnabled(bool(self._visible()) and idle)
+        n = len(self._due())
+        self.due_b.setText(f"Remove {n:,} past their time…" if n else "Nothing past its time")
+        self.due_b.setEnabled(bool(n) and idle)
 
     # --- actions ---
 
