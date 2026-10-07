@@ -70,7 +70,15 @@ DEFAULTS: dict[str, Any] = {
     "places_auto": True,                 # give photos with a location a Places tag after each scan
     "places_tag_no_location": False,     # photos without one get Places|No location
     "burst_gap_seconds": 1.0,            # frames at most this far apart (sub-second times) are one burst
-    "burst_min_frames": 3,               # fewer shots than this isn't a burst
+    "burst_min_frames": 3,
+    "burst_max_frames": 50,              # a longer fast run isn't a burst
+    # The timelapse engine (timelapses.py), after each scan.
+    "timelapse_detect": True,
+    "timelapse_min_frames": 100,         # shorter sets: Photo > Make a timelapse from the selection
+    "timelapse_split_gaps": False,       # a pause (battery swap) starts a new timelapse
+    "timelapse_max_pause_minutes": 30,   # longer than this always ends one
+    "timelapse_auto_stack": True,        # big ones show as one tile as soon as they're found
+    "timelapse_auto_stack_frames": 500,               # fewer shots than this isn't a burst
     # Appearance.
     "theme": "system",                   # system | graphite | midnight | high_contrast
     "sidebar_collapsed": [],             # sidebar sections folded away
@@ -141,7 +149,9 @@ def validate(key: str, value: Any) -> None:
         "catalog_backup_every_hours": (1, 24 * 365), "job_idle_minutes": (1, 24 * 60),
         "job_window_start_hour": (0, 23), "job_window_end_hour": (0, 23), "job_mb_per_s": (0, 100_000),
         "event_gap_hours": (1, 24 * 14), "event_min_photos": (2, 100_000),
-        "burst_gap_seconds": (0.1, 5), "burst_min_frames": (2, 50),
+        "burst_gap_seconds": (0.1, 5), "burst_min_frames": (2, 50), "burst_max_frames": (3, 50),
+        "timelapse_min_frames": (10, 10000), "timelapse_max_pause_minutes": (1, 240),
+        "timelapse_auto_stack_frames": (50, 100000),
     }
     if key in ranges:
         lo, hi = ranges[key]

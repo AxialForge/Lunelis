@@ -31,14 +31,18 @@ def _ts(iso: str) -> float | None:
         return None
 
 
-def detect(conn: sqlite3.Connection, gap_s: float = 1.0, min_frames: int = 3) -> list[list[int]]:
+def detect(conn: sqlite3.Connection, gap_s: float = 1.0, min_frames: int = 3,
+           max_frames: int = 50) -> list[list[int]]:
     """Burst runs as lists of file ids in shooting order (~0.6 s on 159k)."""
     rows = conn.execute(
         f"SELECT f.id, f.root_id, f.rel_path, e.captured_at, e.camera_model"
         f" FROM files f JOIN roots r ON r.id = f.root_id JOIN exif e ON e.file_id = f.id"
         f" WHERE {LIVE} AND r.enabled = 1 AND e.captured_at IS NOT NULL AND e.camera_model IS NOT NULL"
         f" AND COALESCE(f.format, '') NOT IN ('mp4', 'mov', 'mpeg-ts')"
-        f" AND f.id NOT IN (SELECT file_id FROM stack_dismissed)").fetchall()
+        f" AND f.id NOT IN (SELECT file_id FROM stack_dismissed)"
+        # Frames in a timelapse (or a burst the user chose) stack there, not here.
+        f" AND f.id NOT IN (SELECT sf.file_id FROM stack_files sf JOIN stacks s ON s.id = sf.stack_id"
+        f"                  WHERE s.kind != 'burst')").fetchall()
     by: dict[tuple, list] = defaultdict(list)
     for fid, root, rel, taken, camera in rows:
         ts = _ts(taken)
@@ -56,9 +60,9 @@ def detect(conn: sqlite3.Connection, gap_s: float = 1.0, min_frames: int = 3) ->
             if _follows(run[-1], it, gap_s):
                 run.append(it)
             else:
-                _keep(run, min_frames, out)
+                _keep(run, min_frames, max_frames, out)
                 run = [it]
-        _keep(run, min_frames, out)
+        _keep(run, min_frames, max_frames, out)
     return out
 
 
@@ -68,8 +72,8 @@ def _follows(a: tuple, b: tuple, gap_s: float) -> bool:
     return a[2][:19] == b[2][:19]
 
 
-def _keep(run: list, min_frames: int, out: list) -> None:
-    if len({it[3] for it in run}) >= min_frames:          # distinct shots, not RAW+JPEG halves
+def _keep(run: list, min_frames: int, max_frames: int, out: list) -> None:
+    if min_frames <= len({it[3] for it in run}) <= max_frames:    # distinct shots, not RAW+JPEG halves
         out.append([it[1] for it in run])
 
 
@@ -82,10 +86,10 @@ def default_cover(conn: sqlite3.Connection, members: list[int]) -> int:
     return min(members, key=lambda f: (-(info[f][0] or 0), info[f][1] != "pick", info[f][2] or 0, order[f]))
 
 
-def rebuild(conn: sqlite3.Connection, gap_s: float = 1.0, min_frames: int = 3) -> int:
+def rebuild(conn: sqlite3.Connection, gap_s: float = 1.0, min_frames: int = 3, max_frames: int = 50) -> int:
     """Make the burst stacks match what detect() finds now; unchanged stacks
     keep their id and cover. Returns the number of stacks."""
-    runs = detect(conn, gap_s, min_frames)
+    runs = detect(conn, gap_s, min_frames, max_frames)
     old: dict[frozenset, tuple[int, int | None]] = {}
     chosen: set[int] = set()
     members_of: dict[int, list[int]] = defaultdict(list)
@@ -128,7 +132,7 @@ def rebuild_from_settings(conn: sqlite3.Connection) -> int | None:
     s = Settings(conn)
     if not s.get("stack_bursts"):
         return None
-    return rebuild(conn, s.get("burst_gap_seconds"), s.get("burst_min_frames"))
+    return rebuild(conn, s.get("burst_gap_seconds"), s.get("burst_min_frames"), s.get("burst_max_frames"))
 
 
 # --- what the user can do to a stack -------------------------------------------------

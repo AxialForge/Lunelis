@@ -8,7 +8,6 @@ Finds, from what the camera recorded and then from the pictures themselves:
 | hdr        | 3-9 frames under 2 s apart, same lens / aperture / focal   | they line up (within 5 %)      |
 |            | length, exposures spread >= 1.5 EV                         |                                |
 | startrails | 10+ night exposures of 4 s or longer at a steady interval  | they line up                   |
-| timelapse  | 20+ frames at a steady interval (1 s or more), same settings | they line up                 |
 | focus      | 3+ frames under 3 s apart, same exposure                   | they line up, and the sharpest |
 |            |                                                            | part of the frame moves        |
 | panorama   | 3+ frames under 10 s apart, same focal length and exposure | each overlaps the next, shifted|
@@ -327,9 +326,7 @@ def detect(fs: list[Frame], thumbs: Path | None, stop: Callable[[], bool] | None
         for seq in _intervals(run, used, 10, night=True):
             take("startrails", seq, lambda im: aligned(im[:: max(1, len(im) // 6)]),
                  interval=round(seq[1].t - seq[0].t, 1))
-        for seq in _intervals(run, used, 20, night=False):
-            take("timelapse", seq, lambda im: aligned(im[:: max(1, len(im) // 6)], tol=0.15),
-                 interval=round(seq[1].t - seq[0].t, 1))
+        # Timelapses: the timelapse engine (timelapses.py) since 0.39.
         for seq in _brackets(run, used):
             take("hdr", seq, aligned, ev_span=round(max(f.ev for f in seq) - min(f.ev for f in seq), 1))
         for seq in _close_together(run, used, 3.0):

@@ -130,7 +130,7 @@ def test_a_timelapse_and_star_trails_are_found(shoot, tmp_path):
         shoot.add(dark, night + timedelta(seconds=32 * k), shutter="30", aperture=2.8, iso=3200)
     conn, _ = shoot.catalog(tmp_path)
     noticed.find(conn, None)
-    assert kinds(conn) == [("startrails", 10), ("timelapse", 20)]
+    assert kinds(conn) == [("startrails", 10)]      # 0.39: timelapses are the engine's (timelapses.py)
 
 
 def test_frames_that_dont_overlap_are_not_offered(shoot, tmp_path):

@@ -894,6 +894,28 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    43,
+    "timelapses found in the library, for review (timelapses.py)",
+    """
+    CREATE TABLE IF NOT EXISTS sequences (
+        id INTEGER PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL DEFAULT 'timelapse',      -- timelapse | burst (a short run the user called a burst)
+        origin TEXT NOT NULL DEFAULT 'auto',         -- auto (found) | manual (made from a selection)
+        status TEXT NOT NULL DEFAULT 'found',        -- found | confirmed | dismissed
+        file_ids TEXT NOT NULL,                      -- JSON list in shooting order, one per shot (RAW for a pair)
+        frames INTEGER NOT NULL,
+        detail TEXT,                                 -- JSON: interval (s), pauses
+        stack_id INTEGER,                            -- shown as one tile (stacks.id) when stacked
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        answered_at TEXT
+    );
+    -- The old "Lunelis noticed" timelapse offers are the engine's job now.
+    DELETE FROM suggestions WHERE kind = 'timelapse' AND status = 'open';
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 
