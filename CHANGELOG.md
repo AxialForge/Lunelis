@@ -6,6 +6,66 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-06
+
+### Added
+
+- **Video player.** Click the picture to play or pause. A volume slider beside
+  the mute button. The play bar shows the trim flags - green start, red end -
+  with the kept part shaded: drag a flag to move it, double-click it (or its
+  × button) to take it off. Trimming has its own row, so the play bar keeps
+  its width on a small window.
+- **Rotate left / right without editing** (Photo menu, Ctrl+[ / Ctrl+], and
+  ⟲ ⟳ in the photo view): photos and videos are shown turned everywhere -
+  library, filmstrip, photo view, video player. The file isn't changed, no
+  edit is made, and a RAW+JPEG pair turns together.
+- **Lens profiles** (Settings > Edit): add lensfun profiles for lenses the
+  built-in database doesn't know, remove them again, open their folder, and a
+  guide to where to find profiles, the format they need, and what to do when
+  there is none. Each file is checked when added; lensfun's newer version 2
+  files are refused with the reason.
+- **24-hour clock** (Settings > General): 14:03 instead of 2:03 PM everywhere.
+- **A photo's location opens Lunelis's own Map**, centred on it, from Info.
+  Settings > Library > Places can send it to OpenStreetMap in the browser
+  instead.
+- **On this day:** the photos can be selected (click, Ctrl / Shift-click) and
+  opened (double-click); right-click > Show in Library goes to the photo's
+  folder with it selected.
+- **Damaged files: videos cut off before they were finished** (a flat battery
+  or a pulled card leaves an MP4 with no index, which no player opens) are
+  listed, with how to rebuild one with the free untrunc tool. A video whose
+  start is zeros is listed as not recognisable - no tool can rebuild that.
+
+### Changed
+
+- **Stats:** photos per month is one compact column chart over three years,
+  with quiet months shown as gaps and the busiest month marked; the summary
+  cards go two to a row on a narrow window.
+- **Settings:** clear space either side of the cards, and the mouse wheel
+  scrolls the page past drop-downs, number boxes and sliders instead of
+  changing them (click one first to change it with the wheel).
+
+### Fixed
+
+- **"Database is locked" when accepting tag suggestions** while faces were
+  being found: the faces pass now saves after every photo instead of every
+  25, and the catalog waits up to 20 seconds for a moment to write.
+- **"Can't open this file at this size"** now says why - the file is all
+  zeros, empty, gone, or its folder can't be reached - and points to Damaged
+  files.
+- **A photo opened before its thumbnail was made** gets one at once, so the
+  grid and the filmstrip show it.
+
+### Looked at, not changed
+
+- **The graphics card for faces and scene tags.** Measured on an RTX 4070 with
+  DirectML (onnxruntime-directml) and OpenCL: both were slower than the
+  processor for Lunelis's small models (scene tags 20 ms vs 8 ms a photo,
+  faces 27 ms vs 23 ms), and the quantized scene model gave slightly
+  different results and crashed DirectML outright unless its optimisations
+  were lowered. The time in those passes goes on reading and decoding the
+  photos, not the models, so the card stays unused.
+
 ## [0.37.7] - 2026-10-06
 
 ### Fixed

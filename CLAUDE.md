@@ -631,6 +631,28 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
 
 ## Gotchas / constraints
 
+- **A Python closure stored on a widget can crash the NEXT test (0.38).**
+  `card.refresh = refresh` (a closure over the card's own child widgets)
+  makes a reference cycle; the garbage collector later destroys those Qt
+  widgets at a random moment and the process dies silently (exit 127) in a
+  later, unrelated test. Same for an `eventFilter` override on a page that
+  is being destroyed. Keep closures in Qt connections only, and put event
+  filters on one long-lived QObject (settings_view `_wheel_guard`). In tests,
+  build pages with the module's fixtures instead of closing the catalog
+  under a live page.
+- **No GPU for faces / scene tags (0.38, measured).** onnxruntime-directml
+  1.24 crashes (access violation, uncatchable) creating a session for the
+  quantized CLIP vision model unless graph optimisation is ORT_ENABLE_BASIC,
+  and even then was 2.5x slower than CPU with cosine 0.996 vs CPU output;
+  OpenCV OpenCL faces were slower too. The passes are bound by photo
+  decoding. Don't re-add without full-precision models and a benchmark.
+- **lensfunpy 1.18 reads lensfun database version 1 only.** A
+  `<lensdatabase version="2">` file raises XMLFormatError; lens.check_profile
+  refuses it with a reason. The v1 archive is lensfun.github.io/db/version_1.tar.bz2.
+- **MP4 with no moov = cut-off recording.** damage/check.missing_moov walks
+  top-level box headers only (a few seeks per file); a zeroed first box means
+  zero-filled, not truncated - untrunc can't help.
+
 - **Never share a LibraryIndex between views (0.37).** MainWindow.reload /
   reload_later `apply()` new rows INTO `self.index`; the photo view used to
   hold that same object, so a background reload (scan timer, jobs) moved
