@@ -1814,8 +1814,14 @@ class SettingsView(QWidget):
 
     def _sidecar_mode_changed(self, button_id: int) -> None:
         mode = SIDECAR_CHOICES[button_id][0]
-        if mode == Settings(self.conn).get("sidecar_mode") or not self._set("sidecar_mode", mode):
+        old = Settings(self.conn).get("sidecar_mode")
+        if mode == old or not self._set("sidecar_mode", mode):
             return
+        if old == "central":
+            self._offer_retire_store()
+        elif old == "beside":
+            self.saved.setText("The sidecars already next to your photos stay there - other apps may use them. "
+                               "Lunelis just stops writing new ones there.")
         if mode == "catalog":
             return
         n = self.conn.execute(
@@ -1833,6 +1839,27 @@ class SettingsView(QWidget):
             self.conn.commit()
             self.rewrite_sidecars.emit()
             self.saved.setText(f"Writing {n:,} ratings {where}…")
+
+    def _offer_retire_store(self) -> None:
+        from lunelis import paths
+        from lunelis.xmp import sync
+        s = Settings(self.conn)
+        store = s.get("sidecar_store_dir") or paths.SIDECAR_STORE
+        if not Path(store).is_dir() or not any(Path(store).iterdir()):
+            return
+        trash = sync.trash_dir(s)
+        if QMessageBox.question(
+                self, "The old sidecar folder",
+                f"Move the central sidecar folder ({store}) to {trash}?\n\nIts sidecars only repeat what the "
+                "catalog holds, so nothing is lost; it's moved, not deleted.") != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            moved = sync.retire_store(store, trash)
+        except OSError as e:
+            QMessageBox.warning(self, "The old sidecar folder", f"It couldn't be moved: {e}")
+            return
+        if moved:
+            self.saved.setText(f"The old sidecar folder is in {moved}")
 
     # --- moving folders ----------------------------------------------------------------------
 

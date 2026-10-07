@@ -30,3 +30,20 @@ def test_outputs_follow_the_lunelis_folder_unless_chosen(tmp_path):
     assert engine.output_dir(conn, "Timelapse") == tmp_path / "mine"
     assert backup.backup_dir(s, tmp_path) == tmp_path / "bk"
     conn.close()
+
+
+def test_switching_away_from_the_central_store_moves_it_to_trash(tmp_path):
+    from lunelis.xmp import sync
+    conn = open_catalog(tmp_path / "c.db")
+    s = Settings(conn)
+    s.set("lunelis_folder", str(tmp_path / "Lunelis"))
+    store = tmp_path / "sidecars"
+    (store / "1-Photos" / "2024").mkdir(parents=True)
+    (store / "1-Photos" / "2024" / "a.jpg.xmp").write_text("<x/>", encoding="utf-8")
+    trash = sync.trash_dir(s)
+    assert trash == tmp_path / "Lunelis" / "Trash"
+    moved = sync.retire_store(store, trash)
+    assert moved.parent == trash and (moved / "1-Photos" / "2024" / "a.jpg.xmp").exists()
+    assert not store.exists()
+    assert sync.retire_store(store, trash) is None
+    conn.close()

@@ -13,6 +13,7 @@ synced and any later outside edit changes that mtime again.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -174,6 +175,27 @@ def central_path(store: str | os.PathLike, root_id: int, root_path: str,
     rel_dir = rel_path.rsplit("/", 1)[0] if "/" in rel_path else ""
     return os.path.join(store, root_key(root_id, root_path), *rel_dir.split("/"),
                         default_sidecar(filename))
+
+
+def trash_dir(settings) -> Path:
+    """Where Lunelis puts what it retires: the Lunelis folder's Trash, else <data folder>\Trash."""
+    from lunelis import lunelis_folder, paths
+    return lunelis_folder.path(settings, lunelis_folder.TRASH) or Path(paths.DATA_DIR) / "Trash"
+
+
+def retire_store(store_dir: str | os.PathLike, trash: str | os.PathLike) -> Path | None:
+    """After switching away from the central store: its folder goes to the
+    Trash (dated), not deleted. Its sidecars only repeat what the catalog
+    holds. None when there was nothing to move."""
+    import shutil
+    from datetime import datetime
+    src = Path(store_dir)
+    if not src.is_dir() or not any(src.iterdir()):
+        return None
+    dest = Path(trash) / f"Sidecar store {datetime.now():%Y-%m-%d %H%M%S}"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(src), str(dest))
+    return dest
 
 
 def export_pending(conn: sqlite3.Connection, *, on_progress: ProgressFn | None = None,
