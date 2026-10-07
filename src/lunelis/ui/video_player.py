@@ -91,6 +91,109 @@ class LutView(QWidget):
         p.end()
 
 
+class TrimBar(QWidget):
+    """The play bar: the playhead, and the trim flags drawn on it. Click or drag
+    the bar to move through the clip; drag a flag to move it; double-click a
+    flag to take it off."""
+
+    seek = Signal(int)                   # ms
+    marks_moved = Signal(object, object)  # in, out (ms or None)
+    FLAG = 7                             # half-width of a flag's handle, px
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.duration = 0
+        self.position = 0
+        self.mark_in: int | None = None
+        self.mark_out: int | None = None
+        self._drag: str | None = None    # 'in' | 'out' | 'head'
+        self.setMinimumHeight(30)
+        self.setMouseTracking(True)
+        self.setToolTip("Click or drag to move through the clip · drag a flag to move it, double-click to remove it")
+
+    def _x(self, ms: int) -> float:
+        w = max(1, self.width() - 2 * self.FLAG)
+        return self.FLAG + (ms / self.duration * w if self.duration else 0)
+
+    def _ms(self, x: float) -> int:
+        w = max(1, self.width() - 2 * self.FLAG)
+        return int(max(0, min(self.duration, (x - self.FLAG) / w * self.duration))) if self.duration else 0
+
+    def _hit(self, x: float) -> str | None:
+        for name, ms in (("in", self.mark_in), ("out", self.mark_out)):
+            if ms is not None and abs(self._x(ms) - x) <= self.FLAG + 2:
+                return name
+        return None
+
+    def paintEvent(self, e) -> None:
+        from PySide6.QtGui import QColor, QPainter, QPolygonF
+        from PySide6.QtCore import QPointF, QRectF
+        from lunelis.ui import theme
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        mid = self.height() / 2 + 4
+        track = QRectF(self.FLAG, mid - 3, self.width() - 2 * self.FLAG, 6)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(t.border))
+        p.drawRoundedRect(track, 3, 3)
+        if self.mark_in is not None or self.mark_out is not None:
+            a = self._x(self.mark_in or 0)
+            b = self._x(self.mark_out if self.mark_out is not None else self.duration)
+            span = QColor(t.accent)
+            span.setAlpha(110)
+            p.setBrush(span)
+            p.drawRect(QRectF(a, mid - 3, max(1.0, b - a), 6))
+        p.setBrush(QColor(t.text_muted))
+        p.drawRoundedRect(QRectF(self.FLAG, mid - 3, self._x(self.position) - self.FLAG, 6), 3, 3)
+        for ms, colour in ((self.mark_in, "#2e8b57"), (self.mark_out, "#d0453b")):
+            if ms is None:
+                continue
+            x = self._x(ms)
+            p.setBrush(QColor(colour))
+            p.drawRect(QRectF(x - 1, 2, 2, mid + 4))
+            p.drawPolygon(QPolygonF([QPointF(x - self.FLAG, 2), QPointF(x + self.FLAG, 2), QPointF(x, 2 + self.FLAG + 3)]))
+        p.setBrush(QColor(t.text))
+        p.drawEllipse(QPointF(self._x(self.position), mid), 6, 6)
+        p.end()
+
+    def mousePressEvent(self, e) -> None:
+        x = e.position().x()
+        self._drag = self._hit(x) or "head"
+        if self._drag == "head":
+            self.seek.emit(self._ms(x))
+
+    def mouseMoveEvent(self, e) -> None:
+        x = e.position().x()
+        if self._drag is None:
+            self.setCursor(Qt.CursorShape.SizeHorCursor if self._hit(x) else Qt.CursorShape.PointingHandCursor)
+            return
+        ms = self._ms(x)
+        if self._drag == "head":
+            self.seek.emit(ms)
+        elif self._drag == "in":
+            self.mark_in = min(ms, (self.mark_out if self.mark_out is not None else self.duration) - 100)
+            self.marks_moved.emit(self.mark_in, self.mark_out)
+        else:
+            self.mark_out = max(ms, (self.mark_in or 0) + 100)
+            self.marks_moved.emit(self.mark_in, self.mark_out)
+        self.update()
+
+    def mouseReleaseEvent(self, e) -> None:
+        self._drag = None
+
+    def mouseDoubleClickEvent(self, e) -> None:
+        hit = self._hit(e.position().x())
+        if hit == "in":
+            self.mark_in = None
+        elif hit == "out":
+            self.mark_out = None
+        else:
+            return
+        self.marks_moved.emit(self.mark_in, self.mark_out)
+        self.update()
+
+
 class VideoPlayer(QWidget):
     trimmed = Signal(str)               # the new file's path
 
@@ -131,31 +234,54 @@ class VideoPlayer(QWidget):
         h.addWidget(self.play_b)
         self.pos_l = QLabel("0:00", objectName="ToolLabel")
         h.addWidget(self.pos_l)
-        self.slider = QSlider(Qt.Orientation.Horizontal)
-        self.slider.setRange(0, 0)
-        self.slider.sliderMoved.connect(self.player.setPosition)
-        self.slider.setToolTip("Drag to move through the clip; J / L jump 5 seconds")
+        self.slider = TrimBar()
+        self.slider.seek.connect(self.player.setPosition)
+        self.slider.marks_moved.connect(self._marks_dragged)
         h.addWidget(self.slider, 1)
         self.len_l = QLabel("0:00", objectName="ToolLabel")
         h.addWidget(self.len_l)
-        self.mute_b = QPushButton("Sound on", checkable=True)
-        self.mute_b.setToolTip("Mute")
+        self.mute_b = QPushButton("🔊", checkable=True)
+        self.mute_b.setToolTip("Mute / unmute")
+        self.mute_b.setFixedWidth(40)
         self.mute_b.toggled.connect(self._mute)
         h.addWidget(self.mute_b)
+        self.volume = QSlider(Qt.Orientation.Horizontal, minimum=0, maximum=100, value=80)
+        self.volume.setFixedWidth(90)
+        self.volume.setToolTip("Volume")
+        self.volume.valueChanged.connect(lambda v: self.audio.setVolume(v / 100))
+        self.audio.setVolume(0.8)
+        h.addWidget(self.volume)
+        v.addWidget(bar)
+        # Trimming on its own row, so the play bar keeps its width on a small window.
+        trim = QWidget(objectName="Toolbar")
+        th = QHBoxLayout(trim)
+        th.setContentsMargins(12, 0, 12, 6)
+        th.setSpacing(8)
         self.in_b = QPushButton("Start here", clicked=self.set_in)
-        self.in_b.setToolTip("Mark where the trimmed copy starts (I)")
+        self.in_b.setToolTip("Put the green start flag at the playhead (I)")
+        self.clear_in_b = QPushButton("×", clicked=lambda: self._marks_dragged(None, self.mark_out))
+        self.clear_in_b.setToolTip("Remove the start flag")
         self.out_b = QPushButton("End here", clicked=self.set_out)
-        self.out_b.setToolTip("Mark where the trimmed copy ends (O)")
+        self.out_b.setToolTip("Put the red end flag at the playhead (O)")
+        self.clear_out_b = QPushButton("×", clicked=lambda: self._marks_dragged(self.mark_in, None))
+        self.clear_out_b.setToolTip("Remove the end flag")
+        for b in (self.clear_in_b, self.clear_out_b):
+            b.setFixedWidth(30)
         self.save_b = QPushButton("Save trimmed copy", clicked=self.save_trim)
-        self.save_b.setToolTip("A new file between the marks, in the Create folder - the original is untouched")
+        self.save_b.setToolTip("A new file between the flags, in the Create folder - the original is untouched")
         self.log_b = QPushButton("Show log", checkable=True)
         self.log_b.setToolTip("Show the clip as recorded (flat S-Log), without the preview look")
         self.log_b.toggled.connect(self._show_log)
         self.log_b.hide()
-        h.addWidget(self.log_b)
-        for b in (self.in_b, self.out_b, self.save_b):
-            h.addWidget(b)
-        v.addWidget(bar)
+        for b in (self.in_b, self.clear_in_b, self.out_b, self.clear_out_b):
+            th.addWidget(b)
+        th.addStretch(1)
+        th.addWidget(self.log_b)
+        th.addWidget(self.save_b)
+        v.addWidget(trim)
+        # A click on the picture plays or pauses, as in every video player.
+        for w in (self.video, self.lut_view):
+            w.installEventFilter(self)
         self.note = QLabel(objectName="Count")
         self.note.setTextFormat(Qt.TextFormat.RichText)
         self.note.setOpenExternalLinks(False)
@@ -242,16 +368,18 @@ class VideoPlayer(QWidget):
 
     def _mute(self, on: bool) -> None:
         self.audio.setMuted(on)
-        self.mute_b.setText("Muted" if on else "Sound on")
+        self.mute_b.setText("🔇" if on else "🔊")
+        self.volume.setEnabled(not on)
 
     def _duration(self, ms: int) -> None:
-        self.slider.setRange(0, ms)
+        self.slider.duration = ms
+        self.slider.update()
         self.len_l.setText(clock(ms))
         self._update_marks()
 
     def _position(self, ms: int) -> None:
-        if not self.slider.isSliderDown():
-            self.slider.setValue(ms)
+        self.slider.position = ms
+        self.slider.update()
         self.pos_l.setText(clock(ms))
 
     def _state(self, state) -> None:
@@ -287,7 +415,23 @@ class VideoPlayer(QWidget):
     def _span(self) -> tuple[int, int]:
         return (self.mark_in or 0, self.mark_out if self.mark_out is not None else self.player.duration())
 
+    def eventFilter(self, obj, e) -> bool:
+        from PySide6.QtCore import QEvent
+        if obj in (self.video, self.lut_view) and e.type() == QEvent.Type.MouseButtonRelease \
+                and e.button() == Qt.MouseButton.LeftButton:
+            self.toggle()
+            return True
+        return super().eventFilter(obj, e)
+
+    def _marks_dragged(self, a, b) -> None:
+        self.mark_in, self.mark_out = a, b
+        self._update_marks()
+
     def _update_marks(self) -> None:
+        self.slider.mark_in, self.slider.mark_out = self.mark_in, self.mark_out
+        self.slider.update()
+        self.clear_in_b.setEnabled(self.mark_in is not None)
+        self.clear_out_b.setEnabled(self.mark_out is not None)
         a, b = self._span()
         marked = self.mark_in is not None or self.mark_out is not None
         self.save_b.setEnabled(bool(self.path) and marked and b - a >= 100 and not self.busy)
