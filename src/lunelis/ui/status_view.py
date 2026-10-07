@@ -20,6 +20,8 @@ import os
 import sqlite3
 from datetime import datetime
 
+from lunelis.ui.photoinfo import clock
+
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QProgressBar, QPushButton, QTableWidget,
@@ -37,7 +39,7 @@ def _when(stamp: str | None) -> str:
     except ValueError:
         return stamp
     t = t.astimezone() if t.tzinfo else t
-    return t.strftime("%b %d, %Y %I:%M %p").replace(" 0", " ")
+    return f"{t:%b} {t.day}, {t.year} {clock(t)}"
 
 
 def _figures(conn) -> tuple[list, list]:
@@ -73,7 +75,7 @@ def _figures(conn) -> tuple[list, list]:
         ("Waiting for metadata", f"{meta:,}", None),
         ("Duplicate groups to review", f"{dupes:,}", "Duplicates" if dupes else None),
         ("In quarantine", f"{quarantined:,}", "Quarantine" if quarantined else None),
-        ("Last catalog backup", snap.strftime("%b %d, %I:%M %p").replace(" 0", " ") if snap else "Never", None),
+        ("Last catalog backup", f"{snap:%b} {snap.day}, {clock(snap)}" if snap else "Never", None),
         ("Photo backups", (f"{backup_sets} · last run {_when(last_photo_backup) if last_photo_backup else 'never'}"
                            if backup_sets else "None set up"), "Backups"),
         ("Not backed up", f"{unprotected:,}", "Backups" if unprotected else None),
@@ -302,7 +304,7 @@ class StatusView(QWidget):
                 label.setEnabled(True)
         self.set_running(False)
         self.state.setText("Stopped - press Rescan to finish" if cancelled
-                           else f"Up to date ({datetime.now().strftime('%I:%M %p').lstrip('0')})")
+                           else f"Up to date ({clock(datetime.now())})")
         self.refresh()
 
     # --- figures -----------------------------------------------------------------------------

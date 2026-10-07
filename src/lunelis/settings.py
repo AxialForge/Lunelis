@@ -99,6 +99,8 @@ DEFAULTS: dict[str, Any] = {
     "monitor_profile": "off",            # the photo view's colours: off | system (Windows' display profile)
     "proof_profile": None,               # soft-proofing: an .icc (a printer / paper) to preview against
     "gallery_port": 8735,                # the family gallery's port on this PC (gallery.py)
+    "clock_24h": False,                  # 14:03 instead of 2:03 PM (photoinfo.clock)
+    "location_opens": "map",             # map (Lunelis's Map) | browser (OpenStreetMap online)
     "date_format": "long",               # long | iso | day_first | short (photoinfo.DATE_FORMATS)
     "confirm_quit": True,                # ask before quitting while an export, merge or job runs
     "edit_live_quality": "fast",         # fast (half size while dragging) | sharp

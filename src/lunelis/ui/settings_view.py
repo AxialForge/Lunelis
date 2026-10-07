@@ -313,10 +313,19 @@ class SettingsView(QWidget):
             self.date_fmt.addItem(example, key)
         self.date_fmt.currentIndexChanged.connect(self._date_changed)
         self._row(v, "Dates look like", self.date_fmt)
+        self.clock_24h = QCheckBox("24-hour clock (14:03 instead of 2:03 PM)")
+        self.clock_24h.toggled.connect(self._clock_changed)
+        v.addWidget(self.clock_24h)
         self.confirm_quit = QCheckBox("Ask before quitting while an export, merge, import or job is still running")
         self.confirm_quit.toggled.connect(lambda on: self._set("confirm_quit", on))
         v.addWidget(self.confirm_quit)
         return card
+
+    def _clock_changed(self, on: bool) -> None:
+        from lunelis.ui import photoinfo
+        if self._set("clock_24h", on):
+            photoinfo.set_clock_24h(on)
+            self.view_changed.emit()
 
     def _date_changed(self) -> None:
         from lunelis.ui import photoinfo
@@ -501,6 +510,12 @@ class SettingsView(QWidget):
                                    "Off: the Map shows the dots on a plain grid.")
         self.map_online.toggled.connect(lambda on: self._set("map_online", on))
         v.addWidget(self.map_online)
+        self.location_opens = QComboBox()
+        self.location_opens.addItem("Lunelis's Map", "map")
+        self.location_opens.addItem("OpenStreetMap in the browser", "browser")
+        self.location_opens.currentIndexChanged.connect(
+            lambda _: self._set("location_opens", self.location_opens.currentData()))
+        self._row(v, "A photo's location in Info opens", self.location_opens)
         row = QHBoxLayout()
         row.addWidget(QPushButton("Name places now", clicked=self._name_places))
         self.places_status = QLabel(objectName="Help")
@@ -515,6 +530,7 @@ class SettingsView(QWidget):
         self.places_auto.setChecked(bool(s.get("places_auto")))
         self.places_none.setChecked(bool(s.get("places_tag_no_location")))
         self.map_online.setChecked(bool(s.get("map_online")))
+        self.location_opens.setCurrentIndex(max(0, self.location_opens.findData(s.get("location_opens"))))
 
     def _places_none_changed(self, on: bool) -> None:
         if self._set("places_tag_no_location", on):
@@ -1215,6 +1231,7 @@ class SettingsView(QWidget):
         self.start_page.setCurrentIndex(max(0, self.start_page.findData(s.get("start_page"))))
         self.wheel.setCurrentIndex(max(0, self.wheel.findData(s.get("wheel_action"))))
         self.date_fmt.setCurrentIndex(max(0, self.date_fmt.findData(s.get("date_format"))))
+        self.clock_24h.setChecked(bool(s.get("clock_24h")))
         self.confirm_quit.setChecked(bool(s.get("confirm_quit")))
         self.live.setCurrentIndex(max(0, self.live.findData(s.get("edit_live_quality"))))
         self._load_colour()

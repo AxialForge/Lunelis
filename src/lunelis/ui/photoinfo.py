@@ -65,12 +65,25 @@ def set_date_format(key: str) -> None:
     _date_format = key if key in DATE_FORMATS else "long"
 
 
+_clock_24h = False
+
+
+def set_clock_24h(on: bool) -> None:
+    global _clock_24h
+    _clock_24h = bool(on)
+
+
+def clock(t: datetime) -> str:
+    """The time of day, as the clock setting says: 14:03 or 2:03 PM."""
+    return f"{t:%H:%M}" if _clock_24h else t.strftime("%I:%M %p").lstrip("0")
+
+
 def format_date(t: datetime) -> str:
     if _date_format == "iso":
         return f"{t:%Y-%m-%d %H:%M}"
     if _date_format == "day_first":
         return f"{t.day} {t:%b} {t.year} · {t:%H:%M}"
-    hour = t.strftime("%I:%M %p").lstrip("0")
+    hour = clock(t)
     if _date_format == "short":
         return f"{t.month}/{t.day}/{t.year} {hour}"
     return f"{t:%b} {t.day}, {t.year} · {hour}"

@@ -520,6 +520,7 @@ class MainWindow(QMainWindow):
         self.apply_theme()
         from lunelis.ui import photoinfo
         photoinfo.set_date_format(Settings(self.conn).get("date_format"))
+        photoinfo.set_clock_24h(Settings(self.conn).get("clock_24h"))
         self.index = LibraryIndex()
         self._thread: QThread | None = None
         self._worker: LibraryWorker | None = None
@@ -597,6 +598,7 @@ class MainWindow(QMainWindow):
         self.detail.rate.connect(lambda change: self.rate(**change))
         self.detail.current_changed.connect(self._detail_moved)
         self.detail.show_event.connect(self.show_event)
+        self.detail.show_on_map.connect(self._show_on_map)
         self.detail.edited.connect(self._photo_edited)
         self.detail.tags_changed.connect(lambda: self.filter.tag and self.reload())
         self.detail.faces_changed.connect(lambda: self.filter.tag and self.reload())
@@ -2341,6 +2343,18 @@ class MainWindow(QMainWindow):
         if pos >= 0:
             self.grid.current = pos
 
+    def _show_on_map(self, lat: float, lon: float) -> None:
+        """Info > the location: Lunelis's own Map, centred there (Settings can
+        send it to OpenStreetMap in the browser instead)."""
+        if Settings(self.conn).get("location_opens") == "browser":
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl(
+                f"https://www.openstreetmap.org/?mlat={lat:.6f}&mlon={lon:.6f}#map=15/{lat:.5f}/{lon:.5f}"))
+            return
+        self.show_page("Map")
+        self.map_page.canvas.centre_on(lat, lon)
+
     def show_page(self, name: str) -> None:
         prev = getattr(self, "_page_name", None)
         if name != "Edit" and self.pages.currentWidget() is getattr(self, "edit_page", None):
@@ -3331,7 +3345,8 @@ class MainWindow(QMainWindow):
         try:
             t = datetime.fromisoformat(last)
             t = t.astimezone() if t.tzinfo else t          # stored in UTC
-            when = t.strftime("%b %d, %I:%M %p").replace(" 0", " ")
+            from lunelis.ui import photoinfo
+            when = f"{t:%b} {t.day}, {photoinfo.clock(t)}"
         except ValueError:
             when = last
         n = self.conn.execute("SELECT COUNT(*) FROM damaged d JOIN files f ON f.id = d.file_id"
@@ -3352,7 +3367,8 @@ class MainWindow(QMainWindow):
     def _on_damage_done(self, r) -> None:
         from datetime import datetime
         n = sum(r.found.values())
-        when = datetime.now().strftime("%I:%M %p").lstrip("0")
+        from lunelis.ui import photoinfo
+        when = photoinfo.clock(datetime.now())
         if n:
             self.status.set_link(f"Up to date - {n:,} damaged file{'s' if n != 1 else ''}: ",
                                  "see Damaged files", "Damaged files")

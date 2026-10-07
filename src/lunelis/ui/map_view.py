@@ -128,6 +128,13 @@ class MapCanvas(QWidget):
         self._recluster()
         self.update()
 
+    def centre_on(self, lat: float, lon: float, z: int = 15) -> None:
+        """Show one spot up close (Info > the location of a photo)."""
+        self.z = float(min(z, MAX_ZOOM))
+        self.cx, self.cy = lonlat_to_world(lon, lat, self.z)
+        self._recluster()
+        self.update()
+
     def zoom(self, steps: int, at: QPointF | None = None) -> None:
         nz = max(1, min(MAX_ZOOM, int(self.z) + steps))
         if nz == self.z:

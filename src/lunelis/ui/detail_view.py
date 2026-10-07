@@ -614,6 +614,7 @@ DETAIL_FIELDS = (
 class InfoPanel(QScrollArea):
     rate = Signal(dict)                # {"stars": n} / {"label": name|None} / {"flag": ...}
     show_event = Signal(int, str)
+    show_on_map = Signal(float, float)
     tags_added = Signal(list)
     tag_removed = Signal(str)
 
@@ -766,8 +767,8 @@ class InfoPanel(QScrollArea):
             _, eid, name = href.split(":", 2)
             from html import unescape
             self.show_event.emit(int(eid), unescape(name))
-        elif href.startswith("https://www.openstreetmap.org/"):
-            QDesktopServices.openUrl(QUrl(href))          # the only other link the panel makes
+        elif href.startswith("https://www.openstreetmap.org/") and self.info and self.info.lat is not None:
+            self.show_on_map.emit(self.info.lat, self.info.lon)   # the main window picks Map or browser
 
     def _show_in_folder(self) -> None:
         if self.info:
@@ -835,6 +836,7 @@ class DetailView(QWidget):
     rate = Signal(dict)
     current_changed = Signal(int)      # file id now shown (the app's rating target)
     show_event = Signal(int, str)
+    show_on_map = Signal(float, float)
     edited = Signal(int)               # a photo's edit was saved and its thumbnail re-rendered
     faces_changed = Signal()           # a face was named or corrected here (People tags changed)
     show_person = Signal(int)          # "All photos of Ann" from a face's menu
@@ -960,6 +962,7 @@ class DetailView(QWidget):
         self.panel.tag_removed.connect(self._tag_removed)
         self.panel.rate.connect(self.rate.emit)
         self.panel.show_event.connect(self.show_event.emit)
+        self.panel.show_on_map.connect(self.show_on_map.emit)
         self.develop = DevelopPanel()
         self.develop.done.connect(lambda: self.set_editing(False))
         if self.workspace:
