@@ -89,6 +89,35 @@ def _inside(a: str, b: str) -> bool:
     return a == b or a.startswith(b + os.sep)
 
 
+def migration_keeper_rank(conn: sqlite3.Connection, preferred_roots: list[int] | None, file_ids: list[int]):
+    """Which identical copy a migration keeps (0.41), best first: a preferred
+    source; not a Google Takeout export; the copy with your work on it
+    (ratings, a label or flag, edits, tags, a sidecar beside it); the older
+    file; then the shortest, shallowest path. Byte-identical copies are the
+    same picture, so this is about which one carries the most."""
+    order = {rid: i for i, rid in enumerate(preferred_roots or [])}
+    worked: set[int] = set()
+    mtimes: dict[int, float] = {}
+    for start in range(0, len(file_ids), 900):
+        chunk = file_ids[start:start + 900]
+        q = ",".join("?" * len(chunk))
+        worked |= {r[0] for r in conn.execute(
+            f"SELECT f.id FROM files f WHERE f.id IN ({q}) AND (f.sidecar IS NOT NULL"
+            f" OR EXISTS (SELECT 1 FROM ratings rt WHERE rt.file_id = f.id AND (rt.stars > 0 OR rt.flag IS NOT NULL"
+            f"            OR rt.color_label IS NOT NULL))"
+            f" OR EXISTS (SELECT 1 FROM edits ed WHERE ed.file_id = f.id)"
+            f" OR EXISTS (SELECT 1 FROM file_tags ft WHERE ft.file_id = f.id AND ft.confidence IS NULL))", chunk)}
+        mtimes.update(conn.execute(f"SELECT id, mtime FROM files WHERE id IN ({q})", chunk))
+
+    def rank(r):
+        fid, rid, root, rel = r[:4]
+        takeout = "takeout" in (root + "/" + rel).lower()
+        return (order.get(rid, len(order)), takeout, fid not in worked, mtimes.get(fid) or float("inf"),
+                rel.count("/"), len(rel), fid)
+
+    return rank
+
+
 def check_target(conn: sqlite3.Connection, target: str) -> None:
     """The target must be a reachable folder outside every source and
     outside Lunelis's data folder."""
@@ -162,7 +191,7 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
                 " JOIN duplicate_groups g ON g.id = m.group_id WHERE g.method = 'exact' AND g.verified = 1"):
             if fid in by_id:
                 groups[gid].append(fid)
-        rank = keeper_rank(preferred_roots)
+        rank = migration_keeper_rank(conn, preferred_roots, [m for ms in groups.values() for m in ms])
         for members in groups.values():
             if len(members) < 2:
                 continue
