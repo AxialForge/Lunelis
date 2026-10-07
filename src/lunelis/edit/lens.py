@@ -10,6 +10,11 @@ Lens corrections: the lens's own profile, and manual sliders.
 - Manual: distortion (barrel/pincushion), vignetting, and red/blue
   fringing, for lenses without a profile or to fine-tune.
 
+Profiles you add (Settings > Edit > Lens profiles) are lensfun XML files in
+<data folder>/lens profiles, read beside the built-in database. lensfunpy
+1.18 reads database format version 1 only - a version 2 file is refused
+with a reason, never half-loaded.
+
 Settings are the stack's `lens` dict: profile (bool), distortion,
 vignette, ca_red, ca_blue (-100..100). Corrections run first, on the
 upright photo, in linear light, and the picture is scaled to fill the
@@ -63,7 +68,42 @@ def active(settings: dict | None) -> bool:
 
 # --- the profile ---------------------------------------------------------------------------
 
-@lru_cache(maxsize=1)
+def profile_dir():
+    from lunelis import paths
+    return paths.DATA_DIR / "lens profiles"
+
+
+def check_profile(path) -> tuple[list[str], str | None]:
+    """(lens names in it, why it can't be used or None) for one XML file."""
+    import lensfunpy
+    try:
+        text = open(path, encoding="utf-8").read()
+    except (OSError, UnicodeDecodeError) as e:
+        return [], f"Can't read it: {e}"
+    m = re.search(r'<lensdatabase[^>]*version\s*=\s*"(\d+)"', text)
+    if m and int(m.group(1)) > 1:
+        return [], (f"It's a version {m.group(1)} lensfun file; Lunelis reads version 1. Take the file from "
+                    "lensfun's version_1 database instead (see Where to find profiles).")
+    try:
+        db = lensfunpy.Database(xml=text, load_common=False, load_bundled=False)
+    except Exception as e:
+        return [], f"Not a lensfun profile ({type(e).__name__})"
+    names = [f"{x.maker} {x.model}" for x in db.lenses]
+    return names, None if names else "No lenses in it"
+
+
+def user_profiles() -> list:
+    d = profile_dir()
+    return sorted(d.glob("*.xml"), key=lambda p: p.name.lower()) if d.is_dir() else []
+
+
+def reload() -> None:
+    """After a profile is added or removed: look lenses up again."""
+    _db_cached.cache_clear()
+    _find.cache_clear()
+    unavailable.cache_clear()
+
+
 @lru_cache(maxsize=1)
 def unavailable() -> str | None:
     """Why lens corrections can't work at all (the lensfun library or its lens
@@ -76,8 +116,14 @@ def unavailable() -> str | None:
 
 
 def _db():
+    return _db_cached()
+
+
+@lru_cache(maxsize=1)
+def _db_cached():
     import lensfunpy
-    return lensfunpy.Database()
+    good = [str(p) for p in user_profiles() if check_profile(p)[1] is None]
+    return lensfunpy.Database(paths=good) if good else lensfunpy.Database()
 
 
 def _clean(lens: str) -> list[str]:

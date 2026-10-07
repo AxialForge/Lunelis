@@ -87,6 +87,33 @@ class _UpdateTask(QObject):
             self.done.emit(e)
 
 
+class _WheelGuard(QObject):
+    """Sends a wheel over an unfocused control on to its scroll area. One
+    long-lived object, not the page: a filter on a page being destroyed
+    crashed PySide (the next test died silently)."""
+
+    def eventFilter(self, obj, e) -> bool:
+        from PySide6.QtCore import QEvent
+        if e.type() == QEvent.Type.Wheel and isinstance(obj, QWidget) and not obj.hasFocus():
+            from PySide6.QtWidgets import QApplication, QScrollArea
+            area = obj.parent()
+            while area is not None and not isinstance(area, QScrollArea):
+                area = area.parent()
+            if area is not None:
+                QApplication.sendEvent(area.verticalScrollBar(), e)
+            return True
+        return False
+
+
+_GUARD: list = []
+
+
+def _wheel_guard() -> _WheelGuard:
+    if not _GUARD:
+        _GUARD.append(_WheelGuard())
+    return _GUARD[0]
+
+
 class SettingsView(QWidget):
     library_changed = Signal()       # a source turned on/off, a folder skipped/unskipped
     rescan = Signal(list)            # root ids to scan now
@@ -144,7 +171,7 @@ class SettingsView(QWidget):
         self.tabs.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)   # so its band colour applies
         cards = {
             "General": [self._startup, self._tray],
-            "Edit": [self._editing, self._ai_models, self._edit_caches],
+            "Edit": [self._editing, self._lens_profiles, self._ai_models, self._edit_caches],
             "Appearance": [self._appearance, self._library_view],
             "Library": [self._sources, self._thumbnails, self._scene_tags, self._faces, self._places,
                         self._helpers],
@@ -191,20 +218,8 @@ class SettingsView(QWidget):
         for w in holder.findChildren(QWidget):
             if isinstance(w, (QComboBox, QAbstractSpinBox, QAbstractSlider)):
                 w.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-                w.installEventFilter(self)
+                w.installEventFilter(_wheel_guard())
         return scroll
-
-    def eventFilter(self, obj, e) -> bool:
-        from PySide6.QtCore import QEvent
-        if e.type() == QEvent.Type.Wheel and isinstance(obj, QWidget) and not obj.hasFocus():
-            from PySide6.QtWidgets import QApplication, QScrollArea
-            area = obj.parent()
-            while area is not None and not isinstance(area, QScrollArea):
-                area = area.parent()
-            if area is not None:
-                QApplication.sendEvent(area.verticalScrollBar(), e)
-            return True
-        return super().eventFilter(obj, e)
 
     def show_tab(self, name: str) -> None:
         if name in self.TABS:
@@ -388,6 +403,11 @@ class SettingsView(QWidget):
                   help="A printer / paper profile (.icc) from your lab or printer maker. Edit > Proof then "
                        "shows how a photo will print, with colours it can't reproduce in magenta.")
         return card
+
+    def _lens_profiles(self) -> QFrame:
+        from lunelis.ui import lens_profiles
+        self.lens_card = lens_profiles.build(self._card, self)
+        return self.lens_card
 
     def _load_colour(self) -> None:
         s = Settings(self.conn)

@@ -299,3 +299,19 @@ def test_general_tab_and_window_behaviour(tmp_path, monkeypatch):
         w._quitting = True
         w.close()
         conn.close()
+
+
+def test_the_wheel_scrolls_past_a_dropdown(app, library):
+    """0.38: scrolling the Settings page past a drop-down never changes it."""
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+    from lunelis.ui.settings_view import SettingsView
+    conn, _rid, _ = library
+    view = SettingsView(conn)
+    combo = view.date_fmt
+    before = combo.currentIndex()
+    ev = QWheelEvent(QPointF(5, 5), QPointF(5, 5), QPoint(0, 0), QPoint(0, -120),
+                     Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+    QApplication.sendEvent(combo, ev)
+    assert combo.currentIndex() == before
