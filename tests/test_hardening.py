@@ -35,12 +35,16 @@ def test_metadata_from_a_file_is_shown_as_text(tmp_path):
     import lunelis.ui.detail_view as dv
     real = dv.QDesktopServices.openUrl
     dv.QDesktopServices.openUrl = lambda url: opened.append(url.toString())
+    maps = []
+    panel.show_on_map.connect(lambda lat, lon: maps.append((lat, lon)))
+    panel.info.lat, panel.info.lon = 1.0, 2.0
     try:
         panel._link("file://evil/share/x.exe")
         panel._link("https://www.openstreetmap.org/?mlat=1&mlon=2")
     finally:
         dv.QDesktopServices.openUrl = real
-    assert opened == ["https://www.openstreetmap.org/?mlat=1&mlon=2"]
+    # 0.38: nothing is opened directly - the map link goes to the main window (Map or browser).
+    assert opened == [] and maps == [(1.0, 2.0)]
     panel.deleteLater()
     conn.close()
 
