@@ -6,6 +6,42 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-07
+
+### Added
+
+- **Migration logs** (in the Lunelis folder's `Migration logs/Migration N`,
+  else the data folder): `before.csv` - every file in every source when the
+  migration starts, photos and everything else; `manifest.csv` - each file's
+  source, size, SHA-256, target, action, state and where the original went;
+  `after.csv` - every file in the target when it finishes; and the report.
+- **The accounted-for report** (Migrate > Accounted-for report): every file
+  of the before inventory and what became of it - copied to the Library and
+  there now at the right size, an identical or damaged copy whose kept copy
+  is in the Library, a sidecar that travelled with its photo, or left in
+  place with the reason. **Release originals is refused while any file is
+  unaccounted for.**
+- **Duplicates and Trash in the Lunelis folder:** with a Lunelis folder set,
+  identical copies a migration didn't keep go to `Duplicates/Migration N/
+  <source>/<original path>` and copied originals to `Trash/...`. Across
+  drives or shares a file is copied, compared byte for byte, and only then
+  removed from the source. Restore puts them back.
+- **Trash retention** (Quarantine page): keep set-aside files forever (the
+  default), or 30, 90 or 365 days - then "Remove N past their time..." offers
+  them, and nothing goes until you confirm.
+
+### Changed
+
+- **Which identical copy a migration keeps:** a preferred source, then not a
+  Google Takeout export, then the copy with your work on it (ratings, label,
+  flag, edits, tags or a sidecar), then the older file, then the shortest
+  path.
+
+### Fixed
+
+- Quitting within 1.5 s of a start that rebuilt the thumbnails could raise
+  an error from a timer firing into the closed window.
+
 ## [0.40.0] - 2026-10-07
 
 ### Added
