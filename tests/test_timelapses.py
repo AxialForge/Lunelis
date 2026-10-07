@@ -121,3 +121,16 @@ def test_manual_timelapse_burst_toggle_and_lookup(conn):
     assert back == sid and timelapses.get(conn, sid).kind == "timelapse" and stacks.stack_of(conn, ids[0]) is None
     with pytest.raises(ValueError):
         timelapses.to_burst(conn, timelapses.make_manual(conn, shoot(conn, 60, 2, start=T0 + timedelta(days=2), folder="x")))
+
+
+def test_walking_around_shooting_is_not_a_timelapse(conn):
+    """Found on the real library: handheld frames a second or two apart, with
+    dozens of pauses and same-second pairs, looked like 'timelapses'."""
+    t, k = T0, 0
+    for burst in range(60):                       # 60 little runs of 4 frames, 1-2 s apart, then a pause
+        for i in range(4):
+            shoot(conn, 1, 1, start=t, folder=f"w{k}")
+            t += timedelta(seconds=1 if i % 2 else 2)
+            k += 1
+        t += timedelta(seconds=40)
+    assert timelapses.refresh(conn) == 0

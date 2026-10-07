@@ -8,8 +8,8 @@ max(1 s, 5 %) of the run's own interval, measured from the capture times.
 - A RAW+JPEG pair is one frame (the RAW stands for it).
 - Exposure may change (sunsets, holy-grail ramping); a zoom or lens change
   ends the run.
-- The interval is 1 s or more; faster is a burst (stacks.py, up to 50
-  frames).
+- The interval is 2 s or more, and no two frames share a second; faster is
+  a burst (stacks.py, up to 50 frames) or continuous shooting.
 - A run needs `timelapse_min_frames` (100) frames. Shorter sets are made by
   hand: Photo > Make a timelapse from the selection.
 - A pause (a battery or card swap) of up to `timelapse_max_pause_minutes`
@@ -35,7 +35,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 LIVE = "f.missing_since IS NULL AND f.excluded = 0 AND f.quarantined_at IS NULL"
-MIN_INTERVAL_S = 1.0
+MIN_INTERVAL_S = 2.0                 # faster is a burst or continuous shooting
+STEADY_AFTER_PAUSE = 5               # gaps at the interval needed after a pause to bridge it
 MAX_INTERVAL_S = 600.0
 BURST_MAX = 50                       # a run this short can be called a burst instead
 
@@ -128,26 +129,50 @@ def detect(fs: list[Frame], min_frames: int = 100, split_gaps: bool = False,
             g = cur.t - prev.t
             if cur.camera != prev.camera or not _same_optics(prev, cur):
                 break
-            if abs(g - interval) <= _tol(interval):
+            if g >= 1.0 and abs(g - interval) <= _tol(interval):
                 run.frames.append(cur)
                 interval = run.interval()
                 j += 1
                 continue
             # A pause: the run goes on if the next gap is the interval again.
-            if (not split_gaps and interval < g <= max_pause_s and j + 1 < n
-                    and fs[j + 1].camera == cur.camera and _same_optics(cur, fs[j + 1])
-                    and abs((fs[j + 1].t - cur.t) - interval) <= _tol(interval)):
+            if not split_gaps and interval < g <= max_pause_s and _steady_from(fs, j, interval):
                 run.frames.append(cur)
                 run.pauses += 1
                 j += 1
                 continue
             break
         if len(run.frames) >= min_frames:
-            out.append(run)
+            out.extend(_split_if_choppy(run, min_frames))
             i = j
         else:
             i += 1
     return out
+
+
+def _steady_from(fs: list[Frame], j: int, interval: float) -> bool:
+    """After a pause at fs[j]: the next STEADY_AFTER_PAUSE gaps are the interval again."""
+    seq = fs[j:j + STEADY_AFTER_PAUSE + 1]
+    if len(seq) < STEADY_AFTER_PAUSE + 1:
+        return False
+    return all(b.camera == a.camera and _same_optics(a, b) and (b.t - a.t) >= 1.0
+               and abs((b.t - a.t) - interval) <= _tol(interval) for a, b in zip(seq, seq[1:]))
+
+
+def _split_if_choppy(run: Run, min_frames: int) -> list[Run]:
+    """An interval shoot has a pause or two; walking around shooting has
+    dozens. Too many: the stretches between pauses stand alone."""
+    if run.pauses <= 2 + len(run.frames) // 200:
+        return [run]
+    interval = run.interval()
+    parts, cur = [], Run([run.frames[0]])
+    for a, b in zip(run.frames, run.frames[1:]):
+        if abs((b.t - a.t) - interval) <= _tol(interval):
+            cur.frames.append(b)
+        else:
+            parts.append(cur)
+            cur = Run([b])
+    parts.append(cur)
+    return [p for p in parts if len(p.frames) >= min_frames]
 
 
 def key_of(ids: list[int]) -> str:
