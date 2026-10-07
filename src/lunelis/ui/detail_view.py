@@ -257,6 +257,7 @@ class PhotoCanvas(QWidget):
         # Face overlay (F): [(face id, [x, y, w, h], label, state)] - state named | suggested | unknown.
         self.faces: list[tuple[int, list[float], str, str]] = []
         self.show_faces = False
+        self.turn_id: int | None = None   # the file shown, for its turn (turns.py); None in the editor
         self._draw: tuple[QPointF, QPointF] | None = None
         self.setMinimumSize(200, 100)                 # short windows (the 900 x 350 minimum) still fit
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -272,10 +273,19 @@ class PhotoCanvas(QWidget):
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def show_pixmap(self, pix: QPixmap | None, sharp: bool, message: str = "", keep_zoom: bool = False) -> None:
+        if pix is not None and self.turn_id is not None:
+            from lunelis import turns
+            pix = turns.apply(pix, self.turn_id)      # Rotate left / right, without an edit
         if not keep_zoom and (not sharp or pix is None):
             self.scale = None
         self.pix, self.sharp, self.message = pix, sharp, message
         self.update()
+
+    def _turned(self) -> bool:
+        """Face boxes are in the file's own pixels; on a turned photo they'd be
+        in the wrong place, so they aren't drawn."""
+        from lunelis import turns
+        return self.turn_id is not None and turns.get(self.turn_id) != 0
 
     def set_photo(self, full_size: tuple[int, int] | None) -> None:
         """A new photo: back to fit."""
@@ -385,7 +395,7 @@ class PhotoCanvas(QWidget):
             p.setPen(qcolor(t.text_faint))
             p.drawText(self.rect().adjusted(0, 0, -12, -8), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom,
                        self.message or "Loading full size…")
-        if self.show_faces:
+        if self.show_faces and not self._turned():
             self._paint_faces(p)
 
     def face_rect(self, box: list[float]) -> QRectF:
@@ -432,7 +442,7 @@ class PhotoCanvas(QWidget):
 
     def _face_press(self, e) -> bool:
         """With the overlay on: a click on a box opens its menu; Ctrl+drag draws a new box."""
-        if not self.show_faces or self.pix is None or e.button() != Qt.MouseButton.LeftButton:
+        if not self.show_faces or self._turned() or self.pix is None or e.button() != Qt.MouseButton.LeftButton:
             return False
         if e.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._draw = (e.position(), e.position())
@@ -837,6 +847,7 @@ class DetailView(QWidget):
     current_changed = Signal(int)      # file id now shown (the app's rating target)
     show_event = Signal(int, str)
     show_on_map = Signal(float, float)
+    rotate_requested = Signal(int)     # -1 left, 1 right (turns.py)
     edited = Signal(int)               # a photo's edit was saved and its thumbnail re-rendered
     faces_changed = Signal()           # a face was named or corrected here (People tags changed)
     show_person = Signal(int)          # "All photos of Ann" from a face's menu
@@ -895,6 +906,12 @@ class DetailView(QWidget):
                                 "correct it; Ctrl+drag draws one Lunelis missed.")
         self.faces_b.toggled.connect(self.set_faces_overlay)
         h.addWidget(self.faces_b)
+        for text, step, tip in (("⟲", -1, "Rotate left (Ctrl+[) - how it's shown; the file isn't changed"),
+                                ("⟳", 1, "Rotate right (Ctrl+]) - how it's shown; the file isn't changed")):
+            b = QPushButton(text, clicked=lambda _=False, s=step: self.rotate_requested.emit(s))
+            b.setToolTip(tip)
+            b.setFixedWidth(36)
+            h.addWidget(b)
         self.prev_b = QPushButton("‹", clicked=lambda: self.go(self.pos - 1))
         self.prev_b.setToolTip("Previous (Left)")
         self.counter = QLabel(objectName="ToolLabel")
@@ -1160,6 +1177,7 @@ class DetailView(QWidget):
         i = self.info
         if i is None:
             return
+        self.canvas.turn_id = i.file_id
         if i.root in self.offline_paths:
             # Its drive or NAS isn't answering: the thumbnail, and why.
             self._stop_motion()
@@ -1210,6 +1228,14 @@ class DetailView(QWidget):
         if self.info and self.info.file_id == file_id and not self.canvas.sharp:
             self._show_image()
 
+    def reshow(self) -> None:
+        """The photo again from the start, e.g. after Rotate left / right."""
+        self._full_pix = None
+        if self.info and self.info.is_video:
+            self._play_video(self.info)
+        else:
+            self._show_image()
+
     # --- videos and animated GIFs ---
 
     def _play_video(self, i: photoinfo.PhotoInfo) -> None:
@@ -1219,7 +1245,8 @@ class DetailView(QWidget):
             self.player.setFocusPolicy(Qt.FocusPolicy.NoFocus)   # keys stay with the photo view
             self.view_stack.addWidget(self.player)
         self.view_stack.setCurrentWidget(self.player)
-        self.player.load(i.path)
+        from lunelis import turns
+        self.player.load(i.path, turn=turns.get(i.file_id))
 
     def _play_gif(self, i: photoinfo.PhotoInfo) -> None:
         from PySide6.QtGui import QMovie

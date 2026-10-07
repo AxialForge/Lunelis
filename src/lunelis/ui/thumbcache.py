@@ -39,7 +39,8 @@ class _Load(QRunnable):
     def run(self) -> None:
         if self.cancelled(self.gen):
             return
-        self.signals.loaded.emit(self.file_id, self.gen, load_square(self.path, self.px))
+        from lunelis import turns
+        self.signals.loaded.emit(self.file_id, self.gen, turns.apply(load_square(self.path, self.px), self.file_id))
 
 
 def load_square(path: Path, px: int) -> QImage:

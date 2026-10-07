@@ -520,6 +520,8 @@ class MainWindow(QMainWindow):
         self.apply_theme()
         from lunelis.ui import photoinfo
         photoinfo.set_date_format(Settings(self.conn).get("date_format"))
+        from lunelis import turns
+        turns.load(self.conn)
         photoinfo.set_clock_24h(Settings(self.conn).get("clock_24h"))
         self.index = LibraryIndex()
         self._thread: QThread | None = None
@@ -599,6 +601,7 @@ class MainWindow(QMainWindow):
         self.detail.current_changed.connect(self._detail_moved)
         self.detail.show_event.connect(self.show_event)
         self.detail.show_on_map.connect(self._show_on_map)
+        self.detail.rotate_requested.connect(self.rotate)
         self.detail.edited.connect(self._photo_edited)
         self.detail.tags_changed.connect(lambda: self.filter.tag and self.reload())
         self.detail.faces_changed.connect(lambda: self.filter.tag and self.reload())
@@ -859,6 +862,12 @@ class MainWindow(QMainWindow):
         self.photo_menu.insertSeparator(self.photo_menu.actions()[2])
         self.addAction(b)
         self.photo_menu.aboutToShow.connect(self._update_undo_actions)
+        self.photo_menu.addSeparator()
+        for text, key, step in (("Rotate &left", "Ctrl+[", -1), ("Rotate &right", "Ctrl+]", 1)):
+            a = QAction(text, self, shortcut=key, triggered=lambda _=False, s=step: self.rotate(s))
+            a.setToolTip("Turns how the photo or video is shown - the file isn't changed and no edit is made")
+            self.photo_menu.addAction(a)
+            self.addAction(a)
         a = QAction("C&ull full screen…", self, shortcut="Ctrl+K", triggered=self.cull)
         self.photo_menu.addAction(a)
         self.addAction(a)
@@ -2969,6 +2978,23 @@ class MainWindow(QMainWindow):
         if 0 <= self.grid.current < len(self.index):
             return [self.index.file_id(self.grid.current)]
         return []
+
+    def rotate(self, step: int) -> None:
+        """Photo > Rotate left / right: the selected photos and videos (a
+        RAW+JPEG pair together), shown turned everywhere. Not an edit."""
+        ids = self._with_pairs(self._targets())
+        if not ids:
+            return
+        from lunelis import turns
+        turns.turn(self.conn, ids, step)
+        for fid in ids:
+            self.thumbs.reload(fid)
+            self.detail.big_thumbs.reload(fid)
+            self.detail.strip_thumbs.reload(fid)
+        self.grid.viewport().update()
+        if self.pages.currentWidget() is self.detail and self.detail.info and self.detail.info.file_id in ids:
+            self.detail.reshow()
+        self.status.setText(f"Turned {len(ids):,} {'photo' if len(ids) == 1 else 'photos'} - the files aren't changed")
 
     def _with_pairs(self, ids: list[int]) -> list[int]:
         """A RAW+JPEG pair is one photo: an action on one is on both."""

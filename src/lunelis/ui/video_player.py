@@ -57,6 +57,7 @@ class LutView(QWidget):
         self.sink = QVideoSink(self)
         self.sink.videoFrameChanged.connect(self._frame)
         self.lut = None
+        self.turn = 0                    # quarter turns clockwise (turns.py)
         self.image = None
         self.setMinimumSize(80, 60)
 
@@ -69,7 +70,12 @@ class LutView(QWidget):
         # Fit first: a 4K frame is scaled to the widget before the LUT, so the
         # lookup costs what the screen shows, not what the camera recorded.
         w, h = max(1, self.width()), max(1, self.height())
+        if self.turn % 2:
+            w, h = h, w                  # fitted the other way round, then turned
         img = img.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
+        if self.turn:
+            from PySide6.QtGui import QTransform
+            img = img.transformed(QTransform().rotate(90 * self.turn))
         img = img.convertToFormat(QImage.Format.Format_RGB888)
         if self.lut is not None:
             bpl = img.bytesPerLine()
@@ -299,9 +305,10 @@ class VideoPlayer(QWidget):
 
     # --- loading -----------------------------------------------------------------------
 
-    def load(self, path: str) -> None:
-        if path == self.path:
+    def load(self, path: str, turn: int = 0) -> None:
+        if path == self.path and turn == self.lut_view.turn:
             return
+        self.lut_view.turn = turn
         self.player.stop()
         self.path = path
         self.mark_in = self.mark_out = None
@@ -323,7 +330,8 @@ class VideoPlayer(QWidget):
         self.note.setText(self.look_text())
 
     def _apply_look(self) -> None:
-        through_lut = self.lut is not None
+        # A turned clip is drawn by LutView too: QVideoWidget can't rotate.
+        through_lut = self.lut is not None or self.lut_view.turn != 0
         self.lut_view.lut = None if self.log_b.isChecked() else self.lut
         self.lut_view.image = None
         if through_lut:

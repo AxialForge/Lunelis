@@ -883,6 +883,17 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    42,
+    "turns: a photo or video rotated for viewing, without editing it (turns.py)",
+    """
+    CREATE TABLE IF NOT EXISTS turns (
+        file_id INTEGER PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+        quarter INTEGER NOT NULL CHECK (quarter BETWEEN 1 AND 3)    -- quarter turns clockwise
+    );
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 
