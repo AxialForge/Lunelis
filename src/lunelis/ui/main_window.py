@@ -518,8 +518,8 @@ class MainWindow(QMainWindow):
             LOG.warning("Couldn't check the cache: %s", e)
             self._cache_rebuilt = False
         if self._cache_rebuilt:
-            QTimer.singleShot(1500, lambda: self.status.setText(
-                "The thumbnails on file were made for a different catalog - making this library's own"))
+            # A bound method, not a lambda: Qt drops the timer if the window is gone by then.
+            QTimer.singleShot(1500, self._say_cache_rebuilt)
         self.apply_theme()
         from lunelis.ui import photoinfo
         photoinfo.set_date_format(Settings(self.conn).get("date_format"))
@@ -2366,6 +2366,9 @@ class MainWindow(QMainWindow):
         pos = self.index.position(file_id)          # the library's own position (the photo view keeps a copy)
         if pos >= 0:
             self.grid.current = pos
+
+    def _say_cache_rebuilt(self) -> None:
+        self.status.setText("The thumbnails on file were made for a different catalog - making this library's own")
 
     def _show_on_map(self, lat: float, lon: float) -> None:
         """Info > the location: Lunelis's own Map, centred there (Settings can
