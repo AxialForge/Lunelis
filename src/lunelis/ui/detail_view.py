@@ -48,6 +48,24 @@ PREVIEW_CACHE = 8
 
 class _PreviewSignals(QObject):
     loaded = Signal(int, QImage)       # file id, image (null = couldn't)
+    why = Signal(int, str)             # file id, why it couldn't (before a null `loaded`)
+
+
+def _damage_reason(path: str, error: Exception) -> str:
+    """Why a photo can't be opened, in plain words."""
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(4096)
+        if head and not head.strip(b"\0"):
+            return "the file is damaged - it is all zeros (see Damaged files for an intact copy)"
+        if not head:
+            return "the file is empty (0 bytes) - see Damaged files"
+    except FileNotFoundError:
+        return "the file isn't there any more"
+    except OSError:
+        return "its folder can't be reached right now"
+    from lunelis.ui.photoinfo import friendly
+    return friendly(f"{type(error).__name__}: {error}")
 
 
 class _PreviewLoad(QRunnable):
@@ -89,9 +107,37 @@ class _PreviewLoad(QRunnable):
                 img = icc.to_screen(img, SCREEN)
             data = img.tobytes()
             q = QImage(data, img.width, img.height, 3 * img.width, QImage.Format.Format_RGB888).copy()
-        except Exception:
+        except Exception as e:
+            self.signals.why.emit(self.file_id, _damage_reason(self.path, e))
             q = QImage()
         self.signals.loaded.emit(self.file_id, q)
+
+
+class _ThumbNow(QRunnable):
+    """A photo opened before the library pass made its thumbnail: make it now
+    (its own connection), so the grid and the filmstrip show it at once."""
+
+    def __init__(self, signals, file_id: int) -> None:
+        super().__init__()
+        self.signals, self.file_id = signals, file_id
+
+    def run(self) -> None:
+        try:
+            from lunelis.catalog.schema import open_catalog
+            from lunelis.raw.thumbnails import generate_pending
+            conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+            try:
+                made = generate_pending(conn, paths.THUMBNAIL_CACHE, only=[self.file_id]).made
+            finally:
+                conn.close()
+        except Exception:
+            made = 0
+        if made:
+            self.signals.made.emit(self.file_id)
+
+
+class _ThumbNowSignals(QObject):
+    made = Signal(int)
 
 
 class _FullSignals(QObject):
@@ -136,8 +182,10 @@ class PreviewCache(QObject):
         self._pix: OrderedDict[int, QPixmap] = OrderedDict()
         self._pending: dict[int, _PreviewLoad] = {}
         self.failed: set[int] = set()
+        self.reasons: dict[int, str] = {}
         self._signals = _PreviewSignals()
         self._signals.loaded.connect(self._loaded)
+        self._signals.why.connect(self.reasons.__setitem__)
         self.pool = QThreadPool(self)
         self.pool.setMaxThreadCount(2)
 
@@ -790,6 +838,7 @@ class DetailView(QWidget):
     edited = Signal(int)               # a photo's edit was saved and its thumbnail re-rendered
     faces_changed = Signal()           # a face was named or corrected here (People tags changed)
     show_person = Signal(int)          # "All photos of Ann" from a face's menu
+    thumb_made = Signal(int)           # a thumbnail was made on opening the photo
 
     def __init__(self, conn, parent=None, workspace: bool = False) -> None:
         super().__init__(parent)
@@ -1134,8 +1183,29 @@ class DetailView(QWidget):
             return
         thumb = self.big_thumbs.get(i.file_id, cache_rel_path(i.file_id))
         failed = i.file_id in self.previews.failed
+        why = self.previews.reasons.get(i.file_id)
         self.canvas.show_pixmap(thumb, sharp=False,
-                                message="Couldn't open this file at full size" if failed else "")
+                                message=(f"Can't open this photo: {why}" if why else
+                                         "Couldn't open this file at full size") if failed else "")
+        if thumb is None and not failed:
+            self._make_thumb_now(i.file_id)
+
+    def _make_thumb_now(self, file_id: int) -> None:
+        row = self.conn.execute("SELECT thumbnail_path, thumb_error FROM files WHERE id = ?", (file_id,)).fetchone()
+        if not row or row[0] or row[1] or file_id in getattr(self, "_thumb_asked", set()):
+            return
+        self._thumb_asked = getattr(self, "_thumb_asked", set()) | {file_id}
+        if not hasattr(self, "_thumb_now"):
+            self._thumb_now = _ThumbNowSignals(self)
+            self._thumb_now.made.connect(self._thumb_made)
+        QThreadPool.globalInstance().start(_ThumbNow(self._thumb_now, file_id))
+
+    @unless_closed
+    def _thumb_made(self, file_id: int) -> None:
+        self.big_thumbs.reload(file_id)
+        self.thumb_made.emit(file_id)
+        if self.info and self.info.file_id == file_id and not self.canvas.sharp:
+            self._show_image()
 
     # --- videos and animated GIFs ---
 

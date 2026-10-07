@@ -593,6 +593,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.tags_page)
         self.detail = DetailView(self.conn)
         self.detail.back.connect(self.close_detail)
+        self.detail.thumb_made.connect(self._thumb_made_on_open)
         self.detail.rate.connect(lambda change: self.rate(**change))
         self.detail.current_changed.connect(self._detail_moved)
         self.detail.show_event.connect(self.show_event)
@@ -2298,6 +2299,11 @@ class MainWindow(QMainWindow):
         self.thumbs.reload(file_id)
         self.index.refresh_edits(self.conn, [file_id])
         self.grid.viewport().update()
+
+    def _thumb_made_on_open(self, file_id: int) -> None:
+        """The photo view made a missing thumbnail: the grid and filmstrip pick it up."""
+        self.thumbs.reload(file_id)
+        self.reload_later()
 
     def close_detail(self) -> None:
         self.detail.set_editing(False)
