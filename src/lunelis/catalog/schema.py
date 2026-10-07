@@ -916,6 +916,17 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    44,
+    "Google Takeout review: which Takeout items to bring into the new Library (takeout_review.py)",
+    """
+    CREATE TABLE IF NOT EXISTS takeout_choices (
+        file_id INTEGER PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+        include INTEGER NOT NULL
+    );
+    """,
+))
+
 VACUUM_AFTER = {8}
 
 

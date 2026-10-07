@@ -69,7 +69,7 @@ RATE_CONFIRM = 500                         # ask before rating / labelling / fla
 NAV = [
     ("Photos", ["Library", "Albums", "People", "Tags", "Edit", "Map", "On this day", "Stats"]),
     ("Create", ["Create"]),
-    ("Bring in & organize", ["Import", "Migrate", "Duplicates", "Timelapses", "Damaged files"]),
+    ("Bring in & organize", ["Import", "Migrate", "Google Takeout", "Duplicates", "Timelapses", "Damaged files"]),
     ("Keep safe", ["Library status", "Backups", "Quarantine", "Sensor dust"]),
 ]
 BOTTOM_NAV = ["Settings"]
@@ -575,6 +575,10 @@ class MainWindow(QMainWindow):
         self.timelapses_page.build.connect(self.build_timelapse)
         self.timelapses_page.changed.connect(self.reload_later)
         self.pages.addWidget(self.timelapses_page, scroll=False)
+        from lunelis.ui.takeout_view import TakeoutView
+        self.takeout_page = TakeoutView(self.conn)
+        self.takeout_page.add_folder.connect(self.add_takeout_folder)
+        self.pages.addWidget(self.takeout_page, scroll=False)
         self.importer = ImportView(self.conn)
         self.importer.imported.connect(self._after_import)
         self.importer.autopilot.connect(self._autopilot_import)
@@ -2468,6 +2472,9 @@ class MainWindow(QMainWindow):
         elif name == "Duplicates":
             self.pages.setCurrentWidget(self.dupes)
             self.dupes.refresh()
+        elif name == "Google Takeout":
+            self.pages.setCurrentWidget(self.takeout_page)
+            self.takeout_page.refresh()
         elif name == "Timelapses":
             self.pages.setCurrentWidget(self.timelapses_page)
             self.timelapses_page.refresh()
@@ -3239,6 +3246,21 @@ class MainWindow(QMainWindow):
             return
         if self.pages.currentWidget() is getattr(self, "settings_page", None):
             self.settings_page.refresh()                   # its Sources table shows the new one at once
+        self.start([root_id])
+
+    def add_takeout_folder(self, folder: str) -> None:
+        """Google Takeout page > Add a Takeout folder: a source like any other,
+        scanned now; its dates and places come from the JSON files."""
+        try:
+            root_id = add_root(self.conn, folder)
+        except (RootOverlap, RootUnavailable) as e:
+            QMessageBox.warning(self, "Can't add that folder", plain(e))
+            return
+        from lunelis.importers.takeout import takeout_roots
+        if root_id not in takeout_roots(self.conn):
+            QMessageBox.information(self, "Google Takeout", "That folder was added, but it doesn't look like a "
+                                    "Takeout export (no \"Takeout\" in its name and no \"Google Photos\" folder in "
+                                    "it), so it won't be listed on this page.")
         self.start([root_id])
 
     def remove_source(self, root_id: int, path: str) -> None:

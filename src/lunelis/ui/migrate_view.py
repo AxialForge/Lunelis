@@ -413,6 +413,9 @@ class MigrateView(QWidget):
             lines.append(f"{s.dup_files:,} duplicate copies ({_gb(s.dup_bytes)}) not moved - one copy of each goes")
         if s.damaged_skipped:
             lines.append(f"{s.damaged_skipped:,} damaged files left behind - an intact copy goes instead")
+        if s.takeout_skipped:
+            lines.append(f"{s.takeout_skipped:,} Google Takeout items left in place - unticked on the Google "
+                         "Takeout page (or already in your library)")
         if s.damaged_only_copy:
             lines.append(f"{s.damaged_only_copy:,} damaged files with no intact copy - moved as they are")
         if s.probable_copies:

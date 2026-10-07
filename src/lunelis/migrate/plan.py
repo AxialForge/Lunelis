@@ -66,6 +66,7 @@ class Summary:
     dup_bytes: int = 0
     damaged_skipped: int = 0
     damaged_only_copy: int = 0
+    takeout_skipped: int = 0
     undated: int = 0
     sibling_folders: int = 0
     probable_copies: int = 0
@@ -200,6 +201,12 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
             for m in members:
                 if m != keeper:
                     action[m] = ("skip_duplicate", keeper, "An identical copy moves instead")
+
+    # Google Takeout items unticked on the review page (or already in the library
+    # and never looked at) stay where they are.
+    from lunelis.importers import takeout_review
+    for fid in takeout_review.unticked(conn, list(by_id)):
+        action.setdefault(fid, ("skip_takeout", None, "Unticked on the Google Takeout page - left in place"))
 
     # Damaged files: skip when an intact copy of the same file exists.
     from lunelis.damage.check import SAME_FILE, survivors
@@ -383,6 +390,8 @@ def summary(conn: sqlite3.Connection, migration_id: int) -> Summary:
             s.dup_bytes += size
         elif act == "skip_damaged":
             s.damaged_skipped += 1
+        elif act == "skip_takeout":
+            s.takeout_skipped += 1
     s.folders = sorted(((k, v[0], v[1]) for k, v in folders.items()), key=lambda t: t[0])
     try:
         s.free_bytes = shutil.disk_usage(target).free

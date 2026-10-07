@@ -182,6 +182,8 @@ def accounted(conn: sqlite3.Connection, migration_id: int, write: bool = True) -
                         what = "Copied to the Library"
                     else:
                         why = f"its copy isn't at {there}"
+                elif act == "skip_takeout":
+                    what = "Left in place - unticked on the Google Takeout page"
                 elif act in ("skip_duplicate", "skip_damaged") and keeper in moved_ids:
                     what = ("An identical copy is in the Library" if act == "skip_duplicate"
                             else "Damaged - an intact copy is in the Library")
