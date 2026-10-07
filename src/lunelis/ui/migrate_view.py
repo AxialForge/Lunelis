@@ -268,8 +268,15 @@ class MigrateView(QWidget):
         self.discard_b = QPushButton("Discard this plan", clicked=self._discard)
         row.addWidget(self.discard_b)
         row.addStretch(1)
+        self.report_b = QPushButton("Accounted-for report", clicked=self._report)
+        self.report_b.setToolTip("Every source file and what became of it - must be clean before release")
+        row.addWidget(self.report_b)
+        self.logs_b = QPushButton("Open the logs", clicked=self._open_logs)
+        self.logs_b.setToolTip("Before / after inventories, the per-file manifest and the report (CSV)")
+        row.addWidget(self.logs_b)
         self.release_b = QPushButton("Release originals…", clicked=self._release)
-        self.release_b.setToolTip("Move the originals kept for review to quarantine")
+        self.release_b.setToolTip("Move the originals kept for review aside (the Lunelis folder's Trash, "
+                                  "else quarantine) - only once every source file is accounted for")
         row.addWidget(self.release_b)
         self.start_b = QPushButton("Start migration…", clicked=self._start)
         self.start_b.setObjectName("Primary")
@@ -381,6 +388,10 @@ class MigrateView(QWidget):
         self.start_b.setEnabled(planned and s.enough_space and s.move_files > 0 and not busy and not loading)
         self.discard_b.setVisible(planned)
         self.release_b.setVisible(s is not None and s.state == "done" and bool(s.states.get("kept")))
+        ran = s is not None and s.state in ("running", "done", "released")
+        self.report_b.setVisible(ran)
+        self.logs_b.setVisible(ran)
+        self.report_b.setEnabled(not busy)
         # Nothing that changes the plan while a worker uses it.
         self.discard_b.setEnabled(not busy)
         self.release_b.setEnabled(not busy and not loading)
@@ -534,6 +545,36 @@ class MigrateView(QWidget):
         self.library_changed.emit()
         self.refresh()
 
+    def _report(self) -> None:
+        mid = self.migration_id
+        if mid is None:
+            return
+        from lunelis.migrate import logs
+        self._run(lambda c: logs.accounted(c, mid), self._show_report)
+
+    def _show_report(self, rep) -> None:
+        from lunelis.migrate import logs
+        text = rep.text()
+        box = QMessageBox(QMessageBox.Icon.Information if rep.clean else QMessageBox.Icon.Warning,
+                          "Accounted-for report", text.split("\n")[0], parent=self)
+        box.setDetailedText(text)
+        where = logs.logs_dir(self.conn, rep.migration_id) / "report.csv"
+        box.setInformativeText("Every source file is accounted for - the originals can be released."
+                               if rep.clean else
+                               f"{len(rep.unaccounted):,} file(s) aren't accounted for: release stays locked. "
+                               f"The full list: {where}")
+        box.exec()
+
+    def _open_logs(self) -> None:
+        if self.migration_id is None:
+            return
+        from lunelis.migrate import logs
+        d = logs.logs_dir(self.conn, self.migration_id)
+        d.mkdir(parents=True, exist_ok=True)
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(d)))
+
     def _release(self) -> None:
         s = self._summary
         if s is None or s.migration_id != self.migration_id:
@@ -542,7 +583,7 @@ class MigrateView(QWidget):
         if QMessageBox.question(
                 self, "Release the originals?",
                 f"Move the {n:,} originals kept for review into quarantine (\"_Lunelis Quarantine\" on their own "
-                "drive)?\n\nNothing is deleted. The Quarantine page (sidebar > Keep safe) can put files back, or empty it once you're happy.",
+                "drive, or the Lunelis folder's Trash when one is set)?\n\nThe accounted-for report checks every source file first; if any isn't accounted for, nothing is released. Nothing is deleted. The Quarantine page (sidebar > Keep safe) can put files back, or empty it once you're happy.",
                 ) != QMessageBox.StandardButton.Yes:
             return
         mid = self.migration_id

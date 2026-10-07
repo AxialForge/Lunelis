@@ -230,6 +230,8 @@ def start(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | Non
     if backup_dir is not None:
         from lunelis.catalog.backup import snapshot
         snapshot(conn, backup_dir, "before-migration")
+    from lunelis.migrate import logs
+    logs.write_before(conn, migration_id)          # every file in the sources, before anything moves
     target_root = add_root(conn, target)
     folders: dict[tuple[int, str], int] = {}
     for root_id, rel in conn.execute("SELECT src_root, src_rel FROM migration_items WHERE migration_id = ?",
@@ -456,11 +458,25 @@ def finish(conn: sqlite3.Connection, job_id: int) -> None:
             _set_aside(conn, mid, keep, item_id, file_id, keeper_id, roots[src_root], src_rel)
     conn.execute("UPDATE migrations SET state = 'done', finished_at = datetime('now') WHERE id = ?", (mid,))
     conn.commit()
+    from lunelis.migrate import logs
+    try:
+        logs.write_manifest(conn, mid)
+        logs.write_after(conn, mid)
+        logs.accounted(conn, mid)
+    except OSError as e:                           # the logs folder unreachable: the report is made at release
+        import logging
+        logging.getLogger(__name__).warning("Couldn't write the migration logs: %s", e)
 
 
 def release(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | None = None) -> int:
     """'Keep originals until I review' -> the user reviewed: move the kept
-    originals to quarantine now. Returns how many went."""
+    originals aside now. Returns how many went. Refused while the
+    accounted-for report finds any source file unaccounted for (logs.py)."""
+    from lunelis.migrate import logs
+    rep = logs.accounted(conn, migration_id)
+    if not rep.clean:
+        raise MigrationError(f"{len(rep.unaccounted):,} source file(s) aren't accounted for yet - see the "
+                             f"accounted-for report in {logs.logs_dir(conn, migration_id)}. Nothing was released.")
     if backup_dir is not None:
         from lunelis.catalog.backup import snapshot
         snapshot(conn, backup_dir, "before-release")
@@ -484,6 +500,7 @@ def release(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | N
         n += 1
     conn.execute("UPDATE migrations SET state = 'released' WHERE id = ?", (migration_id,))
     conn.commit()
+    logs.write_manifest(conn, migration_id)
     return n
 
 
