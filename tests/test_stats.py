@@ -85,7 +85,11 @@ def test_the_stats_page_shows_the_figures_and_makes_a_recap(lib, tmp_path):
     page.bg.wait()
     assert page.by_chart.rows[0].bucket == "ISO 100"
     assert page.lens.count() == 2 and page.focal_chart.rows
-    assert [r.bucket for r in page.month_chart.rows] == ["2024-06", "2024-07", "2025-01"]
+    months = [r.bucket for r in page.month_chart.rows]
+    assert months[0] == "2024-06" and months[-1] == "2025-01" and len(months) == 8   # quiet months included
+    page.resize(700, 600)
+    assert page._glance_cols() == 2
+    page.month_chart.grab()
     page.year.setCurrentText("2024")
     page.make_recap()
     page.bg.wait()

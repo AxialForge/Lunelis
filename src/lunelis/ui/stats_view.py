@@ -110,6 +110,75 @@ def group_focal(rows: list[stats.Row], limit: int = FOCAL_GROUP_OVER) -> list[st
     return [stats.Row(f"{s}-{s + step - 1} mm", n, k) for s, (n, k) in sorted(out.items())]
 
 
+class ColumnChart(QWidget):
+    """Photos per month as upright columns along one axis - three years fit
+    in one short chart instead of 36 rows. Each year starts with its label."""
+
+    HEIGHT = 200
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.rows: list[stats.Row] = []
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(self.HEIGHT)
+
+    def set_rows(self, rows: list[stats.Row], show_rate: bool = False) -> None:
+        self.rows = rows
+        self.setToolTip("")
+        self.update()
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(280, self.HEIGHT)
+
+    def _slot(self) -> tuple[float, float]:
+        left = 8.0
+        return left, (self.width() - left - 8) / max(1, len(self.rows))
+
+    def mouseMoveEvent(self, e) -> None:
+        left, slot = self._slot()
+        i = int((e.position().x() - left) // slot) if slot else -1
+        if 0 <= i < len(self.rows):
+            r = self.rows[i]
+            from PySide6.QtWidgets import QToolTip
+            QToolTip.showText(e.globalPosition().toPoint(), f"{r.bucket}: {r.photos:,} photos", self)
+
+    def paintEvent(self, _e) -> None:
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not self.rows:
+            p.setPen(theme.qcolor(t.text_muted))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No dated photos yet")
+            return
+        fm = p.fontMetrics()
+        base = self.height() - fm.height() * 2 - 6      # month letters, then the year
+        top = fm.height() + 4                            # room for the busiest month's figure
+        left, slot = self._slot()
+        most = max(r.photos for r in self.rows) or 1
+        bar = max(2.0, slot * 0.7)
+        busiest = max(range(len(self.rows)), key=lambda i: self.rows[i].photos)
+        for i, r in enumerate(self.rows):
+            x = left + i * slot + (slot - bar) / 2
+            h = (base - top) * r.photos / most
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(theme.qcolor(t.accent if i == busiest else t.border))
+            p.drawRoundedRect(QRectF(x, base - max(2.0, h), bar, max(2.0, h)), 2, 2)
+            month = int(r.bucket[5:7])
+            p.setPen(theme.qcolor(t.text_muted))
+            if slot >= fm.horizontalAdvance("M") + 2:
+                p.drawText(QRectF(left + i * slot, base + 2, slot, fm.height()), Qt.AlignmentFlag.AlignHCenter,
+                           "JFMAMJJASOND"[month - 1])
+            if i == 0 or month == 1:
+                p.setPen(theme.qcolor(t.text))
+                p.drawText(QRectF(left + i * slot, base + fm.height() + 4, 80, fm.height()),
+                           Qt.AlignmentFlag.AlignLeft, r.bucket[:4])
+            if i == busiest:
+                p.setPen(theme.qcolor(t.text))
+                p.drawText(QRectF(x - 40, base - h - fm.height() - 2, bar + 80, fm.height()),
+                           Qt.AlignmentFlag.AlignHCenter, f"{r.photos:,}")
+        p.end()
+
+
 class StatsView(QWidget):
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
@@ -174,8 +243,9 @@ class StatsView(QWidget):
         v.addWidget(card)
 
         card, cv = self._section()
-        cv.addWidget(QLabel("Photos per month", objectName="SectionTitle"))
-        self.month_chart = BarChart()
+        cv.addWidget(QLabel("Photos per month · the last three years", objectName="SectionTitle"))
+        self.month_chart = ColumnChart()
+        self.month_chart.setMouseTracking(True)
         cv.addWidget(self.month_chart)
         v.addWidget(card)
 
@@ -221,6 +291,28 @@ class StatsView(QWidget):
         cv.addWidget(QLabel(label, objectName="Help"))
         return card
 
+    def _glance_cols(self) -> int:
+        """Four cards a row on a wide window, two on a narrow one."""
+        return 4 if self.width() >= 900 else 2
+
+    def _lay_glance(self) -> None:
+        while self.glance.count():
+            w = self.glance.takeAt(0).widget()
+            if w is not None:
+                w.deleteLater()
+        cols = self._glance_cols()
+        self._glance_laid = cols
+        for n, (k, val) in enumerate(getattr(self, "_cells", [])):
+            r, c = divmod(n, cols)
+            self.glance.addWidget(self._glance_card(k, val), r, c)
+        for c in range(4):
+            self.glance.setColumnStretch(c, 1 if c < cols else 0)
+
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
+        if getattr(self, "_cells", None) and self._glance_cols() != getattr(self, "_glance_laid", 0):
+            self._lay_glance()
+
     def glance_values(self) -> list[str]:
         """The figures in the At a glance cards, in order."""
         out = []
@@ -252,11 +344,8 @@ class StatsView(QWidget):
                  ("Keepers", keepers), ("Most used camera", h.camera or "-"),
                  ("Most used lens", h.lens or "-"), ("Favourite focal length", h.focal or "-"),
                  ("Busiest hour", hour), ("Busiest day", h.weekday or "-")]
-        for n, (k, val) in enumerate(cells):
-            r, c = divmod(n, 4)
-            self.glance.addWidget(self._glance_card(k, val), r, c)
-        for c in range(4):
-            self.glance.setColumnStretch(c, 1)
+        self._cells = cells
+        self._lay_glance()
         self.keeper_note.setVisible(not self.has_keepers)
         self.keeper_note.setText("No keepers yet: flag the photos you'd keep as Pick (P, or full-screen culling "
                                  "with Ctrl+K) and the charts show what you keep - by lens, aperture, shutter "
@@ -269,7 +358,15 @@ class StatsView(QWidget):
             self.lens.setCurrentText(keep)
         self.lens.blockSignals(False)
         self._load_focal()
-        self.month_chart.set_rows([stats.Row(m, n, s) for m, n, s in months], show_rate=False)
+        # Every month from the first to the last, so a quiet month shows as a gap.
+        got = {m: (n, s) for m, n, s in months}
+        span = []
+        if months:
+            y, mo = int(months[0][0][:4]), int(months[0][0][5:7])
+            while f"{y}-{mo:02d}" <= months[-1][0]:
+                span.append(f"{y}-{mo:02d}")
+                y, mo = (y + 1, 1) if mo == 12 else (y, mo + 1)
+        self.month_chart.set_rows([stats.Row(m, *got.get(m, (0, 0))) for m in span], show_rate=False)
         keep_year = self.year.currentText()
         self.year.clear()
         self.year.addItems([str(y) for y in years])
