@@ -993,7 +993,9 @@ def _apply_callable(conn: sqlite3.Connection, version: int, description: str,
 def open_catalog(db_path: str | Path) -> sqlite3.Connection:
     """Open the catalog, migrating it first if needed."""
     migrate(db_path)
-    conn = sqlite3.connect(str(db_path))
+    # 20 s (not 5) before "database is locked": background passes commit in
+    # short steps, so a writer normally waits well under a second.
+    conn = sqlite3.connect(str(db_path), timeout=20)
     conn.execute("PRAGMA foreign_keys = ON")
     # WAL lets the UI thread read while a background scan writes. It's a
     # persistent property of the file, so setting it every open is a no-op.

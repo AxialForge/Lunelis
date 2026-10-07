@@ -225,6 +225,8 @@ def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None
             img = _image(conn, fid)
         except Exception:                            # unreadable or offline: the next run tries again
             continue
+        if conn.in_transaction:
+            conn.commit()                            # never hold the write lock while analysing
         hits = be.detect(np.asarray(img.convert("RGB")))
         # A re-scan with a new model replaces the faces it found itself; named and hand-drawn ones stay.
         conn.execute("DELETE FROM faces WHERE file_id = ? AND source = 'auto' AND confirmed = 0", (fid,))
@@ -245,8 +247,9 @@ def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None
                      " scanned_at = datetime('now')", (fid, be.model_id, len(hits)))
         looked += 1
         found += len(hits)
-        if looked % 25 == 0:
-            conn.commit()
+        # Saved per photo: the next photo is read and analysed with the catalog
+        # free, so a click that saves (a tag, an edit, a pin) never waits on it.
+        conn.commit()
     conn.commit()
     if new_ids:
         suggest(conn, new_ids)
