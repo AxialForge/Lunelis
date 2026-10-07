@@ -37,3 +37,19 @@ def test_the_swap_works_from_a_process_standing_in_the_program_folder(tmp_path, 
     assert (install / "version.txt").read_text(encoding="utf-8") == "new", log
     assert list((tmp_path / "Programs").glob("Lunelis.old-*")), log
     time.sleep(0.5)
+
+
+def test_the_swap_script_really_starts(tmp_path):
+    """0.38.1: Lunelis launched PowerShell with DETACHED_PROCESS, which exits at
+    once without running the script - updates closed Lunelis and did nothing."""
+    import sys
+    import pytest
+    if sys.platform != "win32":
+        pytest.skip("Windows only")
+    from lunelis import updater
+    script = tmp_path / "probe.ps1"
+    script.write_text("param([string]$Say)\nSet-Content -LiteralPath (Join-Path $PSScriptRoot 'ran.txt') -Value $Say\n",
+                      encoding="utf-8")
+    updater.run_script(script, "-Say", "yes").wait(60)
+    assert (tmp_path / "ran.txt").read_text().strip() == "yes"
+    assert not updater.LAUNCH_FLAGS & 0x00000008

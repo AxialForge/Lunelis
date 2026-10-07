@@ -631,6 +631,14 @@ estimate - size the proxy cache and grid for that. NAS scans: 71.6k files in
 
 ## Gotchas / constraints
 
+- **Never launch powershell.exe with DETACHED_PROCESS (0.38.1).** With no
+  console it exits 0 immediately WITHOUT running `-File` - the updater
+  "closed and did nothing" from 0.34 to 0.38.0 and every swap test passed,
+  because they ran the script directly. updater.run_script uses
+  CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP (survives Lunelis exiting);
+  test_the_swap_script_really_starts launches it for real. Don't test a
+  packaged copy by running its Lunelis.exe: it opens the REAL catalog.
+
 - **A Python closure stored on a widget can crash the NEXT test (0.38).**
   `card.refresh = refresh` (a closure over the card's own child widgets)
   makes a reference cycle; the garbage collector later destroys those Qt

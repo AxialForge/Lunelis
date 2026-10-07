@@ -271,11 +271,21 @@ def apply(staged: Path) -> None:
         staged = near
     script = updates_dir() / "apply-update.ps1"
     script.write_text(APPLY_PS1, encoding="utf-8")
-    flags = 0x00000008 | 0x00000200 if sys.platform == "win32" else 0   # DETACHED_PROCESS | NEW_PROCESS_GROUP
-    subprocess.Popen(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden",
-                      "-File", str(script), "-ProcessId", str(os.getpid()), "-Install", str(target),
-                      "-New", str(staged)], creationflags=flags, close_fds=True,
-                     cwd=str(updates_dir()))           # not the program folder: it's about to be renamed
+    run_script(script, "-ProcessId", str(os.getpid()), "-Install", str(target), "-New", str(staged))
+
+
+# CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP. Not DETACHED_PROCESS: with no
+# console at all powershell.exe exits 0 at once WITHOUT running the script -
+# every update through 0.38.0 closed Lunelis and did nothing (no log, no swap).
+LAUNCH_FLAGS = 0x08000000 | 0x00000200
+
+
+def run_script(script: Path, *args: str) -> subprocess.Popen:
+    """Start a PowerShell script hidden, outliving Lunelis."""
+    return subprocess.Popen(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden",
+                             "-File", str(script), *args],
+                            creationflags=LAUNCH_FLAGS if sys.platform == "win32" else 0, close_fds=True,
+                            cwd=str(script.parent))    # not the program folder: it's about to be renamed
 
 
 def last_apply_log() -> str:

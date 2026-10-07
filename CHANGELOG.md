@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-10-06
+
+### Fixed
+
+- **Updates closed Lunelis and did nothing.** Lunelis started the script that
+  swaps in the new version in a way that made Windows PowerShell quit at once
+  without running it - no swap, no log. It now really starts (checked by a
+  test that launches PowerShell exactly as Lunelis does). Versions up to
+  0.38.0 still have the old launcher: install 0.38.1 once with its
+  setup.exe; updates after that install themselves.
+
 ## [0.38.0] - 2026-10-06
 
 ### Added
