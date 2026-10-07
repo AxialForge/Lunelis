@@ -660,6 +660,8 @@ class MainWindow(QMainWindow):
         from lunelis.ui.calendar_view import CalendarView
         self.calendar_page = CalendarView(self.conn)
         self.calendar_page.show_ids.connect(self.show_photos)
+        self.calendar_page.open_photo.connect(self.open_detail)
+        self.calendar_page.show_in_library.connect(self.show_in_library)
         self.pages.addWidget(self.calendar_page, scroll=False)
         from lunelis.ui.create_page import CreatePage
         self.create_page = CreatePage(self.conn)
@@ -3286,6 +3288,22 @@ class MainWindow(QMainWindow):
                             '<a href="page:Library status">see Library status</a>')
         if self.pages.currentWidget() is self.status_page:
             self.status_page.refresh()
+
+    def show_in_library(self, file_id: int) -> None:
+        """A photo in its own folder in the library, selected and scrolled to."""
+        row = self.conn.execute("SELECT root_id, rel_path FROM files WHERE id = ?", (file_id,)).fetchone()
+        if not row:
+            return
+        folder = row[1].rsplit("/", 1)[0] if "/" in row[1] else ""
+        self.open_page("Library")
+        self.set_filter(Filter(folder=(row[0], folder)))
+        pos = self.index.position(file_id)
+        if pos >= 0:
+            self.grid.selected = {file_id}
+            self.grid.current = self.grid.anchor = pos
+            self.grid.scroll_to(pos)
+            self.grid.viewport().update()
+            self.grid.selection_changed.emit(1)
 
     def show_photos(self, ids: list, name: str = "Lunelis noticed") -> None:
         """The library showing just these photos, all selected."""

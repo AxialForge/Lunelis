@@ -6,6 +6,8 @@ date in other years.
   it to the week around the date.
 - One row per year, newest first: how many photos, a strip of them, and
   "Show all" to see that year's photos in the library.
+- The strip's photos can be selected (click, Ctrl / Shift-click); double-click
+  opens one; right-click > Show in Library goes to its folder with it selected.
 - Dates are the capture dates the camera recorded (local time), so a photo
   taken at 23:30 on New Year's Eve stays on the 31st.
 """
@@ -16,7 +18,7 @@ from datetime import date, timedelta
 from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
-    QCheckBox, QDateEdit, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QCheckBox, QDateEdit, QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
 from lunelis.ui.background import Background
@@ -57,13 +59,38 @@ def _load(conn, day: date, spread: int):
         for fid in ids[::step][:STRIP]:
             row = conn.execute("SELECT thumbnail_path FROM files WHERE id = ?", (fid,)).fetchone()
             from lunelis.ui.thumbcache import load_image
-            thumbs.append(load_image(paths.THUMBNAIL_CACHE / row[0], THUMB_H) if row and row[0] else QImage())
+            thumbs.append((fid, load_image(paths.THUMBNAIL_CACHE / row[0], THUMB_H) if row and row[0] else QImage()))
         out.append((year, ids, thumbs))
     return out
 
 
+class _Tile(QLabel):
+    """One photo in a year's strip: click selects, double-click opens."""
+
+    def __init__(self, view, fid: int) -> None:
+        super().__init__()
+        self.view, self.fid = view, fid
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(lambda _: self.view._menu(self.fid))
+        self.mark(False)
+
+    def mark(self, on: bool) -> None:
+        from lunelis.ui import theme
+        self.setStyleSheet(f"border: 3px solid {theme.current().accent if on else 'transparent'};")
+
+    def mousePressEvent(self, e) -> None:
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.view._click(self.fid, e.modifiers())
+
+    def mouseDoubleClickEvent(self, e) -> None:
+        self.view.open_photo.emit(self.fid)
+
+
 class CalendarView(QWidget):
     show_ids = Signal(list, str)          # file ids, a name for the filter chip
+    open_photo = Signal(int)
+    show_in_library = Signal(int)         # right-click > Show in Library: the photo in its folder
 
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
@@ -107,7 +134,37 @@ class CalendarView(QWidget):
         scroll.setWidget(body)
         outer.addWidget(scroll, 1)
         self.year_rows: list[tuple[int, list[int], QPushButton]] = []
+        self.tiles: list[_Tile] = []
+        self.selected: set[int] = set()
+        self._anchor: int | None = None
         self._sync_picker()
+
+    def _click(self, fid: int, mods) -> None:
+        order = [t.fid for t in self.tiles]
+        if mods & Qt.KeyboardModifier.ShiftModifier and self._anchor in order:
+            a, b = sorted((order.index(self._anchor), order.index(fid)))
+            self.selected |= set(order[a:b + 1])
+        elif mods & Qt.KeyboardModifier.ControlModifier:
+            self.selected ^= {fid}
+            self._anchor = fid
+        else:
+            self.selected = {fid}
+            self._anchor = fid
+        for t in self.tiles:
+            t.mark(t.fid in self.selected)
+
+    def _menu(self, fid: int) -> None:
+        if fid not in self.selected:
+            self._click(fid, Qt.KeyboardModifier.NoModifier)
+        from PySide6.QtGui import QCursor
+        m = QMenu(self)
+        m.addAction("Open", lambda: self.open_photo.emit(fid))
+        m.addAction("Show in Library", lambda: self.show_in_library.emit(fid))
+        if len(self.selected) > 1:
+            ids = [t.fid for t in self.tiles if t.fid in self.selected]
+            m.addAction(f"Show the {len(ids)} selected in the library",
+                        lambda: self.show_ids.emit(ids, "Selected on this day"))
+        m.exec(QCursor.pos())
 
     def _sync_picker(self) -> None:
         self.picker.blockSignals(True)
@@ -129,6 +186,7 @@ class CalendarView(QWidget):
             if w is not None:
                 w.deleteLater()
         self.year_rows = []
+        self.tiles, self.selected, self._anchor = [], set(), None
         when = self.day.strftime("%B %d").replace(" 0", " ")
         span = f"the week around {when}" if self.week_cb.isChecked() else when
         total = sum(len(ids) for _, ids, _ in rows)
@@ -155,9 +213,10 @@ class CalendarView(QWidget):
             v.addLayout(top)
             strip = QHBoxLayout()
             strip.setSpacing(6)
-            for img in thumbs:
-                lab = QLabel()
-                lab.setFixedHeight(THUMB_H)
+            for fid, img in thumbs:
+                lab = _Tile(self, fid)
+                self.tiles.append(lab)
+                lab.setFixedHeight(THUMB_H + 6)
                 if not img.isNull():
                     lab.setPixmap(QPixmap.fromImage(img))
                 strip.addWidget(lab)

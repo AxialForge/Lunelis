@@ -256,6 +256,16 @@ def test_the_on_this_day_page(lib):
         assert year == 2021 and got == [ids["P2.jpg"]]
         show_b.click()
         assert shown == [([ids["P2.jpg"]], "July 4, 2021")]
+        # 0.38: the strip's photos select and open, and can be shown in their folder.
+        from PySide6.QtCore import Qt
+        opened, located = [], []
+        view.open_photo.connect(opened.append)
+        view.show_in_library.connect(located.append)
+        [tile] = view.tiles
+        view._click(tile.fid, Qt.KeyboardModifier.NoModifier)
+        assert view.selected == {ids["P2.jpg"]}
+        tile.mouseDoubleClickEvent(None)
+        assert opened == [ids["P2.jpg"]]
         view.set_day(date(2026, 7, 5))
         view.bg.wait()
         assert view.year_rows == [] and view.summary.text() == ""
