@@ -100,13 +100,45 @@ def move_pair(src: str, dst: str, s_src: str | None, s_dst: str | None) -> None:
     if s_src and s_dst and os.path.exists(s_dst):
         raise QuarantineRefused(f"something already exists at {s_dst}")
     os.makedirs(os.path.dirname(dst), exist_ok=True)
-    os.rename(src, dst)                           # same volume: instant, no copy
+    move_one(src, dst)                            # same volume: a rename; another: copy, compare, then remove
     if s_src and s_dst:
         try:
-            os.rename(s_src, s_dst)
+            move_one(s_src, s_dst)
         except OSError:
-            os.rename(dst, src)                   # undo: the pair stays together where it was
+            move_one(dst, src)                    # undo: the pair stays together where it was
             raise
+
+
+def move_one(src: str, dst: str) -> None:
+    """Move one file. A rename where it can be (instant); across drives or
+    shares (the Lunelis folder's Duplicates / Trash) the file is copied, the
+    copy compared byte for byte with the original, and only then is the
+    original removed - a copy that doesn't match is deleted and the
+    original stays."""
+    try:
+        os.rename(src, dst)
+        return
+    except OSError as e:
+        if not (getattr(e, "winerror", None) == 17 or e.errno == 18):   # ERROR_NOT_SAME_DEVICE / EXDEV
+            raise
+    import shutil
+    shutil.copy2(src, dst)
+    if not _same_bytes(src, dst):
+        os.remove(dst)
+        raise OSError(f"the copy at {dst} didn't match the original - the original was left in place")
+    os.remove(src)
+
+
+def _same_bytes(a: str, b: str, chunk: int = 4 * 1024 * 1024) -> bool:
+    if os.path.getsize(a) != os.path.getsize(b):
+        return False
+    with open(a, "rb") as fa, open(b, "rb") as fb:
+        while True:
+            x, y = fa.read(chunk), fb.read(chunk)
+            if x != y:
+                return False
+            if not x:
+                return True
 
 
 def _quarantined_sidecar(qpath: str, rel: str, sidecar: str, file_id: int) -> str | None:

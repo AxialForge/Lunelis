@@ -109,11 +109,28 @@ def _same_bytes(a: str, b: str) -> bool:
                 return True
 
 
-def _quarantine_original(root: str, rel: str, sidecar: str | None, migration_id: int) -> str:
-    """Rename a source file (and its sidecar) into the quarantine folder on its
-    own drive - instant, nothing deleted."""
+def set_aside_base(conn: sqlite3.Connection, migration_id: int, kind: str, root: str) -> str:
+    """Where a set-aside file goes (0.41). With a Lunelis folder: its
+    Duplicates (copies that weren't kept) or Trash (originals that were
+    copied), under 'Migration N/<source folder name>' so the original path
+    is kept. Without one: the quarantine folder on the file's own drive."""
+    from lunelis import lunelis_folder
+    from lunelis.settings import Settings
+    sub = lunelis_folder.DUPLICATES if kind == "duplicate" else lunelis_folder.TRASH
+    base = lunelis_folder.path(Settings(conn), sub)
+    if base is None:
+        return os.path.join(root, QUARANTINE_DIR, f"migration-{migration_id}")
+    leaf = os.path.basename(os.path.normpath(root)) or root.replace(":", "").strip("\\/")
+    return os.path.join(str(base), f"Migration {migration_id}", leaf)
+
+
+def _quarantine_original(root: str, rel: str, sidecar: str | None, migration_id: int,
+                         base: str | None = None) -> str:
+    """Move a source file (and its sidecar) aside - into `base` (the Lunelis
+    folder's Duplicates / Trash), else the quarantine folder on its own drive.
+    Nothing is deleted."""
     src = _abs(root, rel)
-    dst = os.path.join(root, QUARANTINE_DIR, f"migration-{migration_id}", *rel.split("/"))
+    dst = os.path.join(base or os.path.join(root, QUARANTINE_DIR, f"migration-{migration_id}"), *rel.split("/"))
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     s_name = sidecar
     if os.path.exists(dst) or (sidecar and os.path.exists(os.path.join(os.path.dirname(dst), sidecar))):
@@ -393,7 +410,7 @@ def _finish_original(conn, mid, opts, item_id, root, src_rel, size, sidecar) -> 
         conn.execute("UPDATE migration_items SET state = 'kept', note = 'Original changed after copying -"
                      " left in place' WHERE id = ?", (item_id,))
     else:
-        q = _quarantine_original(root, src_rel, sidecar, mid)
+        q = _quarantine_original(root, src_rel, sidecar, mid, set_aside_base(conn, mid, "original", root))
         conn.execute("UPDATE migration_items SET state = 'done', quarantine_path = ? WHERE id = ?", (q, item_id))
     conn.commit()
 
@@ -417,7 +434,7 @@ def _set_aside(conn, mid, keep: bool, item_id, file_id, keeper_id, root, src_rel
     else:
         sidecar = conn.execute("SELECT sidecar FROM files WHERE id = ?", (file_id,)).fetchone()[0]
         if os.path.exists(_abs(root, src_rel)):
-            q = _quarantine_original(root, src_rel, sidecar, mid)
+            q = _quarantine_original(root, src_rel, sidecar, mid, set_aside_base(conn, mid, "duplicate", root))
             conn.execute("UPDATE files SET quarantined_at = ?, quarantine_path = ? WHERE id = ?", (_now(), q, file_id))
             conn.execute("UPDATE migration_items SET state = 'done', quarantine_path = ? WHERE id = ?", (q, item_id))
     conn.commit()
@@ -458,7 +475,8 @@ def release(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | N
             continue                               # gone or changed: not ours to move any more
         # (A moved file's catalog sidecar name is the same at both ends.)
         sidecar = conn.execute("SELECT sidecar FROM files WHERE id = ?", (file_id,)).fetchone()[0]
-        q = _quarantine_original(root, src_rel, sidecar, migration_id)
+        q = _quarantine_original(root, src_rel, sidecar, migration_id, set_aside_base(
+            conn, migration_id, "original" if act == "move" else "duplicate", root))
         if act != "move":
             conn.execute("UPDATE files SET quarantined_at = ?, quarantine_path = ? WHERE id = ?", (_now(), q, file_id))
         conn.execute("UPDATE migration_items SET state = 'released', quarantine_path = ? WHERE id = ?", (q, item_id))
