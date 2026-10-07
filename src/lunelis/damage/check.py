@@ -10,7 +10,9 @@ very little:
                    - a zero-filled file can never pass sniff(), so only files
                    with an unrecognised header are ever read (~200 KB each)
   unrecognised     header unrecognisable, but not zeros
-  truncated        thumbnail decode ran out of data
+  truncated        thumbnail decode ran out of data; or an MP4/MOV with no
+                   index (moov box) - a recording cut off before the camera
+                   finished writing it, which no player can open
   corrupt          thumbnail decode hit a broken data stream
   changed_on_disk  set by the 'integrity' job: a full re-hash no longer
                    matches the baseline though size and date are unchanged
@@ -55,6 +57,34 @@ def _all_zero(path: str, size: int) -> bool:
     return True
 
 
+MOOV_EXTS = (".mp4", ".mov", ".m4v", ".3gp")
+NO_MOOV = "no moov index - the recording was cut off before it was finished"
+
+
+def missing_moov(path: str) -> bool:
+    """True for an MP4/MOV whose top-level boxes have no 'moov' (the index).
+    Reads only the 8-16 byte box headers, so a 4 GB clip costs a few seeks."""
+    size = os.path.getsize(path)
+    with open(path, "rb") as fh:
+        off = 0
+        while off + 8 <= size:
+            fh.seek(off)
+            head = fh.read(16)
+            if len(head) < 8:
+                break
+            n, kind = int.from_bytes(head[:4], "big"), head[4:8]
+            if kind == b"moov":
+                return False
+            if n == 1 and len(head) == 16:
+                n = int.from_bytes(head[8:16], "big")
+            elif n == 0:                     # runs to the end of the file
+                break
+            if n < 8:
+                return True                  # a broken box header: no index can follow
+            off += n
+    return True
+
+
 def check(conn: sqlite3.Connection) -> CheckResult:
     """Rebuild the `damaged` table from what the catalog knows, reading only
     the handful of files whose header wasn't recognisable. Dismissals of
@@ -76,6 +106,19 @@ def check(conn: sqlite3.Connection) -> CheckResult:
         except OSError:
             continue                         # unreachable right now: say nothing either way
         found[fid] = ("zero_filled", None) if zero else ("unrecognised", None)
+
+    like = " OR ".join(f"f.filename LIKE '%{e}'" for e in MOOV_EXTS)
+    for fid, root, rel in conn.execute(
+            f"SELECT f.id, r.path, f.rel_path FROM files f JOIN roots r ON r.id = f.root_id"
+            f" WHERE {LIVE} AND f.size_bytes > 0 AND ({like})").fetchall():
+        if fid in found:
+            continue
+        try:
+            reads += 1
+            if missing_moov(os.path.join(root, *rel.split("/"))):
+                found[fid] = ("truncated", NO_MOOV)
+        except OSError:
+            continue
 
     for fid, err in conn.execute(
             f"SELECT f.id, f.thumb_error FROM files f WHERE {LIVE} AND f.thumb_error IS NOT NULL"):

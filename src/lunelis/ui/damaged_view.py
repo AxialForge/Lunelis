@@ -17,7 +17,20 @@ from PySide6.QtWidgets import (
 
 from lunelis import paths
 from lunelis.catalog.schema import open_catalog
-from lunelis.damage.check import PROBLEM_TEXT, check, survivors
+from lunelis.damage.check import NO_MOOV, PROBLEM_TEXT, check, survivors
+
+# A video with no index can often be rebuilt from a good clip off the same
+# camera. Lunelis doesn't repair files itself; this says how.
+UNTRUNC_GUIDE = (
+    "This video was cut off before the camera finished writing it (a flat battery, a full or"
+    " pulled card), so it has no index and no player can open it. The picture data is usually"
+    " still there. To try to rebuild it:\n"
+    "1. Get untrunc (free, open source: github.com/anthwlock/untrunc - Windows builds are on its"
+    " Releases page).\n"
+    "2. Find a working clip from the same camera with the same settings (resolution, frame rate).\n"
+    "3. Run:  untrunc  good-clip.mp4  broken-clip.mp4\n"
+    "4. It writes broken-clip.mp4_fixed.mp4 beside the broken one - the original is left as it is."
+    " Check the fixed copy plays, then keep whichever you want.")
 from lunelis.ui.background import unless_closed
 
 
@@ -88,6 +101,10 @@ class DamagedView(QWidget):
         self.detail.setColumnWidth(2, 150)
         self.detail.setWordWrap(False)
         self.detail.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self.guide = QLabel(UNTRUNC_GUIDE, wordWrap=True, objectName="Hint")
+        self.guide.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.guide.hide()
+        v.addWidget(self.guide)
         split.addWidget(self.detail)
         split.setSizes([500, 220])
         v.addWidget(split, 1)
@@ -97,7 +114,7 @@ class DamagedView(QWidget):
     def refresh(self) -> None:
         where = "" if self.show_dismissed.isChecked() else " AND d.dismissed = 0"
         rows = self.conn.execute(
-            "SELECT d.file_id, d.problem, d.dismissed, r.path, f.rel_path FROM damaged d"
+            "SELECT d.file_id, d.problem, d.dismissed, r.path, f.rel_path, d.detail FROM damaged d"
             " JOIN files f ON f.id = d.file_id JOIN roots r ON r.id = f.root_id"
             f" WHERE f.missing_since IS NULL AND f.excluded = 0 AND f.quarantined_at IS NULL{where}"
             " ORDER BY d.problem, r.path, f.rel_path").fetchall()
@@ -110,7 +127,7 @@ class DamagedView(QWidget):
         without = 0
         self.table.clearContents()
         self.table.setRowCount(len(self._rows))
-        for i, (fid, problem, dismissed, root, rel) in enumerate(self._rows):
+        for i, (fid, problem, dismissed, root, rel, _detail) in enumerate(self._rows):
             full = os.path.join(root, *rel.split("/"))
             best = self._copies[fid]
             without += not best
@@ -135,8 +152,10 @@ class DamagedView(QWidget):
     def _show(self, row: int) -> None:
         self.detail.clearContents()
         self.detail.setRowCount(0)
+        self.guide.hide()
         if row < 0 or row >= len(self._rows):
             return
+        self.guide.setVisible(self._rows[row][5] == NO_MOOV)
         copies = self._copies.get(self._rows[row][0], [])
         self.detail.setRowCount(len(copies))
         for i, (_, full, why) in enumerate(copies):
