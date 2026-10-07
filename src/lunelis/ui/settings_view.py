@@ -175,13 +175,36 @@ class SettingsView(QWidget):
         col.addStretch(1)
         page.setMaximumWidth(920)
         wrap = QHBoxLayout()
+        # Clear space either side of the cards, however narrow the window, so
+        # the mouse wheel has somewhere to scroll the page from.
+        wrap.setContentsMargins(56, 0, 56, 0)
         wrap.addStretch(1)
         wrap.addWidget(page, 100)
         wrap.addStretch(1)
         holder = QWidget(objectName="SettingsPage")
         holder.setLayout(wrap)
         scroll.setWidget(holder)
+        # A wheel over a drop-down, number box or slider scrolls the page
+        # unless that control was clicked first - scrolling past a setting
+        # never changes it.
+        from PySide6.QtWidgets import QAbstractSlider, QAbstractSpinBox, QComboBox
+        for w in holder.findChildren(QWidget):
+            if isinstance(w, (QComboBox, QAbstractSpinBox, QAbstractSlider)):
+                w.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+                w.installEventFilter(self)
         return scroll
+
+    def eventFilter(self, obj, e) -> bool:
+        from PySide6.QtCore import QEvent
+        if e.type() == QEvent.Type.Wheel and isinstance(obj, QWidget) and not obj.hasFocus():
+            from PySide6.QtWidgets import QApplication, QScrollArea
+            area = obj.parent()
+            while area is not None and not isinstance(area, QScrollArea):
+                area = area.parent()
+            if area is not None:
+                QApplication.sendEvent(area.verticalScrollBar(), e)
+            return True
+        return super().eventFilter(obj, e)
 
     def show_tab(self, name: str) -> None:
         if name in self.TABS:
