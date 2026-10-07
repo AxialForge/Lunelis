@@ -177,6 +177,31 @@ class MigrateView(QWidget):
         h.setWordWrap(True)
         v.addWidget(h)
 
+        self.library_layout = QCheckBox("New library layout: Library\\Photos and Videos\\Year\\Day\\"
+                                        "Photos | Videos | Timelapse, and Library\\Undated")
+        self.library_layout.setToolTip("Each day gets Photos, Videos and (for a timelapse) Timelapse folders; "
+                                       "a day with several events takes its first event's name.")
+        self.library_layout.setChecked(True)
+        self.library_layout.toggled.connect(self._layout_toggled)
+        v.addWidget(self.library_layout)
+        self.layout_box = QWidget()
+        lb = QVBoxLayout(self.layout_box)
+        lb.setContentsMargins(24, 0, 0, 0)
+        self.undated_mtime = QCheckBox("File a photo with no date by its modified date, when that date is believable")
+        self.undated_mtime.setToolTip("Not in the future, not before 1995, and not the day a whole folder was "
+                                      "copied. Otherwise it goes to Library\\Undated.")
+        lb.addWidget(self.undated_mtime)
+        sub = QHBoxLayout()
+        sub.addWidget(QLabel("Inside Photos:"))
+        self.photo_sub = QComboBox()
+        for label, key in (("One folder for the day", "none"), ("A folder per camera", "camera"),
+                           ("The folder each photo came from", "original")):
+            self.photo_sub.addItem(label, key)
+        sub.addWidget(self.photo_sub)
+        sub.addStretch(1)
+        lb.addLayout(sub)
+        v.addWidget(self.layout_box)
+
         v.addWidget(QLabel("4. How", objectName="SectionTitle"))
         self.one_copy = QCheckBox("Move one copy of each verified duplicate")
         self.one_copy.setChecked(True)
@@ -212,7 +237,7 @@ class MigrateView(QWidget):
         v.addWidget(self.preview_b)
         v.addStretch(1)
         scroll.setWidget(page)
-        self._example(self.template.currentText())
+        self._layout_toggled(self.library_layout.isChecked())
         return scroll
 
     # --- the results --------------------------------------------------------------------------
@@ -304,7 +329,25 @@ class MigrateView(QWidget):
         self.migration_id = mid
         self._render(plan_data)
 
+    def _layout_toggled(self, on: bool) -> None:
+        self.layout_box.setEnabled(on)
+        self.template.setEnabled(not on)               # the layout names the day folders itself
+        self._example(self.template.currentText())
+
     def _example(self, text: str) -> None:
+        box = getattr(self, "library_layout", None)
+        if box is not None and box.isChecked():
+            from lunelis.migrate import layout
+            o = layout.LayoutOptions()
+            t = datetime(2026, 6, 19, 14, 3)
+            self.example.setObjectName("Example")
+            self.example.setText(
+                "e.g. " + layout.place(o, taken=t, kind="Photos", event="Air Show") + "\\DSC01234.ARW   ·   "
+                + layout.place(o, taken=t, kind="Videos") + "\\C0001.MP4   ·   "
+                + layout.place(o, taken=t, kind="Photos", timelapse=(t, 786)) + "\\DSC05000.ARW")
+            self.example.style().unpolish(self.example)
+            self.example.style().polish(self.example)
+            return
         try:
             folder = render(text, Context(datetime(2026, 6, 19, 14, 3), camera="ILCE-7RM5", import_name="Air Show",
                                           event="Air Show", event_start=datetime(2026, 6, 19, 9)))
@@ -438,7 +481,10 @@ class MigrateView(QWidget):
             return
         opts = Options(sources, keep_sources=self.mode.checkedId() == 0, one_copy=self.one_copy.isChecked(),
                        skip_damaged_copies=self.skip_damaged.isChecked(), include_videos=self.videos.isChecked(),
-                       only_archived=self.archived_only.isChecked())
+                       only_archived=self.archived_only.isChecked(),
+                       library_layout=self.library_layout.isChecked(),
+                       undated_by_mtime=self.undated_mtime.isChecked(),
+                       photo_subfolders=self.photo_sub.currentData())
         preferred = Settings(self.conn).get("preferred_roots")
         if self.migration_id is not None and self._summary is not None and self._summary.state == "planned":
             discard(self.conn, self.migration_id)          # a new preview replaces the old one
