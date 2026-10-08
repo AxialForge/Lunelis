@@ -286,27 +286,85 @@ class Tool(QWidget):
         t = QLabel(self.title_text, objectName="PageTitle")
         head.addWidget(t)
         head.addStretch(1)
+        # Step by step (0.44): pick photos > options > check > make, one at a time.
+        from lunelis.settings import Settings
+        self.steps_cb = QCheckBox("Step by step")
+        self.steps_cb.setToolTip("Pick the photos, then the options, then check, then make - one at a time")
+        self.steps_cb.setChecked(bool(Settings(conn).get("create_step_by_step")))
+        self.steps_cb.toggled.connect(self._steps_toggled)
+        head.addWidget(self.steps_cb)
         outer.addLayout(head)
+        self.step_label = QLabel(objectName="SectionTitle")
+        outer.addWidget(self.step_label)
         help_ = QLabel(self.blurb, objectName="Help")
         help_.setWordWrap(True)
         outer.addWidget(help_)
         self.picker = PhotoPicker(conn, self, self.minimum)
         outer.addWidget(self.picker)
-        self.body = QHBoxLayout()
-        outer.addLayout(self.body, 1)
+        self.body_w = QWidget()
+        self.body = QHBoxLayout(self.body_w)
+        self.body.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.body_w, 1)
+        self.check_view = QLabel(objectName="Help", wordWrap=True)
+        self.check_view.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        outer.addWidget(self.check_view, 1)
         foot = QHBoxLayout()
         self.result = QLabel(objectName="Help")
         self.result.setWordWrap(True)
         self.result.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
         self.result.linkActivated.connect(lambda href: QDesktopServices.openUrl(QUrl.fromLocalFile(href)))
         foot.addWidget(self.result, 1)
+        self.back_b = QPushButton("Back", clicked=lambda: self.go_step(self.step - 1))
+        self.next_b = QPushButton("Next", objectName="Primary", clicked=lambda: self.go_step(self.step + 1))
+        foot.addWidget(self.back_b)
+        foot.addWidget(self.next_b)
         self.make_b = QPushButton("Make", objectName="Primary", clicked=self.make)
         foot.addWidget(self.make_b)
         outer.addLayout(foot)
         self.picker.changed.connect(self._enable)
+        self.step = 0
+        self._steps_toggled(self.steps_cb.isChecked())
+
+    STEPS = ("1. Pick the photos", "2. Options", "3. Check", "4. Make")
+
+    def _steps_toggled(self, on: bool) -> None:
+        from lunelis.settings import Settings
+        Settings(self.conn).set("create_step_by_step", on)
+        self.go_step(0 if on else -1)
+
+    def go_step(self, i: int) -> None:
+        """Show one step (step by step), or everything at once (i = -1 / off)."""
+        on = self.steps_cb.isChecked()
+        i = max(0, min(3, i)) if on else -1
+        self.step = i
+        self.step_label.setText(self.STEPS[i] if on else "")
+        self.step_label.setVisible(on)
+        self.picker.setVisible(not on or i == 0)
+        self.body_w.setVisible(not on or i == 1)
+        self.check_view.setVisible(on and i in (2, 3))
+        if on and i in (2, 3):
+            self.check_view.setText(self.check_text())
+        self.back_b.setVisible(on and i > 0)
+        self.next_b.setVisible(on and i < 3)
+        self.make_b.setVisible(not on or i == 3)
+        if on and i == 0:
+            self.next_b.setEnabled(len(self.picker.ids()) >= self.minimum)
+        elif on:
+            self.next_b.setEnabled(True)
+
+    def check_text(self) -> str:
+        """Step 3: what will be made, from what, and where (tools may add to it)."""
+        n = len(self.picker.ids())
+        lines = [f"{self.title_text} from {n:,} photo{'s' if n != 1 else ''}.",
+                 f"It's saved in {self.out_dir()} - your photos are only read."]
+        if n < self.minimum:
+            lines.append(f"It needs at least {self.minimum} - go back and pick more.")
+        return "\n".join(lines)
 
     def _enable(self) -> None:
         self.make_b.setEnabled(len(self.picker.ids()) >= self.minimum and self._thread is None)
+        if self.steps_cb.isChecked() and self.step == 0:
+            self.next_b.setEnabled(len(self.picker.ids()) >= self.minimum)
 
     def out_dir(self) -> Path:
         return engine.output_dir(self.conn, self.title_text)

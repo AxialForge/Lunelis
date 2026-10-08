@@ -86,6 +86,7 @@ DEFAULTS: dict[str, Any] = {
     "sidebar_auto": True,                # fold to icons by itself on narrow windows
     "grid_default_sort": "date_desc",
     "trash_keep_days": 0,                # set-aside files kept this long, then offered for removal (0 = forever)
+    "create_step_by_step": False,        # Create tools one step at a time (0.44)
     "lunelis_folder": None,              # everything Lunelis makes or keeps, beside the Library (lunelis_folder.py)
     "create_output_dir": None,           # where the Create tab writes (None: Pictures\Lunelis creations)
     "window_geometry": None,             # the window's size, place and monitor (Qt saveGeometry, hex)

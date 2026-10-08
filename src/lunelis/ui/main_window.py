@@ -68,9 +68,9 @@ RATE_CONFIRM = 500                         # ask before rating / labelling / fla
 # no greyed-out placeholders.
 NAV = [
     ("Photos", ["Library", "Albums", "People", "Tags", "Edit", "Map", "On this day", "Stats"]),
-    ("Create", ["Create"]),
+    ("Create & Tools", ["Create", "Sensor dust"]),
     ("Bring in & organize", ["Import", "Migrate", "Google Takeout", "Duplicates", "Timelapses", "Damaged files"]),
-    ("Keep safe", ["Library status", "Backups", "Quarantine", "Sensor dust"]),
+    ("Keep safe", ["Library status", "Backups", "Quarantine"]),
 ]
 BOTTOM_NAV = ["Settings"]
 

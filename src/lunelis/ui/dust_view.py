@@ -1,5 +1,5 @@
 """
-The Sensor dust page (sidebar > Keep safe): a dust map per camera, and
+The Sensor dust page (sidebar > Create & Tools): a dust map per camera, and
 healing it out of the photos after you've seen the map.
 
 - Pick a camera; **Look for dust** reads its f/8-and-narrower frames
