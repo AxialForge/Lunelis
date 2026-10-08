@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-10-08
+
+Looks and layout, from the 25-item list.
+
+### Changed
+
+- **The sidebar on short or 150 %-scaled screens:** its rows tighten when the
+  window is short, and its scrollbar is visible, so no section drops out of
+  sight.
+- **Icons:** Create has its own (a wand - it looked like Library), and each
+  of the 13 Create tools has its own picture instead of seven sharing one.
+- **Empty pages say what to do:** People, Tags, Quarantine, Damaged files and
+  the Map show a sentence about how to fill them instead of a blank box (or,
+  on People, one word per line). The Map has one switch for map pictures,
+  not two.
+- **A theme switch** recolours the status-bar links and the Create icons.
+- **Everything fits a 1024 px window:** Settings tabs keep their whole names
+  (with scroll arrows), and Albums, Migrate, Create, Google Takeout and
+  Timelapses no longer run off the side - long check boxes and choices wrap.
+- **The shortcut sheet** opens wider and wraps its descriptions.
+- **Duplicates and Damaged files have page titles**, from one shared header.
+- **Selected table rows** are a soft tint of the accent colour, not a heavy
+  black bar.
+- **File sizes** read "812 bytes" or "23 KB", never "0 MB", the same way on
+  every page.
+- **Video player:** the mute and remove-flag buttons fit their icons.
+
 ## [0.47.0] - 2026-10-08
 
 ### Added
