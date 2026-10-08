@@ -226,6 +226,13 @@ def _scale_fonts(qss: str) -> str:
     return re.sub(r"font-size:\s*(\d+(?:\.\d+)?)px", lambda m: f"font-size: {font_pt(float(m.group(1)))}pt", qss)
 
 
+def _tint(hex_colour: str, alpha: float) -> str:
+    """The accent as a see-through tint: a table's selected row (0.48 - it was a
+    heavy near-black bar in the light theme)."""
+    c = QColor(hex_colour)
+    return f"rgba({c.red()}, {c.green()}, {c.blue()}, {int(alpha * 255)})"
+
+
 def stylesheet(t: Theme | None = None) -> str:
     return _scale_fonts(_stylesheet(t))
 
@@ -337,6 +344,8 @@ def _stylesheet(t: Theme | None = None) -> str:
     QListWidget::item, QListView::item {{ padding: 6px 4px; border-radius: 4px; }}
     QListWidget::item:hover, QListView::item:hover, QTableView::item:hover {{ background: {t.field_bg}; color: {t.text}; }}
     QListWidget::item:selected, QListView::item:selected {{ background: {t.selection}; color: {t.chip_text}; }}
+    QTableView::item:selected, QTreeView::item:selected {{ background: {_tint(t.accent, 0.22)}; color: {t.text}; }}
+    QTableView::item:selected:!active, QTreeView::item:selected:!active {{ background: {_tint(t.accent, 0.12)}; color: {t.text}; }}
     QHeaderView::section {{
         background: {t.surface_alt}; color: {t.text_muted}; border: none;
         border-bottom: 1px solid {t.border}; padding: 6px 8px; font-weight: 600;

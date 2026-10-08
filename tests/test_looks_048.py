@@ -141,3 +141,10 @@ def test_duplicates_and_damaged_have_page_titles(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_selected_table_rows_are_a_soft_tint():
+    from lunelis.ui import theme
+    for t in theme.THEMES.values():
+        css = theme.stylesheet(t)
+        assert "QTableView::item:selected" in css and "rgba(" in css
