@@ -91,7 +91,9 @@ class DamagedView(QWidget):
             t.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.table.setColumnWidth(3, 110)
         self.table.currentCellChanged.connect(lambda r, *_: self._show(r))
-        split.addWidget(self.table)
+        from lunelis.ui.empty_state import EmptyStack
+        self.table_box = EmptyStack(self.table)
+        split.addWidget(self.table_box)
         self.detail = QTableWidget(0, 3)
         self.detail.setHorizontalHeaderLabels(["Intact copy", "Why it's a good copy", ""])
         self.detail.verticalHeader().hide()
@@ -143,6 +145,9 @@ class DamagedView(QWidget):
         self.summary.setText(
             (f"{len(self._rows):,} damaged files: " + ", ".join(parts) +
              f" · {without:,} with no intact copy anywhere") if self._rows else "No damaged files found.")
+        self.table_box.empty(None if self._rows else
+                             "No damaged files found.\n\nThe check runs after each scan, reading only files whose "
+                             "start isn't a picture Lunelis recognises - press Check now to run it again.")
         if self._rows:
             self.table.selectRow(0)
         else:

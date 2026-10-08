@@ -134,7 +134,9 @@ class PeopleView(QWidget):
         self.people_list.setSpacing(6)
         self.people_list.itemActivated.connect(lambda it: self.open_person(it.data(Qt.ItemDataRole.UserRole)))
         self.people_list.itemDoubleClicked.connect(lambda it: self.open_person(it.data(Qt.ItemDataRole.UserRole)))
-        self.people_stack.addWidget(self.people_list)
+        from lunelis.ui.empty_state import EmptyStack
+        self.people_box = EmptyStack(self.people_list)
+        self.people_stack.addWidget(self.people_box)
         self.people_stack.addWidget(self._person_page())
         self.tabs.addTab(self.people_stack, "People")
         self.tabs.addTab(self._confirm_page(), "To confirm")
@@ -324,10 +326,10 @@ class PeopleView(QWidget):
                 it.setIcon(QIcon(pix.scaled(FACE, FACE, Qt.AspectRatioMode.KeepAspectRatio,
                                             Qt.TransformationMode.SmoothTransformation)))
             self.people_list.addItem(it)
-        if not people:
-            it = QListWidgetItem("Nobody named yet - open Unnamed to name the faces Lunelis has grouped.")
-            it.setFlags(Qt.ItemFlag.NoItemFlags)
-            self.people_list.addItem(it)
+        self.people_box.empty(None if people else
+                              "Nobody named yet.\n\nOpen the Unnamed tab to name the faces Lunelis has grouped, or "
+                              "click a face in any photo (the Faces button in the photo view). Not looking for faces "
+                              "yet? Settings > Library > Faces.")
 
     def open_person(self, pid) -> None:
         if pid is None:

@@ -65,7 +65,9 @@ class TagsView(QWidget):
         from PySide6.QtWidgets import QTabWidget
         from lunelis.ui.scene_review import SceneReview
         self.tabs = QTabWidget()
-        self.tabs.addTab(self.tree, "Your tags")
+        from lunelis.ui.empty_state import EmptyStack
+        self.tree_box = EmptyStack(self.tree)
+        self.tabs.addTab(self.tree_box, "Your tags")
         self.review = SceneReview(conn)
         self.review.changed.connect(self.refresh)
         self.tabs.addTab(self.review, "Scene suggestions")
@@ -94,6 +96,10 @@ class TagsView(QWidget):
             (items[parent].addChild(item) if parent in items else self.tree.addTopLevelItem(item))
             items[name] = item
         self.tree.expandToDepth(0)
+        self.tree_box.empty(None if direct else
+                            "No tags yet.\n\nSelect photos in the library and press T (or Photo > Tags) to tag them. "
+                            "Scene suggestions - beach, dog, sunset - are on the Suggestions tab once scene tagging "
+                            "is on (Settings > Library).")
         self.summary.setText(f"{len(direct):,} tag{'s' if len(direct) != 1 else ''} on {n_photos:,} "
                              f"photo{'s' if n_photos != 1 else ''}" if direct else "No tags yet")
         self._filter(self.search.text())

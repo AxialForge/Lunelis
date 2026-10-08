@@ -431,6 +431,7 @@ def _stylesheet(t: Theme | None = None) -> str:
     QLabel#SectionTitle {{ font-size: 15px; font-weight: 700; }}
     QLabel#SubTitle {{ font-weight: 600; padding-top: 6px; }}
     QLabel#Help {{ color: {t.text_muted}; font-size: 12px; }}
+    QLabel#EmptyNote {{ color: {t.text_muted}; font-size: 14px; }}
     QLabel#Example {{ color: {t.text_muted}; font-size: 12px; font-family: Consolas, monospace; }}
     QLabel#Error {{ color: {red}; font-size: 12px; }}
     QLabel#ThemeSwatch {{ border: 1px solid {t.border}; border-radius: 6px; }}

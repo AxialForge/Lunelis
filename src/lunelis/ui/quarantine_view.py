@@ -210,7 +210,9 @@ class QuarantineView(QWidget):
         self.table.setColumnWidth(3, 110)
         self.table.setColumnWidth(4, 90)
         self.table.itemSelectionChanged.connect(self._buttons)
-        v.addWidget(self.table, 1)
+        from lunelis.ui.empty_state import EmptyStack
+        self.table_box = EmptyStack(self.table)
+        v.addWidget(self.table_box, 1)
         row = QHBoxLayout()
         self.restore_b = QPushButton("Restore", clicked=self.restore_selected)
         self.restore_b.setToolTip("Put the selected files back where they were")
@@ -291,6 +293,10 @@ class QuarantineView(QWidget):
 
     def _fill(self) -> None:
         shown = self._visible()
+        self.table_box.empty(None if shown else
+                             "Nothing set aside.\n\nCopies you set aside on the Duplicates page, and originals a "
+                             "migration moved, wait here until you put them back or empty them." if not self.items
+                             else "Nothing of this kind - choose Everything above.")
         self.table.setRowCount(0)
         self.table.setRowCount(len(shown))
         for i, e in enumerate(shown):

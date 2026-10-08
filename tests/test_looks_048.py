@@ -33,3 +33,27 @@ def test_every_create_tool_has_its_own_icon_and_create_isnt_library():
     assert all(n in icons._PATHS for n in names)
     assert len({icons._PATHS[n] for n in names}) == 13                     # 13 different drawings
     assert icons._PATHS[icons.NAV_ICONS["Create"]] != icons._PATHS[icons.NAV_ICONS["Library"]]
+
+
+def test_empty_pages_say_what_to_do(tmp_path):
+    w, _ = _win(tmp_path, 1)
+    try:
+        for page, attr in (("People", "people_page"), ("Tags", "tags_page"), ("Damaged files", "damaged")):
+            w.open_page(page)
+            p = getattr(w, attr)
+            for _ in range(3):                    # loads run on workers; their results arrive as events
+                if hasattr(p, "bg"):
+                    p.bg.wait()
+                QApplication.processEvents()
+        assert w.people_page.people_box.showing_message
+        assert "Nobody named yet" in w.people_page.people_box.note.text()
+        assert w.tags_page.tree_box.showing_message and "No tags yet" in w.tags_page.tree_box.note.text()
+        assert w.damaged.table_box.showing_message
+        from lunelis.ui.map_view import MapCanvas
+        c = MapCanvas(tmp_path)
+        c.resize(400, 300)
+        c.grab()                                                           # paints the empty-map message
+        assert not hasattr(w.map_page, "note_b")                          # one switch for map pictures
+    finally:
+        w._quitting = True
+        w.close()

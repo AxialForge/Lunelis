@@ -220,6 +220,16 @@ class MapCanvas(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.fillRect(self.rect(), QColor(t.canvas))
+        if not self.points and not self.placing:
+            # An empty map says why (0.48), instead of a blank grid.
+            p.setPen(QColor(t.text_muted))
+            p.drawText(self.rect().adjusted(40, 40, -40, -40),
+                       Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                       "No photos with a location yet.\n\nPhotos from phones and GPS cameras appear here by "
+                       "themselves. To place others, select them in the library and use Photo > Set location on "
+                       "the map, or drag them onto Map in the sidebar.")
+            p.end()
+            return
         ox, oy = self._origin()
         z = int(self.z)
         n = 2 ** z
@@ -402,8 +412,7 @@ class MapView(QWidget):
         self.note = QLabel(objectName="Help")
         self.note.setWordWrap(True)
         nr.addWidget(self.note, 1)
-        self.note_b = QPushButton("Show map pictures", objectName="Primary", clicked=self._toggle_online)
-        nr.addWidget(self.note_b)
+        # One switch for map pictures: the header's (0.48 - there were two).
         self.note_row = note_row
         outer.addWidget(note_row)
         self.canvas = MapCanvas(paths.DATA_DIR / "map_tiles")
@@ -480,13 +489,11 @@ class MapView(QWidget):
         self.note.setText("" if on else "Dots on a plain grid of latitude and longitude. Map pictures come from "
                                         "OpenStreetMap over the internet - nothing is fetched until you turn them "
                                         "on (here, or Settings > Library > Places).")
-        self.note_b.setVisible(not on)
         self.note_row.setVisible(not on)
 
     def _tiles_failed(self, error: str) -> None:
         self.note.setText(f"Couldn't reach OpenStreetMap for the map pictures ({error}). The dots still work; "
                           "pictures appear once the connection is back.")
-        self.note_b.setVisible(False)
         self.note_row.setVisible(True)
 
     def _toggle_online(self) -> None:
