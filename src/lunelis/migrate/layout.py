@@ -14,12 +14,15 @@ apart inside each day, undated files in their own tree.
   dismissed) to their own Timelapse\\<start time> (<frames> frames) folder.
 - Photos is flat for the day unless a subfolder is chosen: by camera, or the
   folder the photo came from.
-- A photo with no capture date goes to Undated - or, when that option is
-  on, is filed by its modified date if that date is believable (see
+- A photo with no capture date is filed by the date in its name when it has
+  one (20170808_174715.jpg - phones and Google name files so; a damaged
+  file keeps its day this way), else goes to Undated - or, when that option
+  is on, is filed by its modified date if that date is believable (see
   believable_mtime).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -40,8 +43,31 @@ class LayoutOptions:
     day_template: str = DAY_TEMPLATE
 
 
-def media_kind(fmt: str | None, video_formats: set[str]) -> str:
-    return "Videos" if (fmt or "") in video_formats else "Photos"
+def media_kind(fmt: str | None, video_formats: set[str], filename: str | None = None) -> str:
+    """Photos or Videos - by the format read from the file, else (a damaged
+    file has none) by its extension."""
+    if fmt:
+        return "Videos" if fmt in video_formats else "Photos"
+    from lunelis.importers.formats import VIDEO_EXTS
+    ext = (filename or "").rsplit(".", 1)[-1].lower() if filename and "." in filename else ""
+    return "Videos" if ext in VIDEO_EXTS else "Photos"
+
+
+_NAME_DATE = re.compile(r"(?<!\d)((?:19|20)\d\d)(\d\d)(\d\d)[_\-T ]?(\d\d)(\d\d)(\d\d)(?:\d{1,3})?(?!\d)")
+
+
+def date_from_name(filename: str) -> datetime | None:
+    """20170808_174715.jpg / IMG_20190704_101500.jpg / PXL_20240915_113955123.jpg:
+    the time a phone or Google put in the name. None when there's no such
+    date, or it isn't a real one (or is in the future / before 1995)."""
+    m = _NAME_DATE.search(filename)
+    if not m:
+        return None
+    try:
+        when = datetime(*(int(g) for g in m.groups()))
+    except ValueError:
+        return None
+    return when if EARLIEST <= when <= datetime.now() else None
 
 
 def timelapse_folder(start: datetime | None, frames: int) -> str:

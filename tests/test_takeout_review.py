@@ -91,3 +91,17 @@ def test_the_page_lists_and_ticks(conn):
     page.filter.setCurrentIndex(page.filter.findData("unticked"))
     assert page.tree.topLevelItemCount() == 2                 # 2019 and 2018 have unticked items
     page.deleteLater()
+
+
+def test_a_takeout_copy_hours_off_is_still_the_same_photo():
+    """Found in the 0.44 rehearsal: Takeout copies of the airshow came back 8-12 h
+    away from the camera's time and were migrated as new photos on another day."""
+    from lunelis.dupes.similar import same_photo
+    h = int("f0f0f0f0f0f0f0f0", 16)
+    nas = (h, "2024-09-02T13:00:00", 1.5, (1, "a"), "sep03632.jpg", "ILCE-7RM5", 15_135_270)
+    takeout = (h ^ 0b111, "2024-09-03T00:58:00", 1.5, (2, "b"), "sep03632.jpg", "ILCE-7RM5", 19_572_304)
+    assert same_photo(nas, takeout, 10)
+    other_day = (h ^ 0b111, "2024-09-05T00:58:00", 1.5, (2, "b"), "sep03632.jpg", "ILCE-7RM5", 19_572_304)
+    assert not same_photo(nas, other_day, 10)                     # days apart: not the same moment
+    burst = (h ^ 0b11, "2024-09-02T13:00:01", 1.5, (1, "a"), "sep03633.jpg", "ILCE-7RM5", 15_000_000)
+    assert not same_photo(nas, burst, 10)                         # the next frame: another name

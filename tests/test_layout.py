@@ -70,3 +70,16 @@ def test_timelapse_frames_get_their_own_folder_in_a_plan(lib):
                              " AND action = 'move'", (mid,)))
     assert dest["2024/6-19-2024 Air Show/DSC001.JPG"].startswith(
         "Library/Photos and Videos/2024/6-19-2024/Timelapse/10-00 (2 frames)/")
+
+
+def test_rehearsal_fixes_damaged_videos_and_dates_in_names():
+    """0.44 rehearsal: zero-filled Epcot files had no readable date or format -
+    the videos went to Undated/Photos, and all of them to Undated though their
+    names hold the time."""
+    assert layout.media_kind(None, {"mp4"}, "20170808_185617.mp4") == "Videos"
+    assert layout.media_kind(None, {"mp4"}, "20170808_174715.jpg") == "Photos"
+    assert layout.date_from_name("20170808_174715.jpg") == datetime(2017, 8, 8, 17, 47, 15)
+    assert layout.date_from_name("PXL_20240915_113955123.jpg") == datetime(2024, 9, 15, 11, 39, 55)
+    assert layout.date_from_name("IMG_20190704_101500.jpg") == datetime(2019, 7, 4, 10, 15)
+    assert layout.date_from_name("DSC01234.ARW") is None
+    assert layout.date_from_name("20171308_174715.jpg") is None          # month 13: not a date

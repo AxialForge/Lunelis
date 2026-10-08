@@ -172,6 +172,18 @@ def same_moment(ta: str | None, tb: str | None) -> bool:
     return ta[:19] == tb[:19]
 
 
+SAME_NAME_HOURS = 36
+
+
+def shifted_copy(ta: str | None, tb: str | None) -> bool:
+    """Times a minute to SAME_NAME_HOURS apart: a time-zone or upload shift."""
+    try:
+        gap = abs((datetime.fromisoformat(ta[:19]) - datetime.fromisoformat(tb[:19])).total_seconds())
+    except (TypeError, ValueError):
+        return False
+    return 60 < gap <= SAME_NAME_HOURS * 3600
+
+
 def related_names(a: str, b: str) -> bool:
     # 'dsc0040.jpg' ~ '20191012-_dsc0040.jpg' (an export keeps the original's name inside its own).
     sa, sb = a.rsplit(".", 1)[0], b.rsplit(".", 1)[0]
@@ -185,8 +197,12 @@ def same_photo(a, b, max_distance: int) -> bool:
         return False
     if size_a == size_b:
         return False                       # same size: byte-identical copies, the exact pass's job
-    if not same_moment(ta, tb):
-        return False                       # a different moment (e.g. the next burst frame)
+    if not same_moment(ta, tb) and not (na == nb and shifted_copy(ta, tb)):
+        # A different moment (e.g. the next burst frame) - unless it's the same file name
+        # a few hours off: Google Takeout copies of edited exports came back 8-12 hours
+        # away from the camera's time (found in the 0.44 rehearsal). Under a minute
+        # apart is a burst frame, never a shifted copy.
+        return False
     if not related_names(na, nb):
         return False                       # copies keep their name (Takeout, exports, pool copies);
                                            # unrelated names are other photos - or a burst

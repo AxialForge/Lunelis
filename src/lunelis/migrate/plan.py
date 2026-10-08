@@ -348,6 +348,8 @@ def _layout_inputs(conn: sqlite3.Connection, by_id: dict, options: Options) -> d
 def _layout_folder(lay: dict, options: Options, template: str, r, ev_name, ev_start, src_dir: str) -> str:
     from lunelis.migrate import layout
     taken, start = _dt(r[7]), _dt(ev_start)
+    if taken is None and start is None:
+        taken = layout.date_from_name(r[4])        # 20170808_174715.jpg: the phone's own time
     day = (start or taken).date() if (start or taken) else None
     if day in lay["days"]:                         # the whole day takes its first event's name
         ev_name = lay["days"][day][0]
@@ -355,7 +357,7 @@ def _layout_folder(lay: dict, options: Options, template: str, r, ev_name, ev_st
     if taken is None and start is None and options.undated_by_mtime and layout.believable_mtime(
             r[13], lay["folder_mtimes"].get((r[1], src_dir), [])):
         mtime_date = datetime.fromtimestamp(r[13])
-    kind = layout.media_kind(r[6], VIDEO_FORMATS)
+    kind = layout.media_kind(r[6], VIDEO_FORMATS, r[4])
     return layout.place(lay["opts"], taken=taken, kind=kind, event=ev_name, event_start=start, camera=r[8],
                         original_folder=src_dir.rsplit("/", 1)[-1] or None,
                         timelapse=lay["frames"].get(r[0]), mtime_date=mtime_date)
