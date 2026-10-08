@@ -753,6 +753,13 @@ class DevelopPanel(QScrollArea):
                     s.moved.connect(self.adjust.emit)
                     v.addWidget(s)
                     self.sliders[p.key] = s
+                    if p.key == "temp":
+                        # White balance picker (0.46): click something that should be grey.
+                        self.wb_pick_b = QPushButton("Pick white balance", checkable=True)
+                        self.wb_pick_b.setToolTip("Then click something in the photo that should be neutral "
+                                                  "grey or white - Temperature and Tint are set from it (W)")
+                        self.wb_pick_b.toggled.connect(lambda on: self.retouch_tool.emit("wb" if on else None))
+                        v.addWidget(self.wb_pick_b)
             if group == "Light":
                 v.addWidget(self._heading("Tone curve"))
                 self.curves = CurveEditor()
@@ -1316,7 +1323,8 @@ class EditMode(QObject):
             self.select_mask(-1)
         self._show_spots()
         self.panel.status.setText({"heal": "Click a spot to heal it", "clone": "Alt+click where to copy from",
-                                   "redeye": "Click each red eye"}.get(kind or "", ""))
+                                   "redeye": "Click each red eye",
+                                   "wb": "Click something that should be neutral grey or white"}.get(kind or "", ""))
 
     def _show_spots(self) -> None:
         self.canvas.spots = [(sp.x, sp.y, sp.r) for sp in self.stack.retouch]
@@ -1342,12 +1350,34 @@ class EditMode(QObject):
             if self._clone[0] == "source":
                 self._clone = ("offset", self._clone[1] - x, self._clone[2] - y)
             spot = Spot("clone", x, y, r, x + self._clone[1], y + self._clone[2])
+        elif kind == "wb":
+            self.pick_white_balance(x, y)
+            return
         elif kind == "heal":
             spot = Spot("heal", x, y, r, *self._heal_source(x, y, r))
         else:
             spot = Spot("redeye", x, y, r)
         self._set(replace(self.stack, retouch=self.stack.retouch + (spot,)))
         self._show_spots()
+
+    def pick_white_balance(self, x: float, y: float) -> None:
+        """Temperature and Tint from a 5 x 5 patch of the unadjusted picture at
+        (x, y) in the frame (the photo turned and flipped, not cropped)."""
+        img = self.session.fast if self.session.fast is not None else self.session.disp
+        if img is None:
+            return
+        frame = pipeline.apply_geometry(img, replace(self.stack.geometry, crop=FULL_CROP))
+        h, w = frame.shape[:2]
+        cx, cy = int(min(w - 1, max(0, x * w))), int(min(h - 1, max(0, y * h)))
+        patch = frame[max(0, cy - 2):cy + 3, max(0, cx - 2):cx + 3, :3].reshape(-1, 3).mean(axis=0)
+        temp, tint = pipeline.white_balance_from(patch)
+        s = self.stack.with_adjust("temp", round(temp)).with_adjust("tint", round(tint))
+        self._set(s)
+        self._show_panel()
+        limit = " - as far as the sliders go; that spot is more tinted than they can correct"             if max(abs(temp), abs(tint)) >= 100 else ""
+        self.panel.status.setText(f"White balance set from that spot: Temperature {round(temp)}, "
+                                  f"Tint {round(tint)}{limit}")
+        self.panel.wb_pick_b.setChecked(False)
 
     def _heal_source(self, x: float, y: float, r: float) -> tuple:
         """Chosen once, on the picture as shown, so preview and export use the same patch."""

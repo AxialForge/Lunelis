@@ -154,6 +154,17 @@ def curve_values(points, xs: np.ndarray) -> np.ndarray:
     return np.clip(y, 0, 1)
 
 
+def white_balance_from(rgb) -> tuple[float, float]:
+    """(temp, tint) slider values that make this sRGB colour neutral grey - the
+    white balance picker (0.46). Inverts tone_lut's gains: red x 2^(0.45 t),
+    green x 2^(-0.35 m), blue x 2^(-0.45 t), in linear light."""
+    lin = [((c + 0.055) / 1.055) ** 2.4 if c > 0.04045 else c / 12.92 for c in (max(1e-4, float(v)) for v in rgb)]
+    r, g, b = lin
+    t = np.log2(b / r) / 0.9
+    m = -np.log2(np.sqrt(r * b) / g) / 0.35
+    return float(np.clip(t * 100, -100, 100)), float(np.clip(m * 100, -100, 100))
+
+
 def tone_lut(p: dict) -> np.ndarray | None:
     """(3, 4096) table: sRGB channel value -> toned value, or None if no
     tone adjustment is set."""

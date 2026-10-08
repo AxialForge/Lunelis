@@ -38,3 +38,15 @@ def test_social_media_crop_ratios(tmp_path):
     assert abs(got[-1] - 9 / 16) < 1e-9
     assert len(SOCIAL_ASPECTS) == 9
     p.deleteLater()
+
+
+def test_white_balance_from_a_grey_spot():
+    import numpy as np
+    from lunelis.edit import pipeline
+    assert pipeline.white_balance_from((0.5, 0.5, 0.5)) == (0.0, 0.0)          # already neutral
+    for cast in ((0.55, 0.5, 0.45), (0.48, 0.52, 0.47), (0.45, 0.5, 0.56)):     # warm, green, cool
+        t, m = pipeline.white_balance_from(cast)
+        lut = pipeline.tone_lut({"temp": t, "tint": m})
+        out = [lut[c][int(round(cast[c] * 4095))] for c in range(3)]
+        assert max(out) - min(out) < 0.01, (cast, out)              # neutral in the real pipeline
+    assert pipeline.white_balance_from((0.6, 0.5, 0.35))[0] == -100   # beyond the slider: as far as it goes
