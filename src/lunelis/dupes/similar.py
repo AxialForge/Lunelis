@@ -142,10 +142,11 @@ def find_groups(conn: sqlite3.Connection, max_distance: int = MAX_DISTANCE) -> l
                      name.lower(), camera, size)
         for c in _chunks(hv):
             buckets[c].append(fid)
+        blank_by_name[name.lower()].append(fid)     # same name: compared even when the picture moved more
 
     for members in blank_by_name.values():
         if 2 <= len(members) <= 8:
-            buckets[-1 - len(buckets)] = members        # its own bucket; same_photo still decides
+            buckets[-1 - len(buckets)] = list(dict.fromkeys(members))   # its own bucket; same_photo still decides
 
     # Candidate pairs, then groups where EVERY member matches every other
     # (no chaining: A~B and B~C must not pull in an unrelated C).
@@ -169,12 +170,19 @@ def find_groups(conn: sqlite3.Connection, max_distance: int = MAX_DISTANCE) -> l
             continue
         group = [seed]
         for cand in sorted(matches[seed] - grouped):
-            if all(cand in matches[m] for m in group):
+            # Byte-identical files (same size and picture) count as matching: they're
+            # the exact pass's to set aside, but they mustn't keep an edit of the same
+            # shot out of the group (0.44 rehearsal: SEP04815).
+            if all(cand in matches[m] or _identical(info[cand], info[m]) for m in group):
                 group.append(cand)
         if len(group) > 1:
             grouped.update(group)
             out.append(sorted(group))
     return out
+
+
+def _identical(a, b) -> bool:
+    return a[6] == b[6] and a[0] == b[0]
 
 
 def same_moment(ta: str | None, tb: str | None) -> bool:
