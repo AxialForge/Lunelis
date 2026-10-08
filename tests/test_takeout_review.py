@@ -125,3 +125,13 @@ def test_an_identical_twin_of_a_takeout_copy_in_the_library_is_in_it_too(conn):
     conn.executemany("INSERT INTO duplicate_group_files (group_id, file_id) VALUES (?, ?)", [(gid, 2), (gid, 6)])
     conn.commit()
     assert tr.unticked(conn) == {2, 6}
+
+
+def test_a_plane_in_a_clear_sky_pairs_only_by_name_and_shift():
+    from lunelis.dupes.similar import same_photo
+    sky = int("000008080c020000", 16)
+    nas = (sky, "2024-09-02T15:53:47.052", 1.5, (1, "a"), "sep04726.jpg", "ILCE-7RM5", 16_485_022)
+    tko = (int("000008180c010000", 16), "2024-09-03T01:05:18", None, (2, "b"), "sep04726.jpg", None, 21_041_860)
+    assert same_photo(nas, tko, 4)
+    other = (int("000008180c010000", 16), "2024-09-02T15:53:47.052", 1.5, (2, "b"), "sep04727.jpg", None, 21_041_860)
+    assert not same_photo(nas, other, 4)                          # another sky shot: blank proves nothing

@@ -121,10 +121,20 @@ def find_groups(conn: sqlite3.Connection, max_distance: int = MAX_DISTANCE) -> l
         f" WHERE {LIVE} AND r.enabled = 1 AND f.perceptual_hash IS NOT NULL AND f.is_raw = 0").fetchall()
     info = {}
     buckets: dict[int, list[int]] = defaultdict(list)
+    blank_by_name: dict[str, list[int]] = defaultdict(list)
     for fid, ph, taken, w, h, orient, root, rel, name, camera, size in rows:
         hv = int(ph, 16)
         if not 8 <= bin(hv).count("1") <= 56:
-            continue                       # a near-blank fingerprint (black frame, flat sky) proves nothing
+            # A near-blank fingerprint (black frame, flat sky) proves nothing on its
+            # own - only the camera's same name a few hours off can pair it (a plane
+            # in a clear sky, 0.44 rehearsal).
+            blank_by_name[name.lower()].append(fid)
+            if (orient or 1) >= 5:
+                w, h = h, w
+            folder = rel.rsplit("/", 1)[0] if "/" in rel else ""
+            info[fid] = (hv, taken, (w / h) if w and h else None, (root, folder.lower()),
+                         name.lower(), camera, size)
+            continue
         if (orient or 1) >= 5:
             w, h = h, w
         folder = rel.rsplit("/", 1)[0] if "/" in rel else ""
@@ -132,6 +142,10 @@ def find_groups(conn: sqlite3.Connection, max_distance: int = MAX_DISTANCE) -> l
                      name.lower(), camera, size)
         for c in _chunks(hv):
             buckets[c].append(fid)
+
+    for members in blank_by_name.values():
+        if 2 <= len(members) <= 8:
+            buckets[-1 - len(buckets)] = members        # its own bucket; same_photo still decides
 
     # Candidate pairs, then groups where EVERY member matches every other
     # (no chaining: A~B and B~C must not pull in an unrelated C).
@@ -198,7 +212,11 @@ def same_photo(a, b, max_distance: int) -> bool:
     # version of the shot may differ more than a plain re-encode (0.44 rehearsal:
     # 5-14 bits on airshow edits).
     shifted = na == nb and shifted_copy(ta, tb)
-    if bin(ha ^ hb).count("1") > (EDITED_DISTANCE if shifted else max_distance):
+    blank = not (8 <= bin(ha).count("1") <= 56 and 8 <= bin(hb).count("1") <= 56)
+    if blank and not shifted:
+        return False                       # near-blank pictures prove nothing by themselves
+    limit = max_distance if blank else EDITED_DISTANCE if shifted else max_distance
+    if bin(ha ^ hb).count("1") > limit:
         return False
     if size_a == size_b:
         return False                       # same size: byte-identical copies, the exact pass's job
