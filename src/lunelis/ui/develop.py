@@ -53,6 +53,9 @@ def _shrink(a: np.ndarray, edge: int) -> np.ndarray:
 
 # --- decoding and rendering off the GUI thread ---------------------------------------------------
 
+FAST_EDGE = 960
+
+
 class _Signals(QObject):
     decoded = Signal(int, object)          # token, (base, display, fast) or an error message
     rendered = Signal(int, int, QImage, bool)   # token, request id, image, fast
@@ -67,7 +70,10 @@ class _Decode(QRunnable):
         try:
             base = render.load_source(self.path, self.is_raw, render.PROXY_EDGE)
             disp = _shrink(base, self.edge)
-            fast = _shrink(disp, max(200, max(disp.shape[:2]) // 2))
+            # The live preview while a slider moves: at most FAST_EDGE px, so a drag
+            # renders ~13 times a second (half the display size took ~160 ms on a
+            # 2560 px screen - visibly jumpy; 0.46). Letting go renders full size.
+            fast = _shrink(disp, max(200, min(FAST_EDGE, max(disp.shape[:2]) // 2)))
             self.s.decoded.emit(self.token, (base, disp, fast))
         except Exception as e:
             self.s.decoded.emit(self.token, f"{type(e).__name__}: {e}")
@@ -428,9 +434,12 @@ SLIDER_TRACKS: dict[str, tuple[str, ...]] = {
 def _track_style(colors: tuple[str, ...]) -> str:
     n = len(colors) - 1
     stops = ", ".join(f"stop:{i / n:.3f} {c}" for i, c in enumerate(colors))
+    # The handle's margin matches this 6 px groove: with the app's -6 px (made for
+    # the 4 px groove) Qt drew it 16 x 18 - an oval, not a circle (0.46).
     return (f"QSlider::groove:horizontal {{ height: 6px; border-radius: 3px; border: none;"
             f" background: qlineargradient(x1:0, y1:0, x2:1, y2:0, {stops}); }}"
-            " QSlider::sub-page:horizontal, QSlider::add-page:horizontal { background: transparent; }")
+            " QSlider::sub-page:horizontal, QSlider::add-page:horizontal { background: transparent; }"
+            " QSlider::handle:horizontal { width: 12px; margin: -5px 0; border-radius: 8px; }")
 
 
 class ParamSlider(QWidget):
@@ -546,6 +555,11 @@ class Section(QWidget):
 
 ASPECTS = [("Free", None), ("Original", "orig"), ("1 : 1", 1.0), ("4 : 5", 0.8), ("3 : 2", 1.5),
            ("2 : 3", 2 / 3), ("4 : 3", 4 / 3), ("16 : 9", 16 / 9)]
+# Social media (0.46): the shapes each site shows a post at, by name.
+SOCIAL_ASPECTS = [("Instagram portrait 4 : 5", 0.8), ("Instagram square 1 : 1", 1.0),
+                  ("Instagram landscape 1.91 : 1", 1.91), ("Stories / Reels / TikTok 9 : 16", 9 / 16),
+                  ("YouTube thumbnail 16 : 9", 16 / 9), ("Facebook cover 2.63 : 1", 820 / 312),
+                  ("X post 16 : 9", 16 / 9), ("Pinterest 2 : 3", 2 / 3), ("LinkedIn post 1.91 : 1", 1.91)]
 
 
 class DevelopPanel(QScrollArea):
@@ -714,6 +728,9 @@ class DevelopPanel(QScrollArea):
         row.addWidget(QLabel("Aspect"))
         self.aspect_box = QComboBox()
         for label, val in ASPECTS:
+            self.aspect_box.addItem(label, val)
+        self.aspect_box.insertSeparator(self.aspect_box.count())
+        for label, val in SOCIAL_ASPECTS:
             self.aspect_box.addItem(label, val)
         self.aspect_box.currentIndexChanged.connect(lambda _: self.aspect_changed.emit(self.aspect_box.currentData()))
         row.addWidget(self.aspect_box, 1)
