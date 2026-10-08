@@ -50,3 +50,22 @@ def test_white_balance_from_a_grey_spot():
         out = [lut[c][int(round(cast[c] * 4095))] for c in range(3)]
         assert max(out) - min(out) < 0.01, (cast, out)              # neutral in the real pipeline
     assert pipeline.white_balance_from((0.6, 0.5, 0.35))[0] == -100   # beyond the slider: as far as it goes
+
+
+def test_create_from_the_right_click_menu(tmp_path):
+    from test_audit_navigation import _window
+    w, ids = _window(tmp_path, 3)
+    try:
+        cr = next(a.menu() for a in w.photo_menu.actions() if a.menu() and a.text() == "C&reate")
+        names = [a.text() for a in cr.actions()]
+        assert "Collage…" in names and "Timelapse…" in names and len(names) == 13
+        w.open_page("Library")
+        w.grid.selected = set(ids[:2])
+        w.create_from_selection("collage")
+        assert w.pages.currentWidget() is w.create_page
+        cur = w.create_page.stack.currentWidget()
+        assert (cur.widget() if hasattr(cur, "widget") else cur) is w.create_page.tools["collage"]
+    finally:
+        w._quitting = True
+        w.close()
+

@@ -930,6 +930,13 @@ class MainWindow(QMainWindow):
         st.addAction(QAction("This burst is a &timelapse", self, triggered=self.burst_is_timelapse))
         self.photo_menu.addAction(QAction("Make a &timelapse from the selection", self,
                                           triggered=self.timelapse_from_selection))
+        # Create (0.46): every Create tool, straight from the selection.
+        cr = self.photo_menu.addMenu("C&reate")
+        from lunelis.ui.create_page import TOOLS
+        for key, name, blurb, _cls in TOOLS:
+            a = QAction(f"{name}…", self, triggered=lambda _=False, k=key: self.create_from_selection(k))
+            a.setToolTip(blurb)
+            cr.addAction(a)
         sel = self.photo_menu.addMenu("Se&lect")
         for text, key, fn in (("&All", "Ctrl+A", lambda: self.grid.select_where(lambda r: True)),
                               ("&None", "Ctrl+D", lambda: self.grid.clear_selection()),
@@ -2878,6 +2885,15 @@ class MainWindow(QMainWindow):
         self.reload()
 
     # --- timelapses (timelapses.py) ------------------------------------------------------
+
+    def create_from_selection(self, key: str) -> None:
+        """Photo > Create > a tool: it opens with the selected photos."""
+        ids = self._selected_or_warn()
+        if not ids:
+            return
+        self.show_photos(ids, f"For {key.replace('_', ' ')}")
+        self.open_page("Create")
+        self.create_page.open_tool(key)
 
     def build_timelapse(self, ids: list) -> None:
         """Build timelapse...: its frames selected, then Create > Timelapse."""

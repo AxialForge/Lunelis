@@ -757,7 +757,7 @@ class DevelopPanel(QScrollArea):
                         # White balance picker (0.46): click something that should be grey.
                         self.wb_pick_b = QPushButton("Pick white balance", checkable=True)
                         self.wb_pick_b.setToolTip("Then click something in the photo that should be neutral "
-                                                  "grey or white - Temperature and Tint are set from it (W)")
+                                                  "grey or white - Temperature and Tint are set from it")
                         self.wb_pick_b.toggled.connect(lambda on: self.retouch_tool.emit("wb" if on else None))
                         v.addWidget(self.wb_pick_b)
             if group == "Light":

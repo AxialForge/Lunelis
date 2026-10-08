@@ -305,6 +305,15 @@ class AlbumsView(QWidget):
         v.addWidget(QLabel("Automatic", objectName="SectionTitle"))
         self.auto_help = QLabel("Kept up to date by Lunelis.", objectName="Help")
         v.addWidget(self.auto_help)
+        # While the automatic albums are built from the library: a moving bar and what's
+        # happening, not a silent "Counting…" (0.46).
+        from PySide6.QtWidgets import QProgressBar
+        self.auto_busy = QProgressBar()
+        self.auto_busy.setRange(0, 0)                  # indeterminate: it moves
+        self.auto_busy.setTextVisible(False)
+        self.auto_busy.setFixedHeight(6)
+        self.auto_busy.hide()
+        v.addWidget(self.auto_busy)
         self.auto = TileFlow()
         v.addWidget(self.auto)
         v.addStretch(1)
@@ -338,7 +347,9 @@ class AlbumsView(QWidget):
         if self._thread is not None:
             return
         if self._auto is None:
-            self.auto_help.setText("Counting…")
+            self.auto_help.setText("Building the automatic albums from your library - favourites, videos, "
+                                   "each camera, recent, no date… This takes a few seconds on a big library.")
+            self.auto_busy.show()
         self._thread = QThread(self)
         self._worker = _AutoWorker()
         self._worker.moveToThread(self._thread)
@@ -350,6 +361,7 @@ class AlbumsView(QWidget):
         self._thread.quit()
         self._thread.wait()
         self._thread = None
+        self.auto_busy.hide()
         if isinstance(result, Exception):
             self.auto_help.setText(f"Couldn't count the automatic albums: {result}")
             return
