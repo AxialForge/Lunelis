@@ -150,6 +150,13 @@ def test_start_migration_on_the_page_queues_the_job(tmp_path, monkeypatch):
     assert job
     from lunelis.jobs import engine
     engine.cancel(conn, job)                               # the shared test catalog: leave nothing queued
+    # The page reloads after a start: let that finish before the catalog closes, or the
+    # half-destroyed page crashed a later test (0.44, exit 127).
+    end = time.monotonic() + 20
+    while (page.bg.busy() or page._thread is not None) and time.monotonic() < end:
+        QApplication.processEvents()
+        time.sleep(0.02)
+    page.bg.wait() if hasattr(page.bg, "wait") else None
     conn.close()
 
 
