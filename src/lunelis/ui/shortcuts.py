@@ -99,7 +99,10 @@ class ShortcutSheet(QDialog):
     def __init__(self, window, screen: str = "Library") -> None:
         super().__init__(window)
         self.setWindowTitle("Keyboard shortcuts")
-        self.resize(640, 640)
+        # Wide enough for the descriptions, and they wrap rather than being cut
+        # short (0.48: a fixed 640 px cut them off).
+        scr = window.screen().availableGeometry() if window is not None and window.screen() else None
+        self.resize(min(980, int(scr.width() * 0.8)) if scr else 900, min(760, int(scr.height() * 0.85)) if scr else 700)
         v = QVBoxLayout(self)
         v.addWidget(QLabel(f"On this screen: <b>{screen}</b>. Menu commands work everywhere."))
         groups = ("Library", "Photo view", "Video", "Edit panel", "Culling (Photo > Cull full screen, Ctrl+K)",
@@ -119,9 +122,12 @@ class ShortcutSheet(QDialog):
         self.table.verticalHeader().hide()
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         hh = self.table.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.table.setColumnWidth(0, 170)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.setWordWrap(True)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideNone)
         for i, row in enumerate(rows):
             for c, text in enumerate(row):
                 it = QTableWidgetItem(text)
@@ -130,6 +136,8 @@ class ShortcutSheet(QDialog):
                     f.setBold(True)
                     it.setFont(f)
                 self.table.setItem(i, c, it)
+        self.table.resizeRowsToContents()
+        hh.sectionResized.connect(lambda *_: self.table.resizeRowsToContents())
         v.addWidget(self.table, 1)
         box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         box.rejected.connect(self.reject)

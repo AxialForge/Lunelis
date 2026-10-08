@@ -115,3 +115,18 @@ def test_pages_fit_a_1024_px_window(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_the_shortcut_sheet_wraps_instead_of_cutting(tmp_path):
+    from PySide6.QtCore import Qt
+    w, _ = _win(tmp_path, 1)
+    try:
+        from lunelis.ui.shortcuts import ShortcutSheet
+        s = ShortcutSheet(w)
+        scr = w.screen().availableGeometry().width()
+        assert s.width() == min(980, int(scr * 0.8)) and s.table.wordWrap() and s.table.textElideMode() == Qt.TextElideMode.ElideNone
+        assert s.table.columnWidth(0) <= 200                          # the long group name wraps
+        s.deleteLater()
+    finally:
+        w._quitting = True
+        w.close()
