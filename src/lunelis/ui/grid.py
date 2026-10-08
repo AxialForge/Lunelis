@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QMimeData, QPoint, QRect, QRectF, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDrag, QFont, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QAbstractScrollArea, QFrame, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QAbstractScrollArea, QFrame, QLabel, QScrollBar, QVBoxLayout
 
 from lunelis.raw.thumbnails import cache_rel_path
 from lunelis.ui.library import ROOT, LibraryIndex
@@ -57,6 +57,44 @@ class HoverCard(QFrame):
         self.adjustSize()
 
 
+class WideOnUseBar(QScrollBar):
+    """The Library's scrollbar: thin at rest, 20 px wide while the mouse is on
+    it or dragging it, so it's easy to grab on a long library (0.45)."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(Qt.Orientation.Vertical, parent)
+        self.setObjectName("GridScroll")
+        self._over = self._held = False
+
+    def _restyle(self) -> None:
+        on = self._over or self._held
+        if self.property("active") != on:
+            self.setProperty("active", on)
+            self.style().unpolish(self)
+            self.style().polish(self)
+            self.updateGeometry()
+
+    def enterEvent(self, e) -> None:
+        self._over = True
+        self._restyle()
+        super().enterEvent(e)
+
+    def leaveEvent(self, e) -> None:
+        self._over = False
+        self._restyle()
+        super().leaveEvent(e)
+
+    def mousePressEvent(self, e) -> None:
+        self._held = True
+        self._restyle()
+        super().mousePressEvent(e)
+
+    def mouseReleaseEvent(self, e) -> None:
+        self._held = False
+        self._restyle()
+        super().mouseReleaseEvent(e)
+
+
 class PhotoGrid(QAbstractScrollArea):
     selection_changed = Signal(int)       # number selected
     activated = Signal(int)               # file id (double-click / Enter)
@@ -77,6 +115,7 @@ class PhotoGrid(QAbstractScrollArea):
         self.empty_text = ""
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFrameShape(QAbstractScrollArea.Shape.NoFrame)
+        self.setVerticalScrollBar(WideOnUseBar(self))
         self.viewport().setAutoFillBackground(False)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         # In points, grown with Windows' text size (theme.font_pt); the badges

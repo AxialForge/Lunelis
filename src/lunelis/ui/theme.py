@@ -408,6 +408,8 @@ def _stylesheet(t: Theme | None = None) -> str:
     QScrollBar::handle:vertical:hover {{ background: {t.text_faint}; }}
     QScrollBar:horizontal {{ background: transparent; height: 12px; margin: 0; }}
     QScrollBar::handle:horizontal {{ background: {t.border}; border-radius: 5px; min-width: 32px; margin: 2px; }}
+    QScrollBar#GridScroll[active="true"] {{ width: 20px; }}
+    QScrollBar#GridScroll[active="true"]::handle:vertical {{ background: {t.text_faint}; border-radius: 8px; margin: 2px; }}
     QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
     QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 
