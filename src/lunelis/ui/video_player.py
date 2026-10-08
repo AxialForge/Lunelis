@@ -248,7 +248,7 @@ class VideoPlayer(QWidget):
         h.addWidget(self.len_l)
         self.mute_b = QPushButton("🔊", checkable=True)
         self.mute_b.setToolTip("Mute / unmute")
-        self.mute_b.setFixedWidth(40)
+        self.mute_b.setMinimumWidth(40)                # sized to fit its icon (0.48: it was clipped)
         self.mute_b.toggled.connect(self._mute)
         h.addWidget(self.mute_b)
         self.volume = QSlider(Qt.Orientation.Horizontal, minimum=0, maximum=100, value=80)
@@ -272,7 +272,7 @@ class VideoPlayer(QWidget):
         self.clear_out_b = QPushButton("×", clicked=lambda: self._marks_dragged(self.mark_in, None))
         self.clear_out_b.setToolTip("Remove the end flag")
         for b in (self.clear_in_b, self.clear_out_b):
-            b.setFixedWidth(30)
+            b.setMinimumWidth(30)
         self.save_b = QPushButton("Save trimmed copy", clicked=self.save_trim)
         self.save_b.setToolTip("A new file between the flags, in the Create folder - the original is untouched")
         self.log_b = QPushButton("Show log", checkable=True)

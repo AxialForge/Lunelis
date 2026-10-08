@@ -157,3 +157,20 @@ def test_sizes_never_say_0_mb():
     assert human(2_300_000_000) == "2.3 GB" and human(1_200_000_000_000) == "1.20 TB"
     from lunelis.ui import quarantine_view, dupes_view
     assert quarantine_view._size(5_000) == "5 KB" and dupes_view._gb(5_000) == "5 KB"
+
+
+def test_the_video_play_bar_keeps_its_width_at_1024(tmp_path):
+    from lunelis.catalog.schema import open_catalog
+    from lunelis.ui.video_player import VideoPlayer
+    QApplication.instance() or QApplication([])
+    conn = open_catalog(tmp_path / "c.db")
+    v = VideoPlayer(conn)
+    v.resize(720, 500)                       # the photo view's share of a 1024 px window
+    v.show()
+    QApplication.processEvents()
+    assert v.slider.width() >= 300
+    for b in (v.in_b, v.out_b, v.save_b, v.mute_b, v.clear_in_b, v.clear_out_b):
+        assert b.width() >= b.minimumSizeHint().width() - 1      # nothing cut off
+    v.close()
+    v.deleteLater()
+    conn.close()
