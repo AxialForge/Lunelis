@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-07
+
+### Added
+
+- **The migration wizard** (Migrate > Migration wizard - step by step...): a
+  window that takes every choice in order, and changes nothing on disk
+  before the copy starts. 1 Sources (a Google Takeout one goes to its page
+  to tick what comes), 2 Target (Library and Lunelis made inside it; the
+  Lunelis folder is set there), 3 Layout with a preview of where some of
+  your real photos would go, 4 Duplicates (verified groups, which copy is
+  kept, what's still unverified), 5 Leftovers - the files that aren't photos
+  or videos, by type, which stay where they are, 6 Safety (keep originals
+  until released, how long the Trash keeps things), 7 Dry run (counts,
+  space, hours of copying, problems), 8 Run (the background job, verified
+  file by file), 9 Release (the accounted-for report; release only when
+  every source file is accounted for). Reopening it goes straight to a
+  migration under way.
+
 ## [0.42.0] - 2026-10-07
 
 ### Added
