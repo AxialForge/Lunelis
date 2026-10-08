@@ -167,6 +167,10 @@ class SettingsView(QWidget):
         # is styled away instead (theme.py, #SettingsTabs).
         self.tabs.setDocumentMode(False)
         self.tabs.tabBar().setExpanding(False)
+        # At 1024 px eleven tabs don't fit: whole names with scroll arrows, never
+        # "Ac" for Advanced (0.48).
+        self.tabs.tabBar().setElideMode(Qt.TextElideMode.ElideNone)
+        self.tabs.tabBar().setUsesScrollButtons(True)
         self.tabs.setObjectName("SettingsTabs")      # the app stylesheet centres its tab bar
         self.tabs.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)   # so its band colour applies
         cards = {

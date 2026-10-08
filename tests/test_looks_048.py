@@ -77,3 +77,21 @@ def test_a_theme_switch_recolours_links_and_create_icons(tmp_path):
         w.apply_theme("graphite")
         w._quitting = True
         w.close()
+
+
+def test_settings_tabs_keep_whole_names_at_1024(tmp_path):
+    w, _ = _win(tmp_path, 1)
+    try:
+        w.show()
+        w.resize(1024, 700)
+        w.open_page("Settings")
+        QApplication.processEvents()
+        bar = w.settings_page.tabs.tabBar()
+        from PySide6.QtCore import Qt
+        assert bar.elideMode() == Qt.TextElideMode.ElideNone and bar.usesScrollButtons()
+        fm = bar.fontMetrics()
+        i = [bar.tabText(k) for k in range(bar.count())].index("Advanced")
+        assert bar.tabRect(i).width() >= fm.horizontalAdvance("Advanced")
+    finally:
+        w._quitting = True
+        w.close()
