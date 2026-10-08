@@ -23,3 +23,13 @@ def test_a_short_window_tightens_the_sidebar_so_every_section_fits(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_every_create_tool_has_its_own_icon_and_create_isnt_library():
+    from lunelis.ui import icons
+    from lunelis.ui.create_page import CARD_ICONS, TOOLS
+    names = [CARD_ICONS[k] for k, *_ in TOOLS]
+    assert len(set(names)) == len(TOOLS) == 13
+    assert all(n in icons._PATHS for n in names)
+    assert len({icons._PATHS[n] for n in names}) == 13                     # 13 different drawings
+    assert icons._PATHS[icons.NAV_ICONS["Create"]] != icons._PATHS[icons.NAV_ICONS["Library"]]

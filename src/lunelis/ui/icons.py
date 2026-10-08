@@ -42,8 +42,20 @@ _PATHS = {
     "map": '<path d="M9 4.5L3.5 6.5v13L9 17.5l6 2 5.5-2v-13L15 6.5z"/><path d="M9 4.5v13M15 6.5v13"/>',
     "calendar": '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'
                 '<path d="M12 13.5v3h2.5"/>',
-    "create": '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/>'
-              '<rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
+    "create": '<path d="M4 20L15 9"/><path d="M13.5 7.5l3 3"/><path d="M17 3v3M15.5 4.5h3M20 9v2M19 10h2M10 3v2M9 4h2"/>',
+    "collage": '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/>'
+               '<rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/>',
+    "animation": '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+    "batch": '<rect x="7" y="3" width="13" height="13" rx="1.5"/><path d="M4 7v12a1 1 0 0 0 1 1h12"/>',
+    "contact": '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M3.5 9.5h17M3.5 15h17M9.5 3.5v17M15 3.5v17"/>',
+    "slideshow": '<rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M10.5 8v5l4-2.5z"/><path d="M8 21h8"/>',
+    "before_after": '<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M12 3v18"/><path d="M6 15l2.5-3 2 2"/>',
+    "print": '<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/><path d="M7 14h10v6.5H7z"/>',
+    "focus": '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/>',
+    "trails": '<path d="M5 19a9 9 0 0 1 14-11"/><path d="M8 19a6 6 0 0 1 9-7"/><path d="M11 19a3 3 0 0 1 4-3"/><circle cx="19" cy="5" r="1"/>',
+    "median": '<rect x="4" y="4" width="13" height="13" rx="1.5"/><rect x="7" y="7" width="13" height="13" rx="1.5"/>',
+    "panorama": '<path d="M3 7c6 1.5 12 1.5 18 0v10c-6-1.5-12-1.5-18 0z"/>',
+    "hdr": '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/><path d="M12 8v8" />',
     "status": '<path d="M3 12h4.2l2.6-6.5 4.4 13 2.6-6.5H21"/>',
     "takeout": '<path d="M4 7h16v12.5H4z"/><path d="M8 7V5h8v2M9 12h6"/>',
     "timelapse": '<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2.5M9.5 3h5M12 3v2.5"/>',

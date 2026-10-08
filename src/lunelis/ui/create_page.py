@@ -1269,8 +1269,10 @@ class PrintTool(Tool):
 
 # --- the page ---------------------------------------------------------------------------------
 
-CARD_ICONS = {"animation": "status", "collage": "create", "batch": "duplicates", "contact": "albums",
-              "timelapse": "status", "slideshow": "library", "before_after": "edit", "print": "backups"}
+# Each tool its own picture (0.48: seven shared one, and Create looked like Library).
+CARD_ICONS = {"animation": "animation", "collage": "collage", "batch": "batch", "contact": "contact",
+              "timelapse": "timelapse", "slideshow": "slideshow", "before_after": "before_after", "print": "print",
+              "focus": "focus", "trails": "trails", "median": "median", "panorama": "panorama", "hdr": "hdr"}
 
 
 class _Card(QFrame):
