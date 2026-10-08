@@ -484,6 +484,9 @@ class PhotoGrid(QAbstractScrollArea):
     # --- hover card ------------------------------------------------------------
 
     def mouseMoveEvent(self, e: QMouseEvent) -> None:
+        if getattr(self, "_band", None) is not None and self._band.isVisible()                 and e.buttons() & Qt.MouseButton.LeftButton:
+            self._band_move(e.position().toPoint())
+            return
         if self._maybe_drag(e):
             return
         i = self.position_at(e.position().toPoint())
@@ -573,9 +576,13 @@ class PhotoGrid(QAbstractScrollArea):
             i = self.position_at(e.position().toPoint())
             self._press = (e.position().toPoint(), i)
             self._pending_select = None
-            if i < 0:
-                if not e.modifiers():
+            if i < 0 or e.modifiers() & Qt.KeyboardModifier.AltModifier:
+                # On empty space (or with Alt anywhere): drag a box to select (0.45).
+                if not e.modifiers() & Qt.KeyboardModifier.ControlModifier:
                     self.clear_selection()
+                self._band_start(e.position().toPoint())
+                self._press = None
+                return
             elif not e.modifiers() and self.index.file_id(i) in self.selected and len(self.selected) > 1:
                 # Pressing on a selection may start a drag of all of it: only a
                 # click that doesn't become a drag narrows it to this photo.
@@ -586,7 +593,50 @@ class PhotoGrid(QAbstractScrollArea):
                 self._set_current(i, e.modifiers())
         super().mousePressEvent(e)
 
+    # --- selecting many ------------------------------------------------------
+
+    def _band_start(self, p) -> None:
+        from PySide6.QtWidgets import QRubberBand
+        if getattr(self, "_band", None) is None:
+            self._band = QRubberBand(QRubberBand.Shape.Rectangle, self.viewport())
+        self._band_origin = p
+        self._band_y0 = p.y() + self.verticalScrollBar().value()      # in content coordinates
+        self._band_base = set(self.selected)
+        self._band.setGeometry(QRect(p, p))
+        self._band.show()
+
+    def _band_move(self, p) -> None:
+        y0 = self._band_y0 - self.verticalScrollBar().value()
+        rect = QRect(QPoint(self._band_origin.x(), y0), p).normalized()
+        self._band.setGeometry(rect.intersected(self.viewport().rect()))
+        top = min(self._band_y0, p.y() + self.verticalScrollBar().value())
+        bottom = max(self._band_y0, p.y() + self.verticalScrollBar().value())
+        left, right = rect.left(), rect.right()
+        hit = set()
+        for i in range(len(self.index)):
+            r = self._tile_rect(i)
+            ry = r.top() + self.verticalScrollBar().value()
+            if ry > bottom:
+                break
+            if ry + r.height() >= top and r.right() >= left and r.left() <= right:
+                hit.add(self.index.file_id(i))
+        self.selected = self._band_base | hit
+        self.viewport().update()
+        self.selection_changed.emit(len(self.selected))
+
+    def select_where(self, keep) -> int:
+        """Select every photo in view whose row passes keep(row); returns how many."""
+        self.selected = {r[0] for r in self.index.rows if keep(r)}
+        self.viewport().update()
+        self.selection_changed.emit(len(self.selected))
+        return len(self.selected)
+
+    def invert_selection(self) -> int:
+        return self.select_where(lambda r, s=set(self.selected): r[0] not in s)
+
     def mouseReleaseEvent(self, e: QMouseEvent) -> None:
+        if getattr(self, "_band", None) is not None and self._band.isVisible():
+            self._band.hide()
         if e.button() == Qt.MouseButton.LeftButton and getattr(self, "_pending_select", None) is not None:
             self._set_current(self._pending_select, Qt.KeyboardModifier.NoModifier)
         self._pending_select = None

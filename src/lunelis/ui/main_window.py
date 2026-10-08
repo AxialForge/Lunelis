@@ -930,6 +930,20 @@ class MainWindow(QMainWindow):
         st.addAction(QAction("This burst is a &timelapse", self, triggered=self.burst_is_timelapse))
         self.photo_menu.addAction(QAction("Make a &timelapse from the selection", self,
                                           triggered=self.timelapse_from_selection))
+        sel = self.photo_menu.addMenu("Se&lect")
+        for text, key, fn in (("&All", "Ctrl+A", lambda: self.grid.select_where(lambda r: True)),
+                              ("&None", "Ctrl+D", lambda: self.grid.clear_selection()),
+                              ("&Invert", "Ctrl+Shift+I", lambda: self.grid.invert_selection()),
+                              ("The whole &day", None, lambda: self._select_like("day")),
+                              ("The whole &folder", None, lambda: self._select_like("folder")),
+                              ("Everything &rated like this", None, lambda: self._select_like("stars"))):
+            a = QAction(text, self, triggered=lambda _=False, f=fn: self._on_photo_page() and f())
+            if key:
+                a.setShortcut(key)
+                self.addAction(a)
+            sel.addAction(a)
+        sel.addSeparator()
+        sel.addAction(QAction("Tip: drag a box from empty space (or with Alt) to select", self, enabled=False))
         a = QAction("E&xport…", self, shortcut="Ctrl+Shift+E", triggered=self.export_photos)
         self.photo_menu.addAction(a)
         self.addAction(a)
@@ -2774,6 +2788,36 @@ class MainWindow(QMainWindow):
         self.set_filter(Filter(event_id=event_id, event_name=name))
 
     # --- burst stacks ----------------------------------------------------------------
+
+    def _select_like(self, how: str) -> None:
+        """Photo > Select > the whole day / folder / rating of what's selected."""
+        from lunelis.ui.library import ROOT, SORT_DATE, STARS
+        sel = self.grid.selected or ({self.index.file_id(self.grid.current)} if 0 <= self.grid.current < len(self.index) else set())
+        if not sel:
+            self.status.setText("Select a photo first")
+            return
+        rows = [r for r in self.index.rows if r[0] in sel]
+
+        def day(v):
+            if isinstance(v, str):
+                return v[:10]
+            from datetime import datetime
+            return datetime.fromtimestamp(v).date().isoformat() if v else None
+        if how == "day":
+            days = {day(r[SORT_DATE]) for r in rows}
+            n = self.grid.select_where(lambda r: day(r[SORT_DATE]) in days)
+        elif how == "stars":
+            stars = {r[STARS] for r in rows}
+            n = self.grid.select_where(lambda r: r[STARS] in stars)
+        else:
+            def folder(fid):
+                rel = self.conn.execute("SELECT root_id, rel_path FROM files WHERE id = ?", (fid,)).fetchone()
+                return (rel[0], rel[1].rsplit("/", 1)[0] if "/" in rel[1] else "") if rel else None
+            folders = {folder(r[0]) for r in rows}
+            ids = {fid for fid, rid, rel in self.conn.execute("SELECT id, root_id, rel_path FROM files")
+                   if (rid, rel.rsplit("/", 1)[0] if "/" in rel else "") in folders}
+            n = self.grid.select_where(lambda r: r[0] in ids)
+        self.status.setText(f"{n:,} selected")
 
     def _update_tray(self, selected: int = 0) -> None:
         i = self.grid.current

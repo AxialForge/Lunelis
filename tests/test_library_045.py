@@ -48,3 +48,26 @@ def test_selecting_a_stack_shows_its_frames_in_the_tray(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_select_many_by_box_and_by_menu(tmp_path):
+    from PySide6.QtCore import QPoint
+    from test_audit_navigation import _window
+    w, ids = _window(tmp_path, 6)
+    try:
+        w.open_page("Library")
+        w.resize(1200, 800)
+        g = w.grid
+        g._band_start(QPoint(0, 0))                                   # a box over the whole view
+        g._band_move(QPoint(g.viewport().width() - 1, g.viewport().height() - 1))
+        assert set(ids) <= g.selected
+        g.select_where(lambda r: r[0] == ids[0])
+        assert g.invert_selection() == len(w.index) - 1 and ids[0] not in g.selected
+        g.select_where(lambda r: r[0] == ids[0])
+        w._select_like("folder")                                       # all six are in one folder
+        assert set(ids) <= g.selected
+        names = [a.text() for a in w.photo_menu.actions() if a.menu()]
+        assert "Se&lect" in names
+    finally:
+        w._quitting = True
+        w.close()
