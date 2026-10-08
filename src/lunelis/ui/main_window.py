@@ -60,6 +60,7 @@ from lunelis.ui.widgets import plain
 LABEL_KEYS = {"Red": "6", "Yellow": "7", "Green": "8", "Blue": "9", "Purple": None}
 XMP_WRITE_DELAY_MS = 1200     # write sidecars shortly after the user stops rating
 SIDEBAR_WIDE, SIDEBAR_NARROW = 240, 64     # px: with page names / icons only (Ctrl+B)
+SHORT_WINDOW_HEIGHT = 820                  # px: below this the sidebar's rows tighten (0.48)
 AUTO_SIDEBAR_WIDTH = 1100                  # px: below this the sidebar folds to icons by itself
 CLOSE_SIDECAR_LIMIT = 200                  # sidecars written while closing; more wait for the next start
 RATE_CONFIRM = 500                         # ask before rating / labelling / flagging more photos than this
@@ -1103,6 +1104,14 @@ class MainWindow(QMainWindow):
         self.scan_step.setMinimumWidth(0 if narrow else getattr(self, "_scan_step_min", 0))
         if not narrow:
             self._auto_held = False
+        # A short window (or 150 % scaling on a laptop): tighter sidebar rows, so
+        # every section fits - lower sections had fallen out of sight (0.48).
+        dense = self.height() < SHORT_WINDOW_HEIGHT
+        if self.sidebar.property("dense") != dense:
+            self.sidebar.setProperty("dense", dense)
+            for w in [self.sidebar, *self.sidebar.findChildren(QWidget)]:
+                w.style().unpolish(w)
+                w.style().polish(w)
         want = bool(s.get("sidebar_compact")) or (
             bool(s.get("sidebar_auto")) and narrow and not getattr(self, "_auto_held", False))
         if want != self._sidebar_compact:

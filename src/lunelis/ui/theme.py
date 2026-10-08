@@ -249,8 +249,8 @@ def _stylesheet(t: Theme | None = None) -> str:
 
     QWidget#Sidebar {{ background: {t.sidebar_bg}; }}
     QScrollArea#SidebarScroll, QWidget#SidebarNav {{ background: transparent; border: none; }}
-    QScrollArea#SidebarScroll QScrollBar:vertical {{ width: 6px; background: transparent; }}
-    QScrollArea#SidebarScroll QScrollBar::handle:vertical {{ background: {t.sidebar_divider}; border-radius: 3px; margin: 0; min-height: 24px; }}
+    QScrollArea#SidebarScroll QScrollBar:vertical {{ width: 10px; background: transparent; }}
+    QScrollArea#SidebarScroll QScrollBar::handle:vertical {{ background: {t.sidebar_muted}; border-radius: 4px; margin: 1px; min-height: 24px; }}
     QLabel#AppName {{ color: {t.sidebar_text}; font-size: 18px; font-weight: 700; }}
     QPushButton#NavSection {{
         color: {t.sidebar_footer}; background: transparent; border: none; text-align: left;
@@ -264,6 +264,9 @@ def _stylesheet(t: Theme | None = None) -> str:
     QWidget#Sidebar[compact="true"] QPushButton#NavItem,
     QWidget#Sidebar[compact="true"] QPushButton#NavBottom {{ padding: 9px 0; text-align: center; }}
     QFrame#NavRule {{ background: {t.sidebar_divider}; margin: 6px 6px; }}
+    QWidget#Sidebar[dense="true"] QPushButton#NavItem {{ padding: 4px 12px; }}
+    QWidget#Sidebar[dense="true"] QPushButton#NavSection {{ padding: 6px 12px 2px 12px; }}
+    QWidget#Sidebar[dense="true"][compact="true"] QPushButton#NavItem {{ padding: 5px 0; }}
     QPushButton#NavItem:hover:enabled {{ background: {t.sidebar_active_bg}; color: {t.sidebar_text}; }}
     QPushButton#NavItem:checked {{ color: {t.sidebar_text}; background: {t.sidebar_active_bg}; font-weight: 600; }}
     QPushButton#NavBottom {{
