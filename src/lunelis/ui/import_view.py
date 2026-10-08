@@ -27,8 +27,9 @@ from lunelis.settings import Settings
 from lunelis.ui.background import Background, unless_closed
 
 
-def _gb(n: int) -> str:
-    return f"{n / 1e9:,.1f} GB" if n >= 1e8 else f"{n / 1e6:,.0f} MB"
+def _gb(n) -> str:
+    from lunelis.ui.sizes import human
+    return human(n)
 
 
 class PreviewWorker(QObject):

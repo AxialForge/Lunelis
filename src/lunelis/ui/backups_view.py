@@ -25,8 +25,9 @@ from lunelis.catalog.schema import open_catalog
 from lunelis.ui.background import Background, unless_closed
 
 
-def _gb(n: int) -> str:
-    return f"{n / 1e12:,.2f} TB" if n >= 1e12 else f"{n / 1e9:,.1f} GB" if n >= 1e8 else f"{n / 1e6:,.0f} MB"
+def _gb(n) -> str:
+    from lunelis.ui.sizes import human
+    return human(n)
 
 
 def _when(iso: str | None) -> str:

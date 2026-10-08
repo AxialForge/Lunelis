@@ -43,8 +43,9 @@ STEPS = ("Sources", "Target", "Layout", "Duplicates", "Leftovers", "Safety", "Dr
 COPY_MB_PER_S = 45          # a gigabit network through the PC: ~6-8 h per TB
 
 
-def _gb(n: int) -> str:
-    return f"{n / 1e12:,.2f} TB" if n >= 1e12 else f"{n / 1e9:,.1f} GB" if n >= 1e8 else f"{n / 1e6:,.0f} MB"
+def _gb(n) -> str:
+    from lunelis.ui.sizes import human
+    return human(n)
 
 
 def leftovers(roots: list[str]) -> list[tuple[str, int, int]]:

@@ -32,8 +32,9 @@ STATE_TEXT = {"planned": "Waiting", "copied": "Copied, original pending", "done"
               "skipped": "Skipped", "failed": "Failed"}
 
 
-def _gb(n: int) -> str:
-    return f"{n / 1e12:,.2f} TB" if n >= 1e12 else f"{n / 1e9:,.1f} GB" if n >= 1e8 else f"{n / 1e6:,.0f} MB"
+def _gb(n) -> str:
+    from lunelis.ui.sizes import human
+    return human(n)
 
 
 class Worker(QObject):

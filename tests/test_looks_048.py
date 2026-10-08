@@ -148,3 +148,12 @@ def test_selected_table_rows_are_a_soft_tint():
     for t in theme.THEMES.values():
         css = theme.stylesheet(t)
         assert "QTableView::item:selected" in css and "rgba(" in css
+
+
+def test_sizes_never_say_0_mb():
+    from lunelis.ui.sizes import human
+    assert human(0) == "0 bytes" and human(1) == "1 byte" and human(812) == "812 bytes"
+    assert human(23_400) == "23 KB" and human(4_560_000) == "4.6 MB" and human(456_000_000) == "456 MB"
+    assert human(2_300_000_000) == "2.3 GB" and human(1_200_000_000_000) == "1.20 TB"
+    from lunelis.ui import quarantine_view, dupes_view
+    assert quarantine_view._size(5_000) == "5 KB" and dupes_view._gb(5_000) == "5 KB"

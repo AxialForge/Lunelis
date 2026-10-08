@@ -38,8 +38,9 @@ def _local_date(iso: str | None) -> str:
     return dt.astimezone().strftime("%Y-%m-%d")
 
 
-def _size(n: int) -> str:
-    return f"{n / 1e9:,.2f} GB" if n >= 1e9 else f"{n / 1e6:,.1f} MB"
+def _size(n) -> str:
+    from lunelis.ui.sizes import human
+    return human(n)
 
 
 def db_file(conn) -> str:

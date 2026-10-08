@@ -105,8 +105,9 @@ def choose_keeper(conn, group_id: int, file_id: int) -> None:
     conn.commit()
 
 
-def _gb(n: int) -> str:
-    return f"{n / 1e9:,.1f} GB" if n >= 1e8 else f"{n / 1e6:,.0f} MB"
+def _gb(n) -> str:
+    from lunelis.ui.sizes import human
+    return human(n)
 
 
 def _source(root: str) -> str:
