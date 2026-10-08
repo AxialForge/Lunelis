@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-08
+
+### Added
+
+- **Stack tray:** select a burst, stack or timelapse tile in the Library and
+  its frames appear in a strip above the grid, without opening the stack.
+  Double-click a frame to open it; right-click to make it the cover.
+- **Select many at once:** drag a box from empty space (or anywhere with
+  Alt; with Ctrl it adds to the selection), and Photo > Select > All
+  (Ctrl+A), None (Ctrl+D), Invert (Ctrl+Shift+I), the whole day, the whole
+  folder, or everything rated like the selection.
+
+### Changed
+
+- **The Library's scrollbar** widens to 20 px while the mouse is on it or
+  dragging it, so it's easy to grab on a long library.
+- **"Comparing photos" is quicker:** the near-duplicate fingerprint is taken
+  while each thumbnail is made, instead of reading every new thumbnail back
+  from disk afterwards; the comparison itself counts bits faster.
+
 ## [0.44.1] - 2026-10-08
 
 Fixes from a migration rehearsal on copies of real folders (an Epcot day
