@@ -233,3 +233,25 @@ def test_people_page_and_the_photo_overlay(tmp_path, monkeypatch):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_merge_with_on_the_person_page(lib, monkeypatch):
+    """0.47: two names for one person - Merge with... on their page."""
+    from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.people_view import PeopleView
+    conn, ids, rid = lib
+    scan(conn)
+    a = faces.name_faces(conn, [f.id for f in faces.faces_of(conn, ids["ann1.jpg"])][:1], "Ann")
+    b = faces.name_faces(conn, [f.id for f in faces.faces_of(conn, ids["bob1.jpg"])], "Annie")
+    view = PeopleView(conn)
+    view.bg.wait()                                  # its own loads finish before the catalog closes
+    view.person = b
+    assert [n for _, n in view.merge_choices()] == ["Ann"]
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *x, **k: ("Ann", True))
+    monkeypatch.setattr(QMessageBox, "question", lambda *x, **k: QMessageBox.StandardButton.Yes)
+    view._merge()
+    assert view.person == a and [p.name for p in faces.people(conn)] == ["Ann"]
+    assert "People|Ann" in tags.tags_of(conn, ids["bob1.jpg"])
+    assert not [t for t in tags.tags_of(conn, ids["bob1.jpg"]) if t == "People|Annie"]
+    view.bg.wait()

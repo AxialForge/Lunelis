@@ -154,6 +154,9 @@ class PeopleView(QWidget):
         top.addStretch(1)
         top.addWidget(QPushButton("Show photos", objectName="Primary", clicked=self._show_person_photos))
         top.addWidget(QPushButton("Rename…", clicked=self._rename))
+        merge = QPushButton("Merge with…", clicked=self._merge)
+        merge.setToolTip("The same person under two names: move all these faces to the other one")
+        top.addWidget(merge)
         top.addWidget(QPushButton("Forget this person…", clicked=self._forget))
         v.addLayout(top)
         self.person_waiting_label = QLabel(objectName="SubTitle")
@@ -526,6 +529,36 @@ class PeopleView(QWidget):
                 QMessageBox.information(self, "Rename", str(e))
                 return
             self._done()
+
+    def merge_choices(self) -> list[tuple[int, str]]:
+        """Everyone else, by name - who this person can be merged into."""
+        return [(pid, name) for pid, name in self.conn.execute(
+            "SELECT id, name FROM people WHERE id != ? AND name IS NOT NULL ORDER BY name COLLATE NOCASE",
+            (self.person,))]
+
+    def _merge(self) -> None:
+        if self.person is None:
+            return
+        others = self.merge_choices()
+        name = faces.name_of(self.conn, self.person)
+        if not others:
+            QMessageBox.information(self, "Merge", "There's nobody else to merge with yet.")
+            return
+        pick, ok = QInputDialog.getItem(self, "Merge with…", f"{name} is the same person as:",
+                                        [n for _, n in others], 0, False)
+        if not ok:
+            return
+        into = next(pid for pid, n in others if n == pick)
+        n = self.conn.execute("SELECT COUNT(*) FROM faces WHERE person_id = ?", (self.person,)).fetchone()[0]
+        if QMessageBox.question(self, "Merge", f"Move {name}'s {n:,} faces to {pick} and remove the name "
+                                f"{name}? Their photos get the People|{pick} tag.") != QMessageBox.StandardButton.Yes:
+            return
+        self.merge_into(into)
+
+    def merge_into(self, into: int) -> None:
+        faces.merge_people(self.conn, self.person, into)
+        self.person = into
+        self._done()
 
     def _forget(self) -> None:
         if self.person is None:
