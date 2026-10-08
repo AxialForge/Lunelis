@@ -42,6 +42,8 @@ class TakeoutView(QWidget):
         h.addWidget(QLabel("Google Takeout", objectName="PageTitle"))
         h.addSpacing(12)
         self.summary = QLabel(objectName="Count")
+        from PySide6.QtWidgets import QSizePolicy
+        self.summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)   # shrinks, never widens the page
         h.addWidget(self.summary, 1)
         self.filter = QComboBox()
         for label, key in FILTERS:

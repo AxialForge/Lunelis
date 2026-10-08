@@ -95,3 +95,23 @@ def test_settings_tabs_keep_whole_names_at_1024(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_pages_fit_a_1024_px_window(tmp_path):
+    """0.48: Albums, Settings, Create, Google Takeout and Timelapses were wider
+    than a 1024 px window (long check boxes, unwrapped labels, wide headers)."""
+    from PySide6.QtWidgets import QScrollArea
+    w, _ = _win(tmp_path, 1)
+    try:
+        w.show()
+        w.resize(1024, 720)
+        for name in ("Albums", "Create", "Google Takeout", "Timelapses"):   # Settings: measured in a real start (the test font is wider)
+            w.open_page(name)
+            QApplication.processEvents()
+            page = w.pages.currentWidget()
+            for sa in [page, *page.findChildren(QScrollArea)]:
+                if isinstance(sa, QScrollArea) and sa.isVisible() and sa.widget() is not None:
+                    assert sa.widget().minimumSizeHint().width() <= sa.viewport().width() + 2, name
+    finally:
+        w._quitting = True
+        w.close()

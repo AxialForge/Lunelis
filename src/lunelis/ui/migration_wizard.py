@@ -30,6 +30,8 @@ from PySide6.QtWidgets import (
     QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
     QMessageBox, QPushButton, QRadioButton, QStackedWidget, QTextBrowser, QVBoxLayout, QWidget,
 )
+from lunelis.ui.wrapcheck import WrapCheckBox as QCheckBox  # noqa: E402  labels wrap (0.48)
+from lunelis.ui.wrapcheck import WrapRadioButton as QRadioButton  # noqa: E402
 
 from lunelis import paths
 from lunelis.catalog.schema import open_catalog

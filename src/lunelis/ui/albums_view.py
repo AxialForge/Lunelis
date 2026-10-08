@@ -303,7 +303,7 @@ class AlbumsView(QWidget):
         v.addWidget(self.smart)
         v.addSpacing(16)
         v.addWidget(QLabel("Automatic", objectName="SectionTitle"))
-        self.auto_help = QLabel("Kept up to date by Lunelis.", objectName="Help")
+        self.auto_help = QLabel("Kept up to date by Lunelis.", objectName="Help", wordWrap=True)
         v.addWidget(self.auto_help)
         # While the automatic albums are built from the library: a moving bar and what's
         # happening, not a silent "Counting…" (0.46).

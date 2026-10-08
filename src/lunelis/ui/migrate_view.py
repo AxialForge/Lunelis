@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QRadioButton, QScrollArea,
     QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
+from lunelis.ui.wrapcheck import WrapCheckBox as QCheckBox  # noqa: E402  labels wrap (0.48)
+from lunelis.ui.wrapcheck import WrapRadioButton as QRadioButton  # noqa: E402
 
 from lunelis import paths
 from lunelis.catalog import backup
@@ -119,8 +121,11 @@ class MigrateView(QWidget):
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.setChildrenCollapsible(False)
-        split.addWidget(self._form())
+        form = self._form()
+        form.setMinimumWidth(420)                      # the choices stay readable on a 1024 px window (0.48)
+        split.addWidget(form)
         split.addWidget(self._results())
+        split.setChildrenCollapsible(False)
         split.setSizes([560, 820])
         outer.addWidget(split, 1)
         self.refresh()
@@ -137,7 +142,7 @@ class MigrateView(QWidget):
         v.setContentsMargins(24, 20, 16, 20)
         v.setSpacing(10)
 
-        wiz = QPushButton("Migration wizard - step by step…", objectName="Primary", clicked=self.open_wizard.emit)
+        wiz = QPushButton("Migration wizard…", objectName="Primary", clicked=self.open_wizard.emit)
         wiz.setToolTip("Every choice in order, a dry run, the copy, then the accounted-for report and release")
         v.addWidget(wiz, 0, Qt.AlignmentFlag.AlignLeft)
         v.addWidget(QLabel("Or set it all up on this page:", objectName="Help"))
@@ -164,6 +169,8 @@ class MigrateView(QWidget):
         v.addWidget(QLabel("3. Folders", objectName="SectionTitle"))
         self.template = QComboBox()
         self.template.setEditable(True)
+        self.template.setMinimumContentsLength(18)
+        self.template.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         for label, t in PRESETS.items():
             if "import" in t and "event" not in t and "{YYYY}" not in t:
                 continue                      # import-date presets make no sense for a migration
@@ -202,6 +209,8 @@ class MigrateView(QWidget):
         for label, key in (("One folder for the day", "none"), ("A folder per camera", "camera"),
                            ("The folder each photo came from", "original")):
             self.photo_sub.addItem(label, key)
+        self.photo_sub.setMinimumContentsLength(10)
+        self.photo_sub.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         sub.addWidget(self.photo_sub)
         sub.addStretch(1)
         lb.addLayout(sub)
@@ -227,8 +236,10 @@ class MigrateView(QWidget):
         v.addWidget(self.archived_only)
         self.mode = QButtonGroup(self)
         keep = QRadioButton("Keep the originals until I've reviewed the new library")
+        keep.setMinimumWidth(0)
         keep.setChecked(True)
-        move = QRadioButton("Move each original to quarantine as soon as its copy is verified")
+        move = QRadioButton("Move each original aside once its copy is verified")
+        move.setToolTip("To the Lunelis folder's Trash, or quarantine on its own drive - as soon as its copy is verified")
         self.mode.addButton(keep, 0)
         self.mode.addButton(move, 1)
         v.addWidget(keep)
@@ -243,6 +254,8 @@ class MigrateView(QWidget):
         v.addStretch(1)
         scroll.setWidget(page)
         self._layout_toggled(self.library_layout.isChecked())
+        from lunelis.ui.wrapcheck import narrow_combos
+        narrow_combos(page)
         return scroll
 
     # --- the results --------------------------------------------------------------------------
@@ -346,6 +359,10 @@ class MigrateView(QWidget):
         self.template.setEnabled(not on)               # the layout names the day folders itself
         self._example(self.template.currentText())
 
+    def _set_example(self, text: str) -> None:
+        # Paths have no spaces to wrap at: a break point after each backslash (0.48).
+        self.example.setText(text.replace(chr(92), chr(92) + "\u200b"))
+
     def _example(self, text: str) -> None:
         box = getattr(self, "library_layout", None)
         if box is not None and box.isChecked():
@@ -353,7 +370,7 @@ class MigrateView(QWidget):
             o = layout.LayoutOptions()
             t = datetime(2026, 6, 19, 14, 3)
             self.example.setObjectName("Example")
-            self.example.setText(
+            self._set_example(
                 "e.g. " + layout.place(o, taken=t, kind="Photos", event="Air Show") + "\\DSC01234.ARW   ·   "
                 + layout.place(o, taken=t, kind="Videos") + "\\C0001.MP4   ·   "
                 + layout.place(o, taken=t, kind="Photos", timelapse=(t, 786)) + "\\DSC05000.ARW")
@@ -365,10 +382,10 @@ class MigrateView(QWidget):
                                           event="Air Show", event_start=datetime(2026, 6, 19, 9)))
             plain = render(text, Context(datetime(2026, 6, 19, 14, 3), camera="ILCE-7RM5"))
             self.example.setObjectName("Example")
-            self.example.setText(f"e.g. {plain}\\DSC01234.ARW   ·   in an event: {folder}\\DSC01234.ARW")
+            self._set_example(f"e.g. {plain}\\DSC01234.ARW   ·   in an event: {folder}\\DSC01234.ARW")
         except TemplateError as e:
             self.example.setObjectName("Error")
-            self.example.setText(f"Can't use this template: {e}")
+            self._set_example(f"Can't use this template: {e}")
         self.example.style().unpolish(self.example)
         self.example.style().polish(self.example)
 

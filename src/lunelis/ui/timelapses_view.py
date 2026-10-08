@@ -83,7 +83,9 @@ class TimelapsesView(QWidget):
         h.addWidget(QLabel("Timelapses", objectName="PageTitle"))
         h.addSpacing(12)
         self.summary = QLabel(objectName="Count")
-        h.addWidget(self.summary)
+        from PySide6.QtWidgets import QSizePolicy
+        self.summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        h.addWidget(self.summary, 1)
         h.addStretch(1)
         self.auto_stack = QCheckBox()
         self.auto_stack.setToolTip("New timelapses this long show as one tile in the library as soon as they're found")
@@ -113,7 +115,7 @@ class TimelapsesView(QWidget):
         s = Settings(self.conn)
         self.auto_stack.blockSignals(True)
         self.auto_stack.setChecked(bool(s.get("timelapse_auto_stack")))
-        self.auto_stack.setText(f"Stack {s.get('timelapse_auto_stack_frames'):,}+ frames by themselves")
+        self.auto_stack.setText(f"Auto-stack {s.get('timelapse_auto_stack_frames'):,}+")
         self.auto_stack.blockSignals(False)
         self.note.setText(
             f"Interval shoots of {s.get('timelapse_min_frames'):,} frames or more at a steady interval, from one "

@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton,
     QRadioButton, QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
+from lunelis.ui.wrapcheck import WrapCheckBox as QCheckBox  # noqa: E402  labels wrap (0.48)
 
 from lunelis import paths
 from lunelis.catalog import backup
@@ -223,6 +224,8 @@ class SettingsView(QWidget):
             if isinstance(w, (QComboBox, QAbstractSpinBox, QAbstractSlider)):
                 w.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
                 w.installEventFilter(_wheel_guard())
+        from lunelis.ui.wrapcheck import narrow_combos
+        narrow_combos(holder)
         return scroll
 
     def show_tab(self, name: str) -> None:

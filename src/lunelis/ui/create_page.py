@@ -1280,6 +1280,11 @@ class _Card(QFrame):
 
     clicked = Signal()
 
+    def minimumSizeHint(self):
+        # Narrow enough for three in a row at 1024 px (0.48: the grid was 1140 px wide).
+        from PySide6.QtCore import QSize
+        return QSize(180, super().minimumSizeHint().height())
+
     def __init__(self, name: str, blurb: str, icon_name: str) -> None:
         super().__init__(objectName="CreateCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1466,7 +1471,7 @@ class CreatePage(QWidget):
         intro.setWordWrap(True)
         h.addWidget(intro)
         where = QHBoxLayout()
-        self.where = QLabel(objectName="Help")
+        self.where = QLabel(objectName="Help", wordWrap=True)
         self.where.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         where.addWidget(self.where, 1)
         where.addWidget(QPushButton("Open the folder", clicked=self.open_folder))
