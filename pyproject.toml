@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lunelis"
-version = "0.45.0"
+version = "0.46.0"
 description = "Local, Windows-first photo library: RAW + standard formats, EXIF, ratings, albums, non-destructive editing."
 requires-python = ">=3.13"
 license = "MIT"

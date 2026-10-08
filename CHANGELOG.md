@@ -6,6 +6,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-10-08
+
+### Added
+
+- **White balance picker** (Edit > Color > Pick white balance): click
+  something that should be neutral grey or white and Temperature and Tint
+  are set from it. A cast stronger than the sliders reach goes as far as
+  they go, and says so.
+- **Social media crop ratios** (Edit > Crop > Aspect): Instagram portrait
+  4:5, square and landscape 1.91:1, Stories / Reels / TikTok 9:16, YouTube
+  thumbnail 16:9, Facebook cover, X post, Pinterest 2:3, LinkedIn post.
+- **Photo > Create** (and the right-click menu): any Create tool, opened with
+  the selected photos.
+
+### Changed
+
+- **Round slider handles:** the coloured sliders (Exposure, Temperature,
+  Tint...) drew their handle as an oval; it's a circle like the others.
+- **Smoother slider drags:** the live preview while a slider moves is at
+  most 960 px, about 13 frames a second instead of 6 on a large screen;
+  letting go renders full size as before.
+- **The Albums page says when it's building** the automatic albums, with a
+  moving bar, instead of a bare "Counting...".
+
 ## [0.45.0] - 2026-10-08
 
 ### Added
