@@ -135,3 +135,19 @@ def test_a_plane_in_a_clear_sky_pairs_only_by_name_and_shift():
     assert same_photo(nas, tko, 4)
     other = (int("000008180c010000", 16), "2024-09-02T15:53:47.052", 1.5, (2, "b"), "sep04727.jpg", None, 21_041_860)
     assert not same_photo(nas, other, 4)                          # another sky shot: blank proves nothing
+
+
+def test_unpacker_layout_albums_come_from_the_json_folders(conn):
+    """0.47: Unpacker V2 files Takeout photos by year/month; the album is the
+    folder its JSON was put in."""
+    conn.execute("INSERT INTO files (id, root_id, rel_path, filename, ext, size_bytes, mtime)"
+                 " VALUES (7, 2, 'Library/Photos/2024/09/SEP03632.jpg', 'SEP03632.jpg', 'jpg', 1, 0)")
+    conn.execute("INSERT INTO exif (file_id, captured_at) VALUES (7, '2024-09-03T01:16:31')")
+    conn.execute("INSERT INTO takeout_meta (file_id, json_path) VALUES (7, 'Library/Photos/_json/2024 Cleveland Airshow/SEP03632.jpg.supplemental-metadata.json')")
+    conn.execute("INSERT INTO files (id, root_id, rel_path, filename, ext, size_bytes, mtime)"
+                 " VALUES (8, 2, 'Library/Photos/2024/09/20240915_113955.jpg', '20240915_113955.jpg', 'jpg', 1, 0)")
+    conn.execute("INSERT INTO exif (file_id, captured_at) VALUES (8, '2024-09-15T11:39:55')")
+    conn.commit()
+    its = {i.file_id: i for i in tr.items(conn)}
+    assert its[7].album == "2024 Cleveland Airshow"
+    assert its[8].album == "2024-09 (no album)"

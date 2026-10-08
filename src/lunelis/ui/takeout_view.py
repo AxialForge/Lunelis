@@ -65,6 +65,9 @@ class TakeoutView(QWidget):
         self.tree.setColumnWidth(1, 80)
         self.tree.setColumnWidth(2, 220)
         self.tree.itemChanged.connect(self._changed)
+        self.tree.itemExpanded.connect(self._thumbs_for)      # small pictures, made when an album opens
+        from PySide6.QtCore import QSize
+        self.tree.setIconSize(QSize(48, 48))
         self.tree.currentItemChanged.connect(self._preview)
         split.addWidget(self.tree)
         side = QWidget()
@@ -114,12 +117,28 @@ class TakeoutView(QWidget):
                     marks = ", ".join(m for m, on in (("in your library", it.in_library), ("Google's edit", it.edited),
                                                        ("repeat", it.numbered)) if on)
                     leaf = QTreeWidgetItem([it.filename, "", marks])
+                    if it.thumbnail:
+                        leaf.setData(0, Qt.ItemDataRole.UserRole + 1, it.thumbnail)
                     leaf.setFlags(leaf.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                     leaf.setData(0, ID, it.file_id)
                     leaf.setCheckState(0, Qt.CheckState.Checked if it.included else Qt.CheckState.Unchecked)
                     a.addChild(leaf)
                 ny += len(its)
             y.setText(1, f"{ny:,}")
+        self._filling = False
+
+    def _thumbs_for(self, parent: QTreeWidgetItem) -> None:
+        from PySide6.QtGui import QIcon
+        from lunelis import paths
+        self._filling = True
+        for k in range(parent.childCount()):
+            leaf = parent.child(k)
+            rel = leaf.data(0, Qt.ItemDataRole.UserRole + 1)
+            if rel and leaf.icon(0).isNull():
+                pix = QPixmap(str(paths.THUMBNAIL_CACHE / rel))
+                if not pix.isNull():
+                    leaf.setIcon(0, QIcon(pix.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio,
+                                                     Qt.TransformationMode.SmoothTransformation)))
         self._filling = False
 
     def _leaves(self, item: QTreeWidgetItem) -> list[QTreeWidgetItem]:

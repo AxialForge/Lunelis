@@ -41,9 +41,16 @@ class Item:
     thumbnail: str | None
 
 
-def _album_of(rel: str) -> str:
-    """The album folder a Takeout item sits in: its own folder's name, below
-    'Takeout/Google Photos' if that's in the path."""
+def _album_of(rel: str, json_path: str | None = None) -> str:
+    """The album a Takeout item is in. Unpacker V2's organised layout files
+    photos by year/month and keeps the album in its JSON's folder
+    (`_json/<album>/name.json`), so that wins; else the item's own folder,
+    below 'Takeout/Google Photos' if that's in the path."""
+    if json_path:
+        jp = json_path.split("/")
+        low = [p.lower() for p in jp]
+        if "_json" in low and low.index("_json") + 2 <= len(jp) - 1:
+            return jp[low.index("_json") + 1]
     parts = rel.split("/")[:-1]
     low = [p.lower() for p in parts]
     if "google photos" in low:
@@ -91,12 +98,15 @@ def items(conn: sqlite3.Connection) -> list[Item]:
     chosen = dict(conn.execute("SELECT file_id, include FROM takeout_choices"))
     q = ",".join("?" * len(roots))
     out = []
-    for fid, rid, rel, name, taken, thumb in conn.execute(
-            f"SELECT f.id, f.root_id, f.rel_path, f.filename, e.captured_at, f.thumbnail_path FROM files f"
-            f" LEFT JOIN exif e ON e.file_id = f.id WHERE f.root_id IN ({q}) AND f.missing_since IS NULL"
+    for fid, rid, rel, name, taken, thumb, jpath in conn.execute(
+            f"SELECT f.id, f.root_id, f.rel_path, f.filename, e.captured_at, f.thumbnail_path, t.json_path FROM files f"
+            f" LEFT JOIN exif e ON e.file_id = f.id LEFT JOIN takeout_meta t ON t.file_id = f.id"
+            f" WHERE f.root_id IN ({q}) AND f.missing_since IS NULL"
             f" AND f.excluded = 0 AND f.quarantined_at IS NULL ORDER BY e.captured_at, f.rel_path", roots):
-        album = _album_of(rel)
+        album = _album_of(rel, jpath)
         m = YEAR_FOLDER.match(album)
+        if album.isdigit() and len(album) <= 2:            # Unpacker's month folder, no album: by month
+            album = f"{taken[:7] if taken else 'Undated'} (no album)"
         year = taken[:4] if taken else (m.group(1) if m else "Undated")
         stem = name.rsplit(".", 1)[0].lower()
         inside = fid in already
