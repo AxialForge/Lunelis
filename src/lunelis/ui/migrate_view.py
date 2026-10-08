@@ -92,6 +92,7 @@ def _item(text: str, right: bool = False) -> QTableWidgetItem:
 class MigrateView(QWidget):
     job_started = Signal(int)            # the runner should pick it up
     library_changed = Signal()
+    open_wizard = Signal()               # the step-by-step migration window (migration_wizard.py)
 
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
@@ -136,6 +137,10 @@ class MigrateView(QWidget):
         v.setContentsMargins(24, 20, 16, 20)
         v.setSpacing(10)
 
+        wiz = QPushButton("Migration wizard - step by step…", objectName="Primary", clicked=self.open_wizard.emit)
+        wiz.setToolTip("Every choice in order, a dry run, the copy, then the accounted-for report and release")
+        v.addWidget(wiz, 0, Qt.AlignmentFlag.AlignLeft)
+        v.addWidget(QLabel("Or set it all up on this page:", objectName="Help"))
         v.addWidget(QLabel("1. What to move", objectName="SectionTitle"))
         self.sources = QListWidget()
         row_toggles(self.sources)

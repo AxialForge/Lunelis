@@ -629,6 +629,7 @@ class MainWindow(QMainWindow):
         self.migrate_page = MigrateView(self.conn)
         self.migrate_page.job_started.connect(lambda _: self.runner.poke())
         self.migrate_page.library_changed.connect(self.reload)
+        self.migrate_page.open_wizard.connect(self.open_migration_wizard)
         self.pages.addWidget(self.migrate_page)
         self.backups_page = BackupsView(self.conn)
         self.backups_page.job_started.connect(lambda _: self._job_queued())
@@ -3247,6 +3248,16 @@ class MainWindow(QMainWindow):
         if self.pages.currentWidget() is getattr(self, "settings_page", None):
             self.settings_page.refresh()                   # its Sources table shows the new one at once
         self.start([root_id])
+
+    def open_migration_wizard(self) -> None:
+        from lunelis.ui.migration_wizard import MigrationWizard
+        w = MigrationWizard(self.conn, self)
+        w.job_started.connect(lambda _: self.runner.poke())
+        w.library_changed.connect(self.reload)
+        w.open_takeout.connect(lambda: (w.hide(), self.open_page("Google Takeout")))
+        w.finished.connect(lambda _r: self.migrate_page.refresh())
+        self._wizard = w
+        w.show()
 
     def add_takeout_folder(self, folder: str) -> None:
         """Google Takeout page > Add a Takeout folder: a source like any other,
