@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.44.1] - 2026-10-08
+
+Fixes from a migration rehearsal on copies of real folders (an Epcot day
+with damaged files, a 107-frame timelapse, airshow photos, and a slice of an
+Unpacker V2 Google Takeout export).
+
+### Fixed
+
+- **The same photo landed in the new Library twice** when a Google Takeout
+  copy was an edited export: its time was 8-12 hours off the camera's and its
+  picture differed more than a re-encode. The camera's own file name a few
+  hours off now makes it the same shot (as do a plane in a clear sky, a
+  copy's identical "(1)" twin, and same-name files the quick pre-sort never
+  compared). Such Takeout copies are marked "in your library" and left in
+  place; an identical twin follows them.
+- **Damaged videos went to Undated/Photos:** a file whose format can't be
+  read is filed by its extension.
+- **Damaged files went to Undated** though their names hold the time: a
+  date in the file name (`20170808_174715.jpg`, `PXL_..._113955123.jpg`) now
+  files a photo with no readable date.
+
 ## [0.44.0] - 2026-10-07
 
 ### Added
