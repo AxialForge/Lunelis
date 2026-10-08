@@ -130,3 +130,14 @@ def test_the_shortcut_sheet_wraps_instead_of_cutting(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_duplicates_and_damaged_have_page_titles(tmp_path):
+    from PySide6.QtWidgets import QLabel
+    w, _ = _win(tmp_path, 1)
+    try:
+        for page, title in ((w.dupes, "Duplicates"), (w.damaged, "Damaged files")):
+            assert title in [l.text() for l in page.findChildren(QLabel) if l.objectName() == "PageTitle"]
+    finally:
+        w._quitting = True
+        w.close()

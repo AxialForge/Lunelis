@@ -60,8 +60,16 @@ class DamagedView(QWidget):
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
         self.conn = conn
-        v = QVBoxLayout(self)
-        v.setContentsMargins(24, 16, 24, 16)
+        top = QVBoxLayout(self)
+        top.setContentsMargins(0, 0, 0, 0)
+        top.setSpacing(0)
+        from lunelis.ui.page_header import page_header
+        bar, _row = page_header("Damaged files")
+        top.addWidget(bar)
+        body = QWidget()
+        top.addWidget(body, 1)
+        v = QVBoxLayout(body)
+        v.setContentsMargins(24, 12, 24, 16)
         top = QHBoxLayout()
         self.summary = QLabel()
         self.summary.setObjectName("Count")

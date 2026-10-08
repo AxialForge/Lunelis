@@ -221,8 +221,16 @@ class DuplicatesView(QWidget):
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
         self.conn = conn
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(24, 16, 24, 16)
+        top = QVBoxLayout(self)
+        top.setContentsMargins(0, 0, 0, 0)
+        top.setSpacing(0)
+        from lunelis.ui.page_header import page_header
+        bar, _row = page_header("Duplicates")
+        top.addWidget(bar)
+        body = QWidget()
+        top.addWidget(body, 1)
+        outer = QVBoxLayout(body)
+        outer.setContentsMargins(24, 12, 24, 16)
         self.tabs = QTabWidget()
         outer.addWidget(self.tabs)
         exact = QWidget()
