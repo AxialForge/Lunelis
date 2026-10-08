@@ -258,9 +258,11 @@ def forget_purged_cache(conn: sqlite3.Connection, cache_dir: Path) -> int:
 def _make_one(cache_dir: Path, file_id: int, root: str, rel_path: str,
               orientation: int | None, is_raw: bool = False, stack: str | None = None,
               filter_params: dict | None = None, edit_cache: Path | None = None,
-              log_preview: str = "builtin") -> tuple[str | None, str | None]:
-    """(thumbnail rel path, error). Never raises. An edited photo's
-    thumbnail shows the edit (edit/render.py)."""
+              log_preview: str = "builtin") -> tuple[str | None, str | None, str | None]:
+    """(thumbnail rel path, error, near-duplicate fingerprint). Never raises.
+    An edited photo's thumbnail shows the edit (edit/render.py). The
+    fingerprint is taken from the picture still in memory (0.45), so
+    "Comparing photos" doesn't read every new thumbnail back from disk."""
     from lunelis import pace
     pace.breathe()                                # a video is playing: wait for it
     try:
@@ -269,14 +271,20 @@ def _make_one(cache_dir: Path, file_id: int, root: str, rel_path: str,
             from lunelis.edit import render as edit_render
             from lunelis.edit.stack import loads
             return edit_render.edited_thumbnail(path, bool(is_raw), file_id, loads(stack), filter_params,
-                                                cache_dir, edit_cache), None
+                                                cache_dir, edit_cache), None, None
         img = render(path, orientation, log_preview=log_preview)
-        return write_thumbnail(cache_dir, file_id, img), None
+        rel = write_thumbnail(cache_dir, file_id, img)
+        try:
+            from lunelis.dupes.similar import dhash
+            ph = dhash(img)
+        except Exception:
+            ph = None
+        return rel, None, ph
     except Exception as e:
         from lunelis.dupes.hashing import OFFLINE, offline_error
         if offline_error(e, root):
-            return None, OFFLINE + str(e)
-        return None, f"{type(e).__name__}: {e}"[:300]
+            return None, OFFLINE + str(e), None
+        return None, f"{type(e).__name__}: {e}"[:300], None
 
 
 def _filter_params(conn: sqlite3.Connection, stack: str | None) -> dict | None:
@@ -332,12 +340,12 @@ def generate_pending(conn: sqlite3.Connection, cache_dir: Path, *,
                     for f in futures:
                         f.cancel()
                     break
-                thumb, err = fut.result()
+                thumb, err, ph = fut.result()
                 if err and err.startswith("offline: "):
                     result.offline += 1              # left pending: made when the share is back
                     done += 1
                     continue
-                updates.append((thumb, err, file_id))
+                updates.append((thumb, err, ph, file_id))
                 if thumb:
                     result.made += 1
                 else:
@@ -346,7 +354,8 @@ def generate_pending(conn: sqlite3.Connection, cache_dir: Path, *,
                 if on_progress and (done % 25 == 0 or done == len(todo)):
                     on_progress(done, len(todo), rel_path)
             conn.executemany(
-                "UPDATE files SET thumbnail_path = ?, thumb_error = ? WHERE id = ?", updates
+                "UPDATE files SET thumbnail_path = ?, thumb_error = ?,"
+                " perceptual_hash = COALESCE(?, perceptual_hash) WHERE id = ?", updates
             )
             conn.commit()
             if result.cancelled:

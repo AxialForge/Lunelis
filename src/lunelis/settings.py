@@ -85,7 +85,8 @@ DEFAULTS: dict[str, Any] = {
     "sidebar_compact": False,            # True = the sidebar shows icons only (Ctrl+B)
     "sidebar_auto": True,                # fold to icons by itself on narrow windows
     "grid_default_sort": "date_desc",
-    "trash_keep_days": 0,                # set-aside files kept this long, then offered for removal (0 = forever)
+    "trash_keep_days": 0,
+    "similar_grouped_count": 0,          # fingerprints the near-duplicate groups were made from                # set-aside files kept this long, then offered for removal (0 = forever)
     "create_step_by_step": False,        # Create tools one step at a time (0.44)
     "lunelis_folder": None,              # everything Lunelis makes or keeps, beside the Library (lunelis_folder.py)
     "create_output_dir": None,           # where the Create tab writes (None: Pictures\Lunelis creations)

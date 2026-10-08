@@ -124,7 +124,7 @@ def find_groups(conn: sqlite3.Connection, max_distance: int = MAX_DISTANCE) -> l
     blank_by_name: dict[str, list[int]] = defaultdict(list)
     for fid, ph, taken, w, h, orient, root, rel, name, camera, size in rows:
         hv = int(ph, 16)
-        if not 8 <= bin(hv).count("1") <= 56:
+        if not 8 <= hv.bit_count() <= 56:
             # A near-blank fingerprint (black frame, flat sky) proves nothing on its
             # own - only the camera's same name a few hours off can pair it (a plane
             # in a clear sky, 0.44 rehearsal).
@@ -220,11 +220,11 @@ def same_photo(a, b, max_distance: int) -> bool:
     # version of the shot may differ more than a plain re-encode (0.44 rehearsal:
     # 5-14 bits on airshow edits).
     shifted = na == nb and shifted_copy(ta, tb)
-    blank = not (8 <= bin(ha).count("1") <= 56 and 8 <= bin(hb).count("1") <= 56)
+    blank = not (8 <= ha.bit_count() <= 56 and 8 <= hb.bit_count() <= 56)
     if blank and not shifted:
         return False                       # near-blank pictures prove nothing by themselves
     limit = max_distance if blank else EDITED_DISTANCE if shifted else max_distance
-    if bin(ha ^ hb).count("1") > limit:
+    if (ha ^ hb).bit_count() > limit:
         return False
     if size_a == size_b:
         return False                       # same size: byte-identical copies, the exact pass's job
@@ -249,7 +249,8 @@ def is_edit(rel_path: str) -> bool:
 
 
 def rebuild(conn: sqlite3.Connection, groups: list[list[int]]) -> int:
-    """Replace all 'similar' groups with these."""
+    """Replace all 'similar' groups with these (and remember how many
+    fingerprints they were made from - refresh() regroups when that changes)."""
     conn.execute("DELETE FROM duplicate_group_files WHERE group_id IN"
                  " (SELECT id FROM duplicate_groups WHERE method = 'similar')")
     conn.execute("DELETE FROM duplicate_groups WHERE method = 'similar'")
@@ -258,14 +259,23 @@ def rebuild(conn: sqlite3.Connection, groups: list[list[int]]) -> int:
                            (",".join(map(str, g)),)).lastrowid
         conn.executemany("INSERT INTO duplicate_group_files (group_id, file_id) VALUES (?, ?)",
                          [(gid, fid) for fid in g])
+    from lunelis.settings import Settings
+    Settings(conn).set("similar_grouped_count", _fingerprinted(conn))
     conn.commit()
     return len(groups)
 
 
+def _fingerprinted(conn: sqlite3.Connection) -> int:
+    return conn.execute(f"SELECT COUNT(f.perceptual_hash) FROM files f WHERE {LIVE}").fetchone()[0]
+
+
 def refresh(conn: sqlite3.Connection, cache_dir: Path, *, should_cancel=None, on_progress=None) -> int | None:
-    """Fingerprint new photos and, if any were added, regroup. Returns the
-    number of groups, or None when nothing changed."""
-    if not compute_missing(conn, cache_dir, should_cancel=should_cancel, on_progress=on_progress):
+    """Fingerprint new photos and, if there are new fingerprints (made here or
+    with the thumbnails), regroup. Returns the number of groups, or None
+    when nothing changed."""
+    compute_missing(conn, cache_dir, should_cancel=should_cancel, on_progress=on_progress)
+    from lunelis.settings import Settings
+    if _fingerprinted(conn) == Settings(conn).get("similar_grouped_count"):
         return None
     if should_cancel and should_cancel():
         return None

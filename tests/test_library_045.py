@@ -71,3 +71,23 @@ def test_select_many_by_box_and_by_menu(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_thumbnails_bring_their_fingerprint_with_them(tmp_path):
+    """0.45: the near-duplicate fingerprint is taken while the thumbnail is
+    made, so Comparing photos doesn't read new thumbnails back from disk."""
+    from PIL import Image
+    from lunelis.catalog.schema import open_catalog
+    from lunelis.importers.scan import add_root, scan_root
+    from lunelis.raw import thumbnails
+    from lunelis.dupes import similar
+    src = tmp_path / "S"
+    src.mkdir()
+    Image.effect_noise((200, 150), 40).convert("RGB").save(src / "a.jpg")
+    conn = open_catalog(tmp_path / "c.db")
+    scan_root(conn, add_root(conn, src))
+    thumbnails.generate_pending(conn, tmp_path / "thumbs")
+    ph = conn.execute("SELECT perceptual_hash FROM files").fetchone()[0]
+    assert ph and len(ph) == 16
+    assert similar.compute_missing(conn, tmp_path / "thumbs") == 0      # nothing left to read back
+    conn.close()

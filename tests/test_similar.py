@@ -66,8 +66,9 @@ def names(conn, group):
 
 def test_fingerprints_come_from_thumbnails(lib):
     conn, _, _, cache = lib
-    assert similar.compute_missing(conn, cache) == 7
-    assert similar.compute_missing(conn, cache) == 0                # nothing new
+    # 0.45: thumbnails bring their fingerprint; compute_missing is only for old ones
+    assert conn.execute("SELECT COUNT(perceptual_hash) FROM files").fetchone()[0] == 7
+    assert similar.compute_missing(conn, cache) == 0                # nothing left to read back
     a = conn.execute("SELECT perceptual_hash FROM files WHERE rel_path = '2020/IMG_1.jpg'").fetchall()
     assert len(a) == 2 and bin(int(a[0][0], 16) ^ int(a[1][0], 16)).count("1") <= similar.MAX_DISTANCE
 

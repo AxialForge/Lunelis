@@ -138,9 +138,9 @@ class NearView(QWidget):
         if self._thread is not None:
             return
         self.groups = similar.load(self.conn, Settings(self.conn).get("preferred_roots"))
-        done, total = self.conn.execute(
-            f"SELECT COUNT(f.perceptual_hash), COUNT(*) FROM files f WHERE {similar.LIVE}"
-            " AND f.thumbnail_path IS NOT NULL").fetchone()
+        total = self.conn.execute(
+            f"SELECT COUNT(*) FROM files f WHERE {similar.LIVE} AND f.thumbnail_path IS NOT NULL").fetchone()[0]
+        done = min(total, Settings(self.conn).get("similar_grouped_count"))   # compared, not just fingerprinted
         n = sum(len(g.extras) for g in self.groups)
         if self.groups:
             self.summary.setText(
