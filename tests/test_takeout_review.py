@@ -115,3 +115,13 @@ def test_an_edited_takeout_copy_is_still_the_same_shot():
     assert same_photo(nas, edit, 4)
     other = (h ^ 0b1111111111111, "2024-09-02T15:55:09.244", 1.5, (2, "b"), "sep04748.jpg", None, 19_000_000)
     assert not same_photo(nas, other, 4)        # same moment but that different: not loosened
+
+
+def test_an_identical_twin_of_a_takeout_copy_in_the_library_is_in_it_too(conn):
+    # file 2 (Takeout) is a near-duplicate of 1 (the library); 6 is 2's identical "(1)" twin
+    conn.execute("INSERT INTO files (id, root_id, rel_path, filename, ext, size_bytes, mtime)"
+                 " VALUES (6, 2, 'Takeout/Google Photos/Photos from 2019/beach(1).jpg', 'beach(1).jpg', 'jpg', 1, 0)")
+    gid = conn.execute("INSERT INTO duplicate_groups (method, hash_key, verified) VALUES ('exact', 'h', 1)").lastrowid
+    conn.executemany("INSERT INTO duplicate_group_files (group_id, file_id) VALUES (?, ?)", [(gid, 2), (gid, 6)])
+    conn.commit()
+    assert tr.unticked(conn) == {2, 6}

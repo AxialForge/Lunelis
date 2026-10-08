@@ -65,6 +65,19 @@ def _outside_copies(conn: sqlite3.Connection, takeout: set[int]) -> set[int]:
     for members in groups.values():
         if any(rid not in takeout for _, rid in members):
             out |= {fid for fid, rid in members if rid in takeout}
+    # A Takeout file identical to one that's in the library is too (its "(1)"
+    # twin): near-duplicate groups need every member to match every other, and
+    # identical twins never do (0.44 rehearsal: three edits came through twice).
+    changed = True
+    while changed:
+        changed = False
+        for members in groups.values():
+            ids = {fid for fid, _ in members}
+            if ids & out:
+                more = {fid for fid, rid in members if rid in takeout} - out
+                if more:
+                    out |= more
+                    changed = True
     return out
 
 
