@@ -105,3 +105,13 @@ def test_a_takeout_copy_hours_off_is_still_the_same_photo():
     assert not same_photo(nas, other_day, 10)                     # days apart: not the same moment
     burst = (h ^ 0b11, "2024-09-02T13:00:01", 1.5, (1, "a"), "sep03633.jpg", "ILCE-7RM5", 15_000_000)
     assert not same_photo(nas, burst, 10)                         # the next frame: another name
+
+
+def test_an_edited_takeout_copy_is_still_the_same_shot():
+    from lunelis.dupes.similar import same_photo
+    h = int("f0f0f0f0f0f0f0f0", 16)
+    nas = (h, "2024-09-02T15:55:09.244", 1.5, (1, "a"), "sep04748.jpg", "ILCE-7RM5", 15_000_000)
+    edit = (h ^ 0b1111111111111, "2024-09-03T01:04:12", None, (2, "b"), "sep04748.jpg", None, 19_000_000)  # 13 bits
+    assert same_photo(nas, edit, 4)
+    other = (h ^ 0b1111111111111, "2024-09-02T15:55:09.244", 1.5, (2, "b"), "sep04748.jpg", None, 19_000_000)
+    assert not same_photo(nas, other, 4)        # same moment but that different: not loosened

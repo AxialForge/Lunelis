@@ -173,6 +173,7 @@ def same_moment(ta: str | None, tb: str | None) -> bool:
 
 
 SAME_NAME_HOURS = 36
+EDITED_DISTANCE = 16          # same name, shifted time: an edited copy of the same shot
 
 
 def shifted_copy(ta: str | None, tb: str | None) -> bool:
@@ -193,11 +194,15 @@ def related_names(a: str, b: str) -> bool:
 def same_photo(a, b, max_distance: int) -> bool:
     ha, ta, ra, fa, na, ca, size_a = a
     hb, tb, rb, fb, nb, cb, size_b = b
-    if bin(ha ^ hb).count("1") > max_distance:
+    # The camera's own name, a few hours off (a Google Takeout copy): an edited
+    # version of the shot may differ more than a plain re-encode (0.44 rehearsal:
+    # 5-14 bits on airshow edits).
+    shifted = na == nb and shifted_copy(ta, tb)
+    if bin(ha ^ hb).count("1") > (EDITED_DISTANCE if shifted else max_distance):
         return False
     if size_a == size_b:
         return False                       # same size: byte-identical copies, the exact pass's job
-    if not same_moment(ta, tb) and not (na == nb and shifted_copy(ta, tb)):
+    if not same_moment(ta, tb) and not shifted:
         # A different moment (e.g. the next burst frame) - unless it's the same file name
         # a few hours off: Google Takeout copies of edited exports came back 8-12 hours
         # away from the camera's time (found in the 0.44 rehearsal). Under a minute
