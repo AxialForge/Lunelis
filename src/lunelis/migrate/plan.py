@@ -207,7 +207,7 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
     from lunelis.importers import takeout_review
     left = takeout_review.unticked(conn, list(by_id))
     for fid in left:
-        if action.get(fid, ("move",))[0] in ("move", "skip_duplicate"):
+        if action.get(fid, ("move",))[0] == "move":
             action[fid] = ("skip_takeout", None, "Unticked on the Google Takeout page - left in place")
     # A copy set aside for a keeper that now stays in place stays with it.
     for fid, (act, keeper, _note) in list(action.items()):
