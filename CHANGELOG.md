@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-07
+
+### Added
+
+- **Step by step in every Create tool:** tick "Step by step" at the top of
+  any tool and it goes 1 Pick the photos, 2 Options, 3 Check (what will be
+  made, from how many photos, and where), 4 Make, with Back and Next.
+  Remembered between sessions.
+
+### Changed
+
+- The sidebar's Create section is now **Create & Tools**, and **Sensor dust**
+  moved into it from Keep safe.
+
+(Both were already in the 0.43.0 installer: its tag was made on this
+commit.)
+
 ## [0.43.0] - 2026-10-07
 
 ### Added
