@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-10-08
+
+### Added
+
+- **People > a person > Merge with...:** when one person ended up under two
+  names, move all their faces to the other one - their photos get the
+  surviving People tag and the extra name goes. (Renaming to an existing
+  name still merges too.)
+- **Google Takeout page, with Unpacker V2's layout:** albums come from the
+  folders Unpacker put the JSON files in (`_json/<album>`), instead of the
+  month folders the photos were filed in; photos in no album are grouped by
+  month. Opening an album shows small pictures of its photos.
+
 ## [0.46.0] - 2026-10-08
 
 ### Added
