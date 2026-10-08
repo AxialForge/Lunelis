@@ -57,3 +57,23 @@ def test_empty_pages_say_what_to_do(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_a_theme_switch_recolours_links_and_create_icons(tmp_path):
+    from lunelis.ui import theme
+    w, _ = _win(tmp_path, 1)
+    try:
+        w.apply_theme("graphite")
+        w.status.set_link("See ", "Library status", "Library status")
+        card = next(iter(w.create_page.cards.values()))
+        before_icon = card._pic.pixmap().toImage()
+        light = theme.current().accent
+        w.apply_theme("high_contrast")
+        dark = theme.current().accent
+        assert light != dark
+        assert dark in w.status.text() and light not in w.status.text()
+        assert card._pic.pixmap().toImage() != before_icon
+    finally:
+        w.apply_theme("graphite")
+        w._quitting = True
+        w.close()

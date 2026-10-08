@@ -416,6 +416,14 @@ class StatusLabel(QLabel):
         from lunelis.ui import theme
         self.setText(f'{before}<a href="page:{page}" style="color:{theme.current().accent}">{link}</a>')
 
+    def retheme(self) -> None:
+        """After a theme switch: links in the message take the new accent (0.48)."""
+        import re
+        from lunelis.ui import theme
+        text = self.text()
+        if 'href="page:' in text:
+            QLabel.setText(self, re.sub(r'style="color:[^"]*"', f'style="color:{theme.current().accent}"', text))
+
     def set_links(self, parts: list[tuple[str, str]]) -> None:
         """Several (text, page) links, separated by dots."""
         from lunelis.ui import theme
@@ -1204,6 +1212,11 @@ class MainWindow(QMainWindow):
         if hasattr(self, "grid"):
             self.grid.viewport().update()
         self._nav_icons()
+        # Things that baked the old colours in when they were drawn (0.48).
+        for lab in self.findChildren(StatusLabel):
+            lab.retheme()
+        if hasattr(self, "create_page"):
+            self.create_page.retheme()
 
     def _windows_scheme_changed(self, *_):
         from lunelis.settings import Settings

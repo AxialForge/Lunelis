@@ -1290,6 +1290,7 @@ class _Card(QFrame):
         from lunelis.ui import icons, theme
         head = QHBoxLayout()
         pic = QLabel()
+        self._icon_name, self._pic = icon_name, pic
         pic.setPixmap(icons.icon(icon_name, theme.current().accent).pixmap(28, 28))
         head.addWidget(pic)
         head.addWidget(QLabel(name, objectName="SectionTitle"), 1)
@@ -1432,7 +1433,17 @@ TOOLS = (
 )
 
 
+def _card_retheme(card) -> None:
+    from lunelis.ui import icons, theme
+    card._pic.setPixmap(icons.icon(card._icon_name, theme.current().accent).pixmap(28, 28))
+
+
 class CreatePage(QWidget):
+    def retheme(self) -> None:
+        """The cards' icons in the theme just chosen (0.48)."""
+        for card in self.cards.values():
+            _card_retheme(card)
+
     merge_requested = Signal(str, list)        # panorama | hdr, file ids: the window runs the merge
 
     def __init__(self, conn, parent=None) -> None:
