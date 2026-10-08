@@ -558,6 +558,14 @@ class MainWindow(QMainWindow):
         self.thumbs = ThumbCache(paths.THUMBNAIL_CACHE, self)
         self.grid = PhotoGrid(self.thumbs)
         self.grid.selection_changed.connect(self._update_count)
+        # A selected burst / stack / timelapse shows its frames above the grid (0.45).
+        from lunelis.ui.stack_tray import StackTray
+        self.stack_tray = StackTray(self.conn, self.thumbs)
+        col.insertWidget(col.indexOf(self.filter_bar) + 1, self.stack_tray)
+        self.stack_tray.open_photo.connect(self.open_detail)
+        self.stack_tray.open_stack.connect(self.toggle_stack)
+        self.stack_tray.make_cover.connect(self._tray_cover)
+        self.grid.selection_changed.connect(self._update_tray)
         self.grid.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.grid.paths_provider = self._paths_of
         self.grid.customContextMenuRequested.connect(
@@ -2388,6 +2396,8 @@ class MainWindow(QMainWindow):
         self.map_page.canvas.centre_on(lat, lon)
 
     def show_page(self, name: str) -> None:
+        if name != "Library" and hasattr(self, "stack_tray"):
+            self.stack_tray.show_stack(None)
         prev = getattr(self, "_page_name", None)
         if name != "Edit" and self.pages.currentWidget() is getattr(self, "edit_page", None):
             self.edit_page.leave()                     # saves the photo being edited
@@ -2764,6 +2774,18 @@ class MainWindow(QMainWindow):
         self.set_filter(Filter(event_id=event_id, event_name=name))
 
     # --- burst stacks ----------------------------------------------------------------
+
+    def _update_tray(self, selected: int = 0) -> None:
+        i = self.grid.current
+        on_library = self.pages.currentWidget() is self.grid
+        tile = self.index.tile(i) if on_library and len(self.grid.selected) == 1 and 0 <= i < len(self.index) else None
+        self.stack_tray.show_stack(self.index.stack_id(i) if tile is not None and tile.stack_size else None)
+
+    def _tray_cover(self, file_id: int) -> None:
+        if stacks.set_cover(self.conn, file_id):
+            self.status.setText("Stack cover changed")
+            self.stack_tray.stack_id = None              # redrawn with the new cover first in line
+            self.reload()
 
     def _current_stack(self) -> tuple[int, int] | None:
         """(file id, stack id) of the photo the stack actions apply to."""
