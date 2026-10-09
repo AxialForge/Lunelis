@@ -432,7 +432,8 @@ class MapView(QWidget):
 
     def _points(self, pts) -> None:
         self.canvas.set_points(pts)
-        self.count.setText(f"{len(pts):,} photo{'s' if len(pts) != 1 else ''} with a location")
+        held = getattr(self, "_notice", None)
+        self.count.setText((held.prefix() if held else "") + f"{len(pts):,} photo{'s' if len(pts) != 1 else ''} with a location")
         self.bg.run("unlocated", _count_unlocated, lambda n: self.unlocated_b.setText(f"Without a location ({n:,})"))
         if not self._fitted and pts:
             self._fitted = True
@@ -478,7 +479,9 @@ class MapView(QWidget):
         self.stop_placing()
         self.places_changed.emit()
         self.refresh()
-        self.count.setText(f"Placed {n:,} photo{'s' if n != 1 else ''} at {place.label}")
+        from lunelis.ui.notice import Notice
+        self._notice = getattr(self, "_notice", None) or Notice()
+        self.count.setText(self._notice.say(f"Placed {n:,} photo{'s' if n != 1 else ''} at {place.label}"))
 
     def _show_unlocated(self) -> None:
         from lunelis.geo import places

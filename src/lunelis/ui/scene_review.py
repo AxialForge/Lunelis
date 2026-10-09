@@ -76,6 +76,12 @@ class SceneReview(QWidget):
 
     # --- loading --------------------------------------------------------------------------
 
+    def _note(self):
+        if not hasattr(self, "_notice"):
+            from lunelis.ui.notice import Notice
+            self._notice = Notice()
+        return self._notice
+
     def refresh(self) -> None:
         self.bg.run("queue", lambda c: scenes.queue(c), self._show_queue,
                     error=lambda e: self.summary.setText(f"Couldn't read the suggestions: {e}"))
@@ -97,10 +103,10 @@ class SceneReview(QWidget):
             self.summary.setText("Scene tags are off. Settings > Library > Scene tags downloads the model (about "
                                  "155 MB) - it runs only on this PC.")
         elif not rows:
-            self.summary.setText("No suggestions waiting. Settings > Library > Scene tags > Tag the library looks "
+            self.summary.setText(self._note().prefix() + "No suggestions waiting. Settings > Library > Scene tags > Tag the library looks "
                                  "through your photos (their thumbnails) in the background.")
         else:
-            self.summary.setText(f"{total:,} suggestions for {len(rows):,} scene tags. Only accepted ones become "
+            self.summary.setText(self._note().prefix() + f"{total:,} suggestions for {len(rows):,} scene tags. Only accepted ones become "
                                  "tags and go to sidecars; rejected ones aren't suggested again.")
         if self.tags.currentItem() is None and self.tags.count():
             self.tags.setCurrentRow(0)
@@ -160,7 +166,7 @@ class SceneReview(QWidget):
         tag = self.current_tag()
         if tag and self.ticked():
             n = scenes.accept(self.conn, tag, self.ticked())
-            self.summary.setText(f"Accepted {n:,}: they're tagged {tag.replace('|', ' > ')} now.")
+            self.summary.setText(self._note().say(f"Accepted {n:,}: they're tagged {tag.replace('|', ' > ')} now."))
             self.changed.emit()
             self.refresh()
 
@@ -191,6 +197,6 @@ class SceneReview(QWidget):
                     != QMessageBox.StandardButton.Yes:
                 return
             n = scenes.accept_above(self.conn, tag, pct / 100)
-            self.summary.setText(f"Accepted {n:,} at or above {self.threshold.value()} %.")
+            self.summary.setText(self._note().say(f"Accepted {n:,} at or above {self.threshold.value()} %."))
             self.changed.emit()
             self.refresh()

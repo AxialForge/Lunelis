@@ -45,3 +45,13 @@ def test_event_names_lose_a_month_day_prefix():
     assert _clean_name("03-02 Ski trip") == "Ski trip"
     assert _clean_name("12-25 Christmas") == "Christmas"
     assert _clean_name("3-2-1 Blastoff") == "3-2-1 Blastoff"            # not a date prefix
+
+
+def test_a_result_message_survives_the_pages_reload(monkeypatch):
+    from lunelis.ui import notice
+    n = notice.Notice()
+    n.say("Placed 40 photos at Rome")
+    assert n.prefix().startswith("Placed 40 photos")
+    t = [notice.time.monotonic()]
+    monkeypatch.setattr(notice.time, "monotonic", lambda: t[0] + notice.HOLD_S + 1)
+    assert n.prefix() == ""                                         # gone after a few seconds
