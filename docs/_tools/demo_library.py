@@ -204,6 +204,9 @@ def catalog(work: Path, where: dict) -> None:
 
     paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+    # Stamp the cache as this catalog's first, or the app sets the thumbnails aside (0.37.7).
+    from lunelis.catalog import cachecheck
+    cachecheck.ensure(conn, paths.DATA_DIR)
     s = Settings(conn)
     s.set("import_destination", str(where["lib"]))           # never the real library's default
     s.set("import_staging_network", r"\\demo-nas\photos\Lunelis staging")   # invented, never a real share
