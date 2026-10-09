@@ -37,6 +37,7 @@ leave placeholder text behind.
 - Say "cumulative" in full where it applies. Say "source" for what the code calls a root,
   after the first mention.
 - Never hard-code a chapter number ("see chapter 4"). Name the chapter instead. `check.py` fails on this.
+- Every `##` sits under a `#`, and `##` titles are unique in the document (the contents list shows them).
 - Portrait US Letter only. For wide tables, shorten the cells; three or four columns at most.
 
 ## Visuals: use one when it saves a paragraph
@@ -59,6 +60,7 @@ Diagram source stays in the Markdown, so it changes when the text does.
 | Write | You get |
 |:--|:--|
 | `# Title` | A chapter. New page, "CHAPTER n" label, coloured rule |
+| `# Title {nobreak}` | A chapter that continues on the same page. Use for short ones (Verdict, To check) |
 | `## Section`, `### Part` | Headings (the first two levels appear in the contents) |
 | `::: strip` with `Where:`, `For:`, `Answers:` lines | Three-cell strip under a chapter title |
 | `::: stats` with `value \| label` lines | Headline number tiles |

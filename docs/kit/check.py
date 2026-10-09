@@ -19,7 +19,9 @@ imgs = subprocess.run(["pdfimages", "-list", pdf], capture_output=True, text=Tru
 img_pages = {int(l.split()[0]) for l in imgs if l.strip()}
 for p in range(2, pages + 1):
     t = subprocess.run(["pdftotext", "-f", str(p), "-l", str(p), pdf, "-"], capture_output=True, text=True).stdout
-    if len(t.split()) < 25 and p not in img_pages: problems.append(f"page {p} is nearly empty ({len(t.split())} words)")
+    nw = len(t.split())
+    if nw < 25 and p not in img_pages: problems.append(f"page {p} is blank or nearly empty ({nw} words)")
+    elif nw < 60 and p not in img_pages and p != pages and p != 2: problems.append(f"page {p} is sparse ({nw} words): check it, or use {{nobreak}} on the chapter before it")
 toc = subprocess.run(["pdftotext", "-f", "2", "-l", "3", "-layout", pdf, "-"], capture_output=True, text=True).stdout
 if not re.search(r"\.{3,}\s*\d+|\s\d+\s*$", toc, re.M): problems.append("contents list has no page numbers")
 text = open(src, encoding="utf-8").read()

@@ -38,15 +38,7 @@ This audit compares what Lunelis says about itself with what the code does. It d
 | Module docstrings and comments | Windows-only behaviour | Ran one scratch scan on made-up folders |
 | Settings help text and UI strings | The darktable plugin inside darktable | Read the enforcing function |
 | docs/wiki pages | Tests (not run) | Counted and merged duplicates |
-| Installer text (lunelis.iss) | Screenshots and layout | Rated with the rubric below |
-
-## Severity rubric
-
-| Level | Meaning | Typical example |
-|:--|:--|:--|
-| [high] | Could make a user lose data or trust: text promises a guarantee the code does not give, or a safety rule is documented wrongly | "We never write there", when we do |
-| [medium] | Misleads a user about what the program does, or where a setting or file is | A setting named in the wrong tab |
-| [low] | Stale comment or docstring with no user effect | A docstring that counts three tools when there are thirteen |
+| Installer text (lunelis.iss) | Screenshots and layout | Rated with the severity rubric |
 
 ## How the raw material was handled
 
@@ -68,10 +60,10 @@ Duplicates merged: the video thumbnail claim appeared in four lists, the place c
 # Findings at a glance
 
 ```chart Findings by area and severity (42 verified findings)
-{"type":"stacked","labels":["Safety and files","Settings and UI text","Network and privacy","Docs and wiki","Code comments"],"series":[{"name":"High","values":[2,0,0,0,0],"color":"#A3203A"},{"name":"Medium","values":[7,4,1,4,0],"color":"#E0A030"},{"name":"Low","values":[0,4,1,10,9],"color":"#6C8EBF"}]}
+{"type":"stacked","height":2.7,"labels":["Docs and wiki","Safety and files","Code comments","Settings and UI text","Network and privacy"],"series":[{"name":"High","values":[0,2,0,0,0],"color":"#A3203A"},{"name":"Medium","values":[4,7,0,4,1],"color":"#E0A030"},{"name":"Low","values":[10,0,9,4,1],"color":"#6C8EBF"}]}
 ```
 
-Safety and files has the fewest findings but the heaviest ones. Docs and wiki has the most, nearly all low: old statements that nobody went back to fix after a release.
+Safety and files has fewer findings than Docs and wiki, but the heaviest ones. Docs and wiki has the most, mostly low: old statements that nobody went back to fix after a release.
 
 | Area | High | Medium | Low | Total |
 |:--|:--|:--|:--|:--|
@@ -82,76 +74,84 @@ Safety and files has the fewest findings but the heaviest ones. Docs and wiki ha
 | Code comments | 0 | 0 | 9 | 9 |
 | Total | 2 | 16 | 24 | 42 |
 
+## Severity rubric
+
+| Severity level | Meaning | Typical example |
+|:--|:--|:--|
+| [high] | Could make a user lose data or trust: text promises a guarantee the code does not give, or a safety rule is documented wrongly | "We never write there", when we do |
+| [medium] | Misleads a user about what the program does, or where a setting or file is | A setting named in the wrong tab |
+| [low] | Stale comment or docstring with no user effect | A docstring that counts three tools when there are thirteen |
+
 # Findings
 
-All findings are open. Every high and medium finding has a detail block in the next chapter. Low findings are explained in the table.
+All findings are open. Every high and medium finding has a detail block in the next chapter. The table text explains the low ones.
 
 ## Safety and files
 
 | ID | Finding | Severity | Status |
 |:--|:--|:--|:--|
 | D1 | Installer says Lunelis never writes into photo folders | [high] | [open] |
-| D2 | Lunelis folder sits inside the migration target, so a rescan catalogs Trash and Duplicates | [high] | [open] |
-| D3 | Text says originals go to a quarantine folder on their own drive; with a Lunelis folder they go to Trash | [medium] | [open] |
-| D4 | Restoring a migrated original uses a plain rename and fails across drives | [medium] | [open] |
-| D5 | Snapshot pruning treats all backup kinds alike; the "prune nothing" comment is half true | [medium] | [open] |
-| D6 | Catalog backup runs only at start-up, though Settings says "every 24 hours" | [medium] | [open] |
-| D7 | The start-up "Restore the newest backup" button ignores a moved backup folder | [medium] | [open] |
-| D8 | CLAUDE.md says empty() is the only hard removal; Clear the card also deletes | [medium] | [open] |
-| D9 | Keeper ranking finds "takeout" anywhere in the path, against the documented rule | [medium] | [open] |
+| D2 | Lunelis folder sits inside the migration target; rescan catalogs Trash | [high] | [open] |
+| D3 | Text says originals sit on their own drive; they may be in the Lunelis Trash | [medium] | [open] |
+| D4 | Restoring a migrated original fails across drives | [medium] | [open] |
+| D5 | Pruning treats all backup kinds alike; "prune nothing" is half true | [medium] | [open] |
+| D6 | Catalog backup runs only at start-up; Settings says "every 24 hours" | [medium] | [open] |
+| D7 | Start-up restore offer ignores a moved backup folder | [medium] | [open] |
+| D8 | "empty() is the only hard removal" is wrong: Clear the card deletes too | [medium] | [open] |
+| D9 | Keeper rank finds "takeout" anywhere in the path | [medium] | [open] |
 
 ## Settings and UI text
 
 | ID | Finding | Severity | Status |
 |:--|:--|:--|:--|
-| D10 | "Only in the Lunelis catalog" says no sidecar files at all, but existing ones are still updated | [medium] | [open] |
+| D10 | "No sidecar files at all" is untrue while existing ones are updated | [medium] | [open] |
 | D11 | Settings and wiki say a darktable plugin is planned; it exists | [medium] | [open] |
-| D12 | Migration wizard describes the kept copy in a different order than the code ranks it | [medium] | [open] |
+| D12 | Wizard describes the kept copy in a different order than the code | [medium] | [open] |
 | D13 | Scene model error points to "Settings > AI", which does not exist | [medium] | [open] |
-| D14 | Edit setting says "half size while a slider moves"; the code caps at 960 px | [low] | [open] |
-| D15 | Shortcut sheet leaves out the Up, Down, Page Up and Page Down keys | [low] | [open] |
-| D16 | Lens guide names "Develop > Lens > Use the lens profile" | [low] | [open] |
-| D17 | Place count is given as 32,000 and ~34,000; the list has 31,735 | [low] | [open] |
+| D14 | "Half size while a slider moves" is really a 960 px cap | [low] | [open] |
+| D15 | Shortcut sheet omits Up, Down, Page Up and Page Down | [low] | [open] |
+| D16 | Lens guide names "Develop > Lens", not the Edit panel | [low] | [open] |
+| D17 | Place count: 32,000 and ~34,000 against 31,735 in the list | [low] | [open] |
 
 ## Network and privacy
 
 | ID | Finding | Severity | Status |
 |:--|:--|:--|:--|
-| D18 | Wiki network table gets the model host, the map setting and "Open map" wrong | [medium] | [open] |
-| D19 | CHANGELOG says the daily update check is the only network use | [low] | [open] |
+| D18 | Wiki network table: wrong model host, map setting and Open map | [medium] | [open] |
+| D19 | CHANGELOG says the update check is the only network use | [low] | [open] |
 
 ## Docs and wiki
 
 | ID | Finding | Severity | Status |
 |:--|:--|:--|:--|
-| D20 | Wiki says writing to an existing sidecar changes "only the rating and label" | [medium] | [open] |
-| D21 | Wiki puts the S-Log3 setting in Appearance; it is on the Library tab | [medium] | [open] |
-| D22 | Edit stacks are written to sidecars but never read back; no text says so | [medium] | [open] |
-| D23 | Licence is stated as MIT in the app and README, GPL for the Windows build elsewhere | [medium] | [open] |
-| D24 | CLAUDE.md says video has no thumbnails and no metadata reader | [low] | [open] |
-| D25 | CLAUDE.md lists three columns cleared on change; the code clears five | [low] | [open] |
-| D26 | CLAUDE.md gives the thumbnail folder without the four-digit padding | [low] | [open] |
-| D27 | CLAUDE.md says face recognition stays deferred; it is built | [low] | [open] |
-| D28 | "Library menu = dev trigger until Step 9" is still in CLAUDE.md | [low] | [open] |
-| D29 | CLAUDE.md says free collage cells have no UI; they do | [low] | [open] |
-| D30 | Noise reduction is documented at the end of the pipeline; it runs first | [low] | [open] |
-| D31 | Old CHANGELOG entries name the wrong Settings tab for three settings | [low] | [open] |
-| D32 | Wiki gives the idle and overnight job times as fixed values | [low] | [open] |
-| D33 | CLAUDE.md does not say the update log is deleted after a good update | [low] | [open] |
+| D20 | Wiki: existing sidecars change "only the rating and label" | [medium] | [open] |
+| D21 | Wiki puts the S-Log3 setting in Appearance; it is on Library | [medium] | [open] |
+| D22 | Edit stacks are written to sidecars but never read back | [medium] | [open] |
+| D23 | Licence: MIT in the app, GPL for the Windows build elsewhere | [medium] | [open] |
+| D24 | CLAUDE.md: video has no thumbnails or metadata reader | [low] | [open] |
+| D25 | CLAUDE.md lists three columns cleared on change; code clears five | [low] | [open] |
+| D26 | CLAUDE.md thumbnail folder lacks the four-digit padding | [low] | [open] |
+| D27 | CLAUDE.md: face recognition "deferred"; it is built | [low] | [open] |
+| D28 | "Library menu = dev trigger until Step 9" still in CLAUDE.md | [low] | [open] |
+| D29 | CLAUDE.md: free collage cells have no UI; they do | [low] | [open] |
+| D30 | Noise reduction documented last in the pipeline; it runs first | [low] | [open] |
+| D31 | Old CHANGELOG entries name the wrong tab for three settings | [low] | [open] |
+| D32 | Wiki gives idle and overnight times as fixed values | [low] | [open] |
+| D33 | CLAUDE.md omits that the update log is deleted after an update | [low] | [open] |
 
 ## Code comments
 
 | ID | Finding | Severity | Status |
 |:--|:--|:--|:--|
-| D34 | Three comments in settings.py are on the wrong line or say the wrong thing | [low] | [open] |
-| D35 | Duplicate-detection docstring says candidates share a size; they also share a capture time | [low] | [open] |
-| D36 | Near-duplicate docstring lists absolute rules that have exceptions; one constant is unused | [low] | [open] |
-| D37 | Export docstring says an sRGB profile is embedded; the profile is the user's choice | [low] | [open] |
-| D38 | Masks comment says hue and fade are global only; they are in LOCAL_KEYS | [low] | [open] |
+| D34 | Three misplaced or wrong comments in settings.py | [low] | [open] |
+| D35 | Docstring: candidates share a size; they also share a capture time | [low] | [open] |
+| D36 | Near-duplicate docstring rules have exceptions; one constant unused | [low] | [open] |
+| D37 | Export docstring: sRGB embedded; the profile is the user's choice | [low] | [open] |
+| D38 | Masks comment: hue and fade are global; they are in LOCAL_KEYS | [low] | [open] |
 | D39 | Four page docstrings give the wrong count or name | [low] | [open] |
-| D40 | Video and timelapse leftovers: trim docstring, button names, dead extensions, dead entries | [low] | [open] |
-| D41 | AVIF is sniffed and listed in a docstring, but .avif files are never cataloged | [low] | [open] |
-| D42 | Three small docstring slips: tag separator, SFace size, first-run model list | [low] | [open] |
+| D40 | Video and timelapse leftovers in docstrings and dead entries | [low] | [open] |
+| D41 | AVIF is sniffed but .avif files are never cataloged | [low] | [open] |
+| D42 | Three docstring slips: tag separator, SFace size, model list | [low] | [open] |
 
 # Finding details
 
@@ -317,67 +317,58 @@ Detail blocks for every high and medium finding. Each one gives the evidence, wh
 
 These claims were tested against the code and are true. Each names the function that enforces it.
 
-| Claim | Enforced by | Result |
+| Claim | Enforced by | Test |
 |:--|:--|:--|
-| The scanner never deletes a files row, and an unreachable source is not scanned as empty | `scan.scan_root` (raises RootUnavailable, `scan.py:317`; missing marked, not removed). The only deletes are `remove_root` (user action, refused while a job or migration depends on the source), relink merge, and Empty | [verified] |
-| Sources cannot nest or overlap | `scan.add_root` raises RootOverlap (`scan.py:119`) | [verified] |
-| A move removes its source only after the copy is verified | `quarantine.move_one` compares bytes (`_same_bytes`) before `os.remove`; `ingest` deletes the staged copy only after the library copy verifies (`ingest.py:625`) | [verified] |
-| Clear the card needs a full SHA-256 match and a finished import | `ingest.clearable` and `clear_card` re-check size, time and `_sha256` (`ingest.py:680-715`) | [verified] |
-| A sampled hash is never proof of identity | `ingest._already_in_library` takes sampled candidates, then requires an equal full SHA-256 (`ingest.py:471-500`) | [verified] |
-| Schema changes are migrations only, all-or-nothing, with a snapshot first | `schema.migrate`: one script in BEGIN/COMMIT with the version row inside (`schema.py:995-1003`); `_snapshot_before_upgrade` (`:949`) | [verified] |
-| The catalog cannot live on a network share | `paths.check_new_data_dir` refuses UNC and mapped network drives (`paths.py:156-164`) | [verified] |
-| Updates need a checksum and refuse unsafe zips | `updater.download` raises without a `.sha256` (`updater.py:114-115`); entries with `..` or an absolute path are refused (`:149-150`) | [verified] |
-| Emptying quarantine snapshots first and checks the kept copy byte by byte | `manage.empty` (`manage.py:232`, `:246-248`); local files go to the Recycle Bin | [verified] |
-| Quarantined files are not "missing" and the scanner skips the quarantine folder | `SKIP_DIR_NAMES` (`scan.py:35`) and the `quarantined` set (`scan.py:328`) | [verified] |
-| Outputs never overwrite | `export.free_path` (`export.py:110-118`); `merge.save` refuses an existing path (`merge.py:118`) | [verified] |
-| The grid never decodes a RAW | `grid` imports only `cache_rel_path`; `thumbcache.load_image` decodes cached JPEGs with Pillow (`thumbcache.py:68`) | [verified] |
-| XMP is edited as text, not re-serialized | `sidecar.apply_fields` changes attributes in place; ElementTree only validates the result (`sidecar.py:353`) | [verified] |
-| Recognition sits behind one interface | `recognize.Recognizer` (`recognize/__init__.py:8`); `clip.py` is the one implementation | [verified] |
-| No telemetry; the network is used only by the updater, three model downloaders, the opt-in map tiles, the OpenStreetMap link and the family gallery on the home network | Search for `urlopen`, `QNetworkAccessManager` and `http` in `src/` finds only those | [verified] |
+| The scanner never deletes a files row; an unreachable or overlapping source is refused | `scan_root` marks missing, never deletes (`scan.py:317`); `add_root` raises RootOverlap (`:119`) | [pass] |
+| A move removes its source only after the copy is verified | `quarantine.move_one` compares bytes first; `ingest` deletes the staged copy after the library copy verifies (`ingest.py:625`) | [pass] |
+| Clear the card needs a finished import and a full SHA-256 match | `ingest.clearable` and `clear_card` (`ingest.py:680-715`) | [pass] |
+| A sampled hash is never proof of identity | `_already_in_library` demands an equal full SHA-256 (`ingest.py:471-500`) | [pass] |
+| Schema changes are migrations only, all-or-nothing, snapshot first | `schema.migrate`: BEGIN/COMMIT with the version row inside (`schema.py:995-1003`) | [pass] |
+| The catalog cannot live on a network share | `paths.check_new_data_dir` (`paths.py:156-164`) | [pass] |
+| Updates need a checksum and refuse unsafe zips | `updater.download` (`updater.py:114-115`, `:149-150`) | [pass] |
+| Emptying quarantine snapshots first and compares the kept copy | `manage.empty` (`manage.py:232`, `:246-248`) | [pass] |
+| Quarantined files are not "missing"; the scanner skips the folder | `SKIP_DIR_NAMES` (`scan.py:35`), `quarantined` set (`:328`) | [pass] |
+| Outputs never overwrite | `export.free_path` (`export.py:110`); `merge.save` (`merge.py:118`) | [pass] |
+| The grid never decodes a RAW | `thumbcache.load_image` reads cached JPEGs with Pillow (`thumbcache.py:68`) | [pass] |
+| XMP is edited as text, never re-serialized | `sidecar.apply_fields`; ElementTree only validates (`sidecar.py:353`) | [pass] |
+| Recognition sits behind one interface | `recognize.Recognizer` (`recognize/__init__.py:8`) | [pass] |
+| No telemetry; only the updater, model downloads, opt-in map tiles and the home-network gallery use the network | Search of `src/` for `urlopen`, `QNetworkAccessManager`, `http` | [pass] |
 
-The claim "snapshot before every job that moves or removes files" also holds: snapshots are taken before quarantine, similar-copy quarantine, emptying, migration, release and removing a source (`quarantine.py:53`, `similar.py:380`, `manage.py:232`, `execute.py:232, 482`, `main_window.py:3382`).
+"Snapshot before every job that moves or removes files" also holds: quarantine, similar-copy quarantine, emptying, migration, release and removing a source all call `snapshot` first (`quarantine.py:53`, `similar.py:380`, `manage.py:232`, `execute.py:232, 482`, `main_window.py:3382`).
 
 # Recommended order of work
 
-Work in batches. Each batch can ship alone.
+Each batch can ship alone.
 
 ## Batch 1: the two high findings
 
-1. **D1** Reword the installer sentence (`lunelis.iss:276`). One line, and it removes the biggest false promise.
-2. **D2** Make the scanner skip the Lunelis folder, and run the Settings overlap check in the wizard. Add a test that scans a source containing `Lunelis\Trash`.
+1. **D1** Reword the installer sentence (`lunelis.iss:276`). One line; removes the biggest false promise.
+2. **D2** Skip the Lunelis folder in the scanner and run the Settings overlap check in the wizard. Add a test that scans a source holding `Lunelis\Trash`.
 
 ## Batch 2: quick text fixes (one-line edits)
 
 3. **D13** `scenes.py:173`: "Settings > AI" becomes "Settings > Library > Scene tags".
-4. **D11** Settings text and wiki: replace "a darktable plugin is planned".
-5. **D10** Settings text for "Only in the Lunelis catalog".
-6. **D21** Wiki S-Log3 location. **D20** wiki "only rating and label". **D18** wiki network table.
-7. **D17, D14, D16** Place count, live-quality label, lens guide path.
+4. **D11, D10** Settings text for the central folder and "Only in the Lunelis catalog".
+5. **D21, D20, D18** Wiki: S-Log3 location, "only rating and label", network table.
+6. **D17, D14, D16** Place count, live-quality label, lens guide path.
 
 ## Batch 3: UI strings that need a decision
 
-8. **D3** Quarantine page hint, migration start dialog, Migration wiki page, plus a wiki section on the Lunelis folder.
-9. **D12** Migration wizard keeper text.
-10. **D6** Settings label for the backup interval (if the timer is not built).
-11. **D15** Shortcut sheet keys.
-12. **D23** Licence wording. Needs the owner first.
+7. **D3** Quarantine hint, migration start dialog, Migration wiki page, a wiki section on the Lunelis folder.
+8. **D12** Wizard keeper text. **D15** Shortcut sheet. **D6** Backup label, if the timer is not built.
+9. **D23** Licence wording. The owner decides first.
 
 ## Batch 4: small code changes that make the text true
 
-13. **D9** Use `takeout_roots()` in both keeper ranks.
-14. **D6** Add the repeating backup timer.
-15. **D7** Look for backups where `backup_dir` puts them.
-16. **D5** Prune by backup kind.
-17. **D4** Use `move_pair` in `restore_entry`.
+10. **D9** Use `takeout_roots()` in both keeper ranks. **D6** Add the repeating backup timer.
+11. **D7** Find backups where `backup_dir` puts them. **D5** Prune by backup kind.
+12. **D4** Use `move_pair` in `restore_entry`.
 
-## Batch 5: documentation sweep
+## Batch 5: documentation and comment sweep
 
-18. **D8, D22** CLAUDE.md line 443 and the edit-stack note in the wiki.
-19. **D24 to D33** CLAUDE.md and CHANGELOG corrections, in one commit.
-
-## Batch 6: comment sweep
-
-20. **D34 to D42** Correct the nine docstring and comment groups. No user effect; do it with the nearest code change.
+13. **D8, D22** CLAUDE.md line 443 and the edit-stack note in the wiki.
+14. **D24 to D33** CLAUDE.md and CHANGELOG corrections in one commit.
+15. **D34 to D42** Nine comment groups. No user effect; do each with the nearest code change.
 
 # To check
 

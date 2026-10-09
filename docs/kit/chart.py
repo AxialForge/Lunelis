@@ -43,5 +43,12 @@ for sp in ("top", "right"): ax.spines[sp].set_visible(False)
 ax.grid(axis="x" if kind == "hbar" else "y", color="#E3E6E9", lw=0.8); ax.set_axisbelow(True)
 if spec.get("ylabel"): ax.set_ylabel(spec["ylabel"])
 if spec.get("title"): ax.set_title(spec["title"], loc="left", fontsize=11, fontweight="bold", color="#1E2327")
-if n > 1: ax.legend(frameon=False, ncol=min(n, 4), loc="upper right", fontsize=9)
+allint = all(float(v).is_integer() for s in series for v in s["values"])
+if allint:
+    from matplotlib.ticker import MaxNLocator
+    (ax.xaxis if kind == "hbar" else ax.yaxis).set_major_locator(MaxNLocator(integer=True))
+top = max((sum(s["values"][i] for s in series) if kind == "stacked" else max(s["values"][i] for s in series)) for i in range(len(labels)))
+if kind == "hbar": ax.set_xlim(0, top * 1.15 if top else 1)
+elif kind != "line": ax.set_ylim(0, top * 1.12 if top else 1)
+if n > 1: ax.legend(frameon=False, ncol=min(n, 4), loc="upper center", bbox_to_anchor=(0.5, -0.12 if kind != "hbar" else -0.1), fontsize=9)
 fig.tight_layout(); fig.savefig(out, facecolor="white"); print("chart", out)

@@ -179,7 +179,22 @@ function table(rows, width = PAGE_W) {
   }), 4));
   const raw = len.map((v) => Math.min(Math.max(v, 7), 46));
   const sum = raw.reduce((a, b) => a + b, 0);
-  const w = raw.map((v) => Math.round((v / sum) * width));
+  let w = raw.map((v) => Math.round((v / sum) * width));
+  // never narrower than the longest single word (bold header and chip labels included)
+  const minW = head.map((_, c) => {
+    const words = rows.flatMap((r, ri) => {
+      const t = (r[c] || "").replace(CHIP_RE, (_, k, rest) => rest || CHIPS[k.toLowerCase()][0]);
+      return t.split(/<br\s*\/?>|\s+/).map((x) => x.replace(/[`*]/g, "").length * (ri === 0 ? 1.15 : 1));
+    });
+    return Math.round(Math.max(...words, 4) * 105 + 240);
+  });
+  for (let pass = 0; pass < 6; pass++) {
+    let deficit = 0;
+    w.forEach((v, c) => { if (v < minW[c]) { deficit += minW[c] - v; w[c] = minW[c]; } });
+    if (!deficit) break;
+    const room = w.map((v, c) => Math.max(v - minW[c], 0)), total = room.reduce((a, b) => a + b, 0) || 1;
+    w = w.map((v, c) => v - Math.round((room[c] / total) * deficit));
+  }
   w[n - 1] += width - w.reduce((a, b) => a + b, 0);
   const mk = (t, c, isHead, zebra) => {
     t = t || "";
@@ -319,9 +334,11 @@ function renderBlocks(blocks, width = PAGE_W, size = 21) {
       case "h":
         if (b.n === 1) {
           chapterN++;
-          const app = /^(appendix|glossary|reference|to check|discrepancies)/i.test(b.t);
-          out.push(new Paragraph({ pageBreakBefore: true, spacing: { after: 0 }, keepNext: true, children: [new TextRun({ text: app ? "REFERENCE" : `CHAPTER ${chapterN}`, bold: true, size: 17, color: COLOR, characterSpacing: 40 })] }));
-          out.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(b.t)] }));
+          const nobreak = /\{nobreak\}\s*$/.test(b.t), title = b.t.replace(/\s*\{nobreak\}\s*$/, "");
+          const app = /^(appendix|glossary|reference|to check|discrepancies)/i.test(title);
+          trimSpacers(out);
+          out.push(new Paragraph({ pageBreakBefore: !nobreak, spacing: { before: nobreak ? 360 : 0, after: 0 }, keepNext: true, children: [new TextRun({ text: app ? "REFERENCE" : `CHAPTER ${chapterN}`, bold: true, size: 17, color: COLOR, characterSpacing: 40 })] }));
+          out.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(title)] }));
         } else if (b.n === 2) out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(b.t)] }));
         else if (b.n === 3) out.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun(b.t)] }));
         else out.push(new Paragraph({ keepNext: true, spacing: { before: 120, after: 60 }, children: [new TextRun({ text: b.t, bold: true, size: 21, color: COLOR })] }));
