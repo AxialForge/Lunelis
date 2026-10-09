@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-10-08
+
+Correctness, from the 25-item list.
+
+### Fixed
+
+- **Import:** the example line above the folder list used a made-up date;
+  once the card is read it shows the card's own first folder, so it agrees
+  with the list below (with an event name, the event's start day).
+- **Edit on a photo that can't be decoded** greys every control instead of
+  leaving them live; only the reason shows.
+- **Sensor dust:** pressing Heal a second time (nothing new to heal)
+  recorded an empty step, so Undo seemed to do nothing.
+- **On this day:** leap-day photos show on Feb 28 in years without a Feb 29.
+- **Event suggestions** drop a month-day prefix like "03-02" from folder names.
+- **Result messages** ("Accepted 12", "Placed 40 photos at Rome") stay a few
+  seconds instead of vanishing under the page's own reload.
+- **Photo counts:** the Library's count says when stacks and RAW+JPEG pairs
+  show several files as one tile ("47 photos (52 files)"), with the reason
+  in its tooltip.
+- **darktable:** a photo's second and third colour labels are kept as tags
+  (darktable labels > Blue) instead of being dropped, and a damaged exchange
+  file is skipped and cleared instead of erroring on every check.
+- **"Database is locked"** after a long background write shows as a plain
+  "busy - try again" message, not a crash report.
+
 ## [0.48.0] - 2026-10-08
 
 Looks and layout, from the 25-item list.
