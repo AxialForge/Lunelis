@@ -38,6 +38,7 @@ leave placeholder text behind.
   after the first mention.
 - Never hard-code a chapter number ("see chapter 4"). Name the chapter instead. `check.py` fails on this.
 - Every `##` sits under a `#`, and `##` titles are unique in the document (the contents list shows them).
+- Long text in one table column squeezes the others. Put `<br>` into long cells, and keep `file:line` cells in a column of their own.
 - Portrait US Letter only. For wide tables, shorten the cells; three or four columns at most.
 
 ## Visuals: use one when it saves a paragraph
@@ -53,6 +54,15 @@ leave placeholder text behind.
 
 Diagram rules: one idea per diagram, eight to twelve boxes at most, labels in plain words,
 arrows left to right or top to bottom, a caption that says what the reader should take away.
+Diagrams are scaled to fit the page width, so every box you add makes the text smaller:
+
+- Draw rows of at most four or five boxes. Stack rows instead of making one long row.
+- Keep a label to two short lines. Move detail into a table beside the diagram.
+- Decision diamonds shrink text most. Prefer a table of questions for more than three.
+- `direction LR` inside a subgraph is ignored when inner nodes link outside it. Link subgraph
+  ids to each other instead (`A --> B`), and use `A ~~~ B` to stack two groups.
+- A tall diagram is fine (up to most of a page); a wide one is not.
+
 Diagram source stays in the Markdown, so it changes when the text does.
 
 ## Blocks the kit understands
@@ -60,7 +70,7 @@ Diagram source stays in the Markdown, so it changes when the text does.
 | Write | You get |
 |:--|:--|
 | `# Title` | A chapter. New page, "CHAPTER n" label, coloured rule |
-| `# Title {nobreak}` | A chapter that continues on the same page. Use for short ones (Verdict, To check) |
+| `# Title {nobreak}` | A chapter that continues on the same page. Use for any chapter under about half a page |
 | `## Section`, `### Part` | Headings (the first two levels appear in the contents) |
 | `::: strip` with `Where:`, `For:`, `Answers:` lines | Three-cell strip under a chapter title |
 | `::: stats` with `value \| label` lines | Headline number tiles |

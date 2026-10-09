@@ -53,16 +53,17 @@ The two tracks meet at the same last step. The exact track runs as background *j
 flowchart TB
   subgraph EX["Exact copies: background jobs"]
     direction LR
-    A["Candidates:<br>size + time"] --> B["Sample hash<br>3 x 64 KB"] --> C["Likely<br>group"] --> D["Full SHA-256<br>verify"] --> E["Exact group<br>verified"]
+    A["Candidates:<br>size + time"] --> B["Sample hash:<br>Likely group"] --> C["Full SHA-256<br>verify"] --> D["Exact group<br>(verified)"]
   end
   subgraph NE["Near-duplicates: after thumbnails"]
     direction LR
-    F["Thumbnail"] --> G["64-bit<br>dHash"] --> H["5 chunk<br>buckets"] --> I["Match<br>rules"] --> J["Group: all<br>pairs match"]
+    F["Thumbnail:<br>64-bit dHash"] --> H["5 chunk<br>buckets"] --> I["Match<br>rules"] --> J["Group: all<br>pairs match"]
   end
   subgraph EN["Both tracks"]
     direction LR
-    K["Keeper<br>chosen"] --> L["Set aside into<br>_Lunelis Quarantine"] --> M["Restore, or<br>Empty (you)"]
+    K["Keeper<br>chosen"] --> L["Set aside:<br>rename"] --> M["Quarantine<br>folder"] --> N["Restore, or<br>Empty (you)"]
   end
+  EX ~~~ NE
   EX --> EN
   NE --> EN
 ```
@@ -73,20 +74,9 @@ flowchart TB
 |:--|:--|:--|
 | Candidates, sample hash | Library > Find duplicates... (`main_window.py:834`) | Job `duplicates`, one folder at a time |
 | Verify | "Verify all likely groups..." or "Verify this group" | Job `verify`; the one-group button uses a worker thread |
-| Hash everything | Library menu (`main_window.py:835`) | Job `full_hash`: an integrity baseline |
 | Fingerprint | Each thumbnail made (`thumbnails.py:278`) | Inside the thumbnail pass; older photos by `compute_missing` |
 | Compare fingerprints | After each scan (`main_window.py:238`), or "Find again" | Library worker thread |
 | Set aside | Buttons on the Duplicates page | Worker thread; one exact group runs on the interface thread |
-
-## The jobs engine in one minute
-
-A job is a kind, some options and a list of folders (`jobs/engine.py:172-214`). The engine knows nothing about what a kind does to a folder; it keeps the bookkeeping that makes work safe to stop.
-
-- **One folder at a time.** A folder is marked done only after its work is committed (`engine.py:329`), and every hash is committed as it is made (`detect.py:166-167`). A pause, quit or power cut loses at most the folder in progress.
-- **Resume.** At start-up, jobs left `running` or `waiting` are queued again (`recover_interrupted`, `engine.py:226`).
-- **Offline shares wait.** A network error raises `SourceOffline`; the job switches to `waiting` and retries every 60 s (`engine.py:32,318-325`). The file is not marked bad (`hashing.py:38-43`).
-- **Schedule and speed.** `now`, `idle` or a nightly `window` (`engine.py:256`). One shared MB/s cap covers all hashing threads (`Throttle`, `hashing.py:46-62`).
-- **Threads.** Eight workers for the sample pass, at most four for full hashing (`engine.py:56,85`).
 
 # Exact copies
 
@@ -94,15 +84,17 @@ A job is a kind, some options and a list of folders (`jobs/engine.py:172-214`). 
 
 A folder counts as done only when its duplicates are known across the whole catalog, so results appear after the first folder, not after the whole library.
 
-```mermaid Candidate selection: a file is read only if another live file could be a byte-for-byte copy of it.
-flowchart LR
-  A["File in the<br>folder"] --> B["Size also on<br>another live file?<br>size above 0"]
-  B -->|yes| C["Same capture time,<br>or either has none?"]
-  C -->|yes| D["No sample hash<br>stored yet?"]
-  D -->|yes| E["Read 3 slices<br>and hash"]
-  B -->|no| X["Never read"]
-  C -->|no| X
-  D -->|no| R["Reuse stored<br>hash"]
+```mermaid Candidate selection: a "no" at test 1 or 2 means the file is never read; a stored sample hash is reused, not recomputed.
+flowchart TB
+  subgraph R1["Could another live file be a byte-for-byte copy?"]
+    direction LR
+    A["File in the<br>folder"] --> B["1 Size also on another<br>live file? (size above 0)"] --> C["2 Same capture time,<br>or either has none?"]
+  end
+  subgraph R2["Is it hashed?"]
+    direction LR
+    D["3 No sample hash<br>stored yet?"] --> E["Read 3 slices<br>and hash"] --> F["Same hash as another<br>file: Likely group"]
+  end
+  R1 --> R2
 ```
 
 The first test is a query for sizes in this folder that also occur on some other live file (`detect.py:157-161`), looked up 500 at a time (`detect.py:117`). The second compares capture times as stored text (`detect.py:131-137`), so "to the millisecond" means equal text.
@@ -146,6 +138,25 @@ Your own choice beats the rules: **Keep this one** stores `is_keeper = 1` on tha
 
 The **Exact copies** tab lists verified groups plus likely groups not yet fully hashed, biggest saving first. A likely group whose every member already has a full hash is hidden, on the assumption that a verified group stands for it (`dupes_view.py:92`; see Discrepancies). The Show box filters All, Verified only, Likely only. A group's detail panel shows the kept copy, each extra (with **Show** and **Keep this one**), and one button: **Verify this group** or **Set aside N extra copies**.
 
+## Group states on the page
+
+| Status | What it means | Button | Set aside |
+|:--|:--|:--|:--|
+| Likely | Group `sampled`; some member has no full hash | Verify this group | [no] Refused |
+| Verified | Group `exact`; every member hashed in full | Set aside N extra copies | [ok] Yes |
+| Not listed | A sampled group whose members all have a full hash | none | [na] n/a |
+| Verified, flag cleared | Group `exact` but `verified = 0` after a file changed (see Discrepancies) | Set aside N extra copies | [no] Refused |
+
+## The jobs engine in one minute
+
+A job is a kind, some options and a list of folders (`jobs/engine.py:172-214`). The engine knows nothing about what a kind does to a folder; it keeps the bookkeeping that makes work safe to stop.
+
+- **One folder at a time.** A folder is marked done only after its work is committed (`engine.py:329`), and every hash is committed as it is made (`detect.py:166-167`). A pause, quit or power cut loses at most the folder in progress; jobs left running are queued again at start-up (`engine.py:226`).
+- **Offline shares wait.** A network error raises `SourceOffline`; the job switches to `waiting` and retries every 60 s (`engine.py:32,318-325`). The file is not marked bad (`hashing.py:38-43`).
+- **Schedule and speed.** `now`, `idle` or a nightly `window` (`engine.py:256`). One shared MB/s cap covers all hashing threads (`Throttle`, `hashing.py:46-62`).
+- **Threads.** Eight workers for the sample pass, at most four for full hashing (`engine.py:56,85`).
+- **Scope.** Find duplicates asks for sources or one folder, when to run and a speed limit, with Settings as defaults (`ui/jobs.py:240-310`). Library > Hash everything (`main_window.py:835`) is a separate `full_hash` job that only builds an integrity baseline.
+
 # Near-duplicates
 
 ## Step 1: the fingerprint
@@ -158,12 +169,11 @@ A thumbnail is shrunk to 9 by 8 grey squares. Each of the 8 rows asks, 8 times, 
 
 ## Step 2: find candidates without comparing everything
 
-Comparing every pair of 150,000 photos is out of the question. Each fingerprint is cut into five chunks of 13, 13, 13, 13 and 12 bits (`similar.py:97-103`). Two fingerprints that differ in at most 4 bits cannot disturb all five chunks, so at least one chunk is identical. Each photo is filed into five buckets; only photos in the same bucket are compared.
+Comparing every pair of photos in a library of 159,000 files is out of the question. Each fingerprint is cut into five chunks of 13, 13, 13, 13 and 12 bits (`similar.py:97-103`). Two fingerprints that differ in at most 4 bits cannot disturb all five chunks, so at least one chunk is identical. Each photo is filed into five buckets; only photos in the same bucket are compared.
 
 ```mermaid Candidate search: five buckets per photo; a bucket of more than 400 photos says nothing and is skipped.
 flowchart LR
-  A["Fingerprint<br>64 bits"] --> B["Cut into 5 chunks<br>13+13+13+13+12"] --> C["File into 5 buckets<br>chunk no. + value"] --> D["Bucket of 2 to 400:<br>compare each pair"]
-  C -.->|"more than 400"| F["Skipped"]
+  A["Cut the fingerprint<br>into 5 chunks<br>13+13+13+13+12 bits"] --> B["File the photo into<br>5 buckets: chunk<br>number + chunk value"] --> C["Compare each pair<br>in a bucket of<br>2 to 400 photos"]
 ```
 
 Three filters apply first (`find_groups`, `similar.py:115-149`). **RAW files are excluded**: a RAW's copies are exact copies, and a RAW and its JPEG differ on purpose. **Near-blank fingerprints** (fewer than 8 or more than 56 bits set: black frames, flat sky) skip the chunk buckets. **Same-name buckets**: photos with one file name (2 to 8 of them, any folder) get their own bucket, so a copy whose picture moved further can still be compared.
@@ -176,13 +186,14 @@ Three filters apply first (`find_groups`, `similar.py:115-149`). **RAW files are
 flowchart TB
   subgraph R1["Gates 1 to 3"]
     direction LR
-    G1["1 Allowance<br>shifted copy: 16 bits<br>otherwise 4 bits<br>near-blank: shifted only"] --> G2["2 Bits apart<br>within the allowance"] --> G3["3 Size differs<br>same size is an<br>exact copy"]
+    G1["1 Allowance<br>shifted copy: 16 bits<br>otherwise 4 bits<br>near-blank: shifted only"] --> G2["2 Bits apart<br>within the<br>allowance"] --> G3["3 Size differs<br>same size = exact<br>copy, not this pass"]
   end
   subgraph R2["Gates 4 to 6"]
     direction LR
-    G4["4 Same moment<br>sub-second if both have it<br>else the second;<br>skipped if shifted"] --> G5["5 Names related<br>equal, or one<br>inside the other"] --> G6["6 Aspect ratio<br>within 2 %"] --> OK["Same photo"]
+    G4["4 Same moment<br>sub-second if both have<br>it, else the second;<br>skipped if shifted"] --> G5["5 Names related<br>equal, or one<br>inside the other"] --> G6["6 Aspect ratio<br>within 2 %"]
   end
   R1 --> R2
+  R2 --> OK["Same photo"]
 ```
 
 The reasons: burst frames 0.125 s apart look alike but are different shots (gate 4); copies keep their name, so unrelated names at one moment are another photo (gate 5); a crop is a different picture (gate 6). A missing capture time never contradicts. Aspect ratios are compared after EXIF orientation.
@@ -199,7 +210,17 @@ Matches are joined by a greedy complete-linkage pass (`similar.py:166-181`): see
 
 ## Step 5: the keeper and what is suggested
 
-`keeper_rank` (`similar.py:342-358`) sorts by: **1** not damaged; **2** not an edit (path contains "edit" or "export"); **3** most pixels; **4** not in a Takeout source (by the source's own folder name); **5** your preferred source; **6** biggest file; **7** fewest folder levels; **8** lowest file id.
+`keeper_rank` (`similar.py:342-358`) sorts by this tuple; the first wins. It differs from the exact rule because near-duplicates differ in quality.
+
+| Order | Test |
+|:--|:--|
+| 1 | Not damaged (no row in `damaged`) |
+| 2 | Not an edit (relative path contains "edit" or "export") |
+| 3 | Most pixels (width times height) |
+| 4 | Not in a Takeout source (by the source's own folder name) |
+| 5 | Position in your "keep the copy in" source |
+| 6 | Biggest file |
+| 7 | Fewest folder levels, then lowest file id |
 
 Only a **plainly lesser** copy is pre-ticked (`suggest`, `similar.py:301-310`): not an edit, and fewer pixels than the keeper, or in a Takeout source, or with the keeper's file stem. A same-pixel copy under another name might be the original of an edit, so it stays unticked; you can still tick it.
 
@@ -231,6 +252,34 @@ The move is a rename inside one source: instant, and it needs no free space.
 | Event | Only if the keeper is in none |
 | Not moved | Edit stacks, face data, map pins: they stay with the set-aside row |
 
+### Exact and near-duplicate set-aside compared
+
+| Point | Exact (`quarantine`) | Near (`quarantine_similar`) |
+|:--|:--|:--|
+| Group must be | `exact` and verified | `similar` |
+| Non-member ids | Refused with an error | Silently ignored |
+| Receives your work | Marked keeper, else lowest id | Best remaining by keeper ranking |
+| Sidecar carried to keeper | Yes, if the keeper has none | No |
+| Snapshot | Before the first move, if a folder is given | The same |
+
+### Set aside, in order
+
+```mermaid Set aside for an exact group: checks first, then one file at a time, committed before the next moves.
+sequenceDiagram
+  participant Q as quarantine()
+  participant B as Backups
+  participant C as Catalog
+  participant D as Disk
+  Q->>Q: checks: verified, live, a copy left
+  Q->>B: snapshot
+  loop each extra copy
+    Q->>C: merge your work
+    Q->>D: carry sidecar
+    Q->>D: rename photo and sidecar
+    Q->>C: commit quarantined_at
+  end
+```
+
 ## The life of a copy
 
 ```mermaid One copy's life: set aside is reversible; Empty is the only exit, and always your decision.
@@ -247,7 +296,7 @@ stateDiagram-v2
 
 **Restore** (`quarantine.py:157-172`) renames photo and sidecar back, refusing if the old path is occupied, and clears `quarantined_at`. The scanner never calls a quarantined file missing and skips the `_lunelis quarantine` folder (`scan.py:33-36,327-329`).
 
-**Empty** (Quarantine page, `manage.py:225-288`) demands for each file: it is still in quarantine; the kept copy exists (same size for byte copies); the kept copy is **byte-for-byte the same** (full SHA-256 of both, `manage.py:291-306`). Then the file goes to the Recycle Bin on a local NTFS or ReFS fixed drive, or is deleted for good elsewhere. A row is written to `purged`, the file's catalog row is deleted, its sidecars follow, and a `before-empty-quarantine` snapshot was taken first. "Keep set-aside files" offers forever (default), 30, 90 or 365 days; after that files are only *offered* for removal (`manage.due`, line 134).
+**Empty** (Quarantine page, `manage.py:225-288`) demands for each file: it is still in quarantine; the kept copy exists (same size for byte copies); the kept copy is **byte-for-byte the same** (full SHA-256 of both, `manage.py:291-306`). Then the file goes to the Recycle Bin on a local NTFS or ReFS fixed drive, or is deleted for good elsewhere. A row is written to `purged`, the file's catalog row is deleted, its sidecars follow, and a `before-empty-quarantine` snapshot was taken first. The page labels each entry Exact copy, Near-duplicate, Migration copy or Migrated original, and works out its kept copy as the lowest-id live member of the file's group (`manage.py:30-31,115-131`). Only for exact copies does Empty compare bytes; for near-duplicates it checks that the kept file exists, because the copies differ by design. "Keep set-aside files" offers forever (default), 30, 90 or 365 days; after that files are only *offered* for removal (`manage.due`, line 134).
 
 # Thresholds, settings and what it writes
 
@@ -255,39 +304,33 @@ stateDiagram-v2
 
 | Question | Threshold | Where |
 |:--|:--|:--|
-| Sample slices | 3 x 64 KB: start, middle, end | `hashing.py:20,84` |
-| Read whole instead of sampling | Size up to 192 KB | `hashing.py:79` |
+| Sample slices | 3 x 64 KB; whole if 192 KB or less | `hashing.py:20,79,84` |
 | Full-hash read size | 1 MB | `hashing.py:21` |
-| Speed-limit burst | 0.25 s | `hashing.py:60` |
-| Candidate capture time | Equal text,<br>or either has none | `detect.py:131-137` |
-| Sample-pass threads | 8 | `detect.py:28` |
-| Full-hash threads | 4 | `detect.py:208` |
-| Offline retry | Every 60 s | `engine.py:32` |
+| Candidate capture time | Equal text, or either has none | `detect.py:131-137` |
+| Threads | 8 sample pass, 4 full hash | `detect.py:28,208` |
 | Fingerprint | 64 bits, 9 x 8 grey | `similar.py:55-61` |
 | Maximum bits apart | 4 | `similar.py:47` |
 | Chunks per fingerprint | 5 (13/13/13/13/12) | `similar.py:100` |
 | Largest bucket compared | 400 photos | `similar.py:48,156` |
 | Near-blank fingerprint | Under 8 or over 56 bits set | `similar.py:127,223` |
 | Same-name bucket | 2 to 8 photos | `similar.py:148` |
-| Shifted copy | Same name,<br>61 s to 36 h apart | `similar.py:197,207` |
+| Shifted copy | Same name, 61 s to 36 h apart | `similar.py:197,207` |
 | Bits for a shifted copy | 16 (4 if near blank) | `similar.py:198,226` |
 | Aspect ratio | Within 2 % | `similar.py:240` |
-| Edit words | "edit" or "export"<br>in the relative path | `similar.py:248` |
+| Edit words | "edit" or "export" in the path | `similar.py:248` |
 
 ## Settings
 
 | Setting | Default | Range | Effect |
 |:--|:--|:--|:--|
-| `preferred_roots` | empty | List of<br>source ids | Keeper is the copy in the<br>first listed source |
-| `job_default_when` | `now` | now, idle,<br>window | Default "when to run"<br>for a new job |
-| `job_idle_minutes` | 5 | 1 to 1,440 | Idle = no input this long |
-| `job_window_start_hour` | 22 | 0 to 23 | Start of the night window |
-| `job_window_end_hour` | 6 | 0 to 23 | End; may pass midnight |
-| `job_mb_per_s` | 0 (none) | 0 to 100,000 | Read-speed cap for new jobs |
-| `trash_keep_days` | 0 (forever) | Page offers<br>0, 30, 90, 365 | Age at which set-aside<br>files are offered for removal |
-| `similar_grouped_count` | 0 | Internal | Fingerprints the last<br>grouping used |
+| `preferred_roots` | empty | List of source ids | Keeper = copy in<br>first source |
+| `job_default_when` | `now` | now, idle, window | Default "when to run" |
+| `job_idle_minutes` | 5 | 1 to 1,440 | Idle: no input<br>this long |
+| `job_window_start_hour`,<br>`job_window_end_hour` | 22 and 6 | 0 to 23 each | Night window; may<br>pass midnight |
+| `job_mb_per_s` | 0 (none) | 0 to 100,000 | Read-speed cap, MB/s |
+| `trash_keep_days` | 0 (forever) | 0, 30, 90, 365 | Age to offer<br>for removal |
 
-Settings are defined at `settings.py:32,45-49,88-89` and validated at `settings.py:146-169`; `trash_keep_days` has no range check. The thresholds above are constants, not settings.
+Defined at `settings.py:32,45-49,88-89`, validated at `settings.py:146-169` (`trash_keep_days` has no range check; the page offers the four values). The internal counter `similar_grouped_count` records how many fingerprints the last grouping used. The thresholds above are constants.
 
 ## What it writes
 
@@ -331,30 +374,28 @@ Settings are defined at `settings.py:32,45-49,88-89` and validated at `settings.
 
 # A worked example
 
-All names and sizes are made up. Two sources are watched: `D:\Photos` and `E:\Backup Pool`. The files:
+All names and sizes are made up. Two sources are watched: `D:\Photos` and `E:\Backup Pool`.
 
-- `D:\Photos\2024\6-19-2024 Air Show\IMG_0412.ARW`, about 61 MB, captured 10:22:31.250, rated 3 stars.
-- `E:\Backup Pool\Air Show 2024\IMG_0412.ARW`, a byte-identical copy, rated 4 stars, in an album "Air Shows".
-- `D:\Photos\2024\6-19-2024 Air Show\IMG_0413.ARW`: the very same size, captured 10:22:31.375, a different shot.
-- `D:\Photos\2024\6-19-2024 Air Show\IMG_0420.JPG` (6000 x 4000, 14 MB), its Takeout copy `D:\Google Takeout 2024\Google Photos\Air Show\IMG_0420.JPG` (2048 x 1365, 1.1 MB, time 8 hours later), and an edit `D:\Photos\Exports\Air Show edit\IMG_0420-edit.JPG`.
+- `D:\Photos\2024\6-19-2024 Air Show\IMG_0412.ARW`: about 61 MB, captured 10:22:31.250, rated 3 stars.
+- `E:\Backup Pool\Air Show 2024\IMG_0412.ARW`: a byte-identical copy, rated 4 stars, in the album "Air Shows".
+- `D:\Photos\2024\6-19-2024 Air Show\IMG_0413.ARW`: the same size, captured 10:22:31.375, another shot.
+- `...\IMG_0420.JPG` (6000 x 4000, 14 MB) in the same folder; its Takeout copy `D:\Google Takeout 2024\Google Photos\Air Show\IMG_0420.JPG` (2048 x 1365, 1.1 MB, time 8 hours later); and an edit `D:\Photos\Exports\Air Show edit\IMG_0420-edit.JPG`.
 
 ## Exact track
 
-1. **Find duplicates** runs on both sources. For the folder `2024/6-19-2024 Air Show` the RAW size occurs elsewhere. `IMG_0413.ARW` shares the size but not the capture time, so it is **never read**. The two `IMG_0412.ARW` files are candidates.
+1. **Find duplicates** runs on both sources. In the folder `2024/6-19-2024 Air Show` the RAW size occurs elsewhere. `IMG_0413.ARW` shares the size but not the capture time, so it is **never read**. Only the two `IMG_0412.ARW` files are candidates.
 2. Each gives a sample hash from three 64 KB slices: about 192 KB read instead of 61 MB. They match: a **Likely** group of two.
-3. **Verify this group** reads both files fully. The full hashes match, an `exact` group forms and the status is **Verified**.
+3. **Verify this group** reads both files fully. The full hashes match, an `exact` group forms and the status becomes **Verified**.
 4. **Which copy stays?** E: is shallower (one folder level against two), so by default it would be the keeper. You choose "keep the copy in D:\Photos", which puts D: first in the order.
-5. **Set aside 1 extra copy.** A `...before-quarantine.zip` snapshot is written. D: keeps its own 3 stars; the album "Air Shows" is added to D:.
-6. The E: file is renamed to `E:\Backup Pool\_Lunelis Quarantine\Air Show 2024\IMG_0412.ARW`. Nothing was copied or deleted.
+5. **Set aside 1 extra copy.** A snapshot is written. D: keeps its 3 stars and gains the album. The E: file is renamed to `E:\Backup Pool\_Lunelis Quarantine\Air Show 2024\IMG_0412.ARW`. Nothing was copied or deleted.
 
 ## Near-duplicate track
 
-1. The three JPEGs are fingerprinted: the original and the edit differ by 2 bits, the Takeout copy by 11 (illustrative figures). They share a chunk bucket, so they are compared.
-2. Original against Takeout copy: same name, times 8 h apart, so a **shifted copy** (16 bits allowed). Sizes differ. Aspect 1.5000 against 1.5004 is within 2 %. **Match.**
-3. Original against edit: names `img_0420` and `img_0420-edit` (one inside the other), 2 bits, same moment, different size. **Match.** All three match each other, so they form one complete group.
-4. **Keeper:** the edit ranks below the original because it is an edit; the original has the most pixels, so it stays.
-5. **Suggested:** the Takeout copy (fewer pixels, Takeout source) is pre-ticked. The edit shows **Edit - kept**.
-6. After you confirm, the Takeout copy moves to `D:\Google Takeout 2024\_Lunelis Quarantine\Google Photos\Air Show\IMG_0420.JPG` and its ratings go to the original. Restore puts either file back.
+1. The original and the edit are fingerprinted 2 bits apart, the Takeout copy 11 bits (illustrative). They share a bucket, so they are compared.
+2. Original and Takeout copy: same name, times 8 h apart, so a **shifted copy** (16 bits allowed); sizes differ; aspect 1.5000 against 1.5004 is within 2 %. **Match.**
+3. Original and edit: `img_0420` is inside `img_0420-edit`, 2 bits, same moment, other size. **Match.** All three match each other: one complete group.
+4. **Keeper:** the original (an edit ranks lower; it has the most pixels). **Suggested:** the Takeout copy (fewer pixels, Takeout source). The edit shows **Edit - kept**.
+5. After you confirm, the Takeout copy moves to `D:\Google Takeout 2024\_Lunelis Quarantine\Google Photos\Air Show\IMG_0420.JPG` and its ratings go to the original. Restore puts it back.
 
 # Known limits
 
@@ -367,27 +408,28 @@ All names and sizes are made up. Two sources are watched: `D:\Photos` and `E:\Ba
 - **"Keep this one" is not durable.** `rebuild_groups` deletes and re-inserts a group's members, resetting `is_keeper` (`detect.py:193-199`).
 - **Edit stacks and face data are not merged** into the keeper. Emptying deletes the catalog row and `edits` rows cascade (`schema.py:563`).
 - **Near-duplicate set-aside does not carry the sidecar** (`quarantine_similar` never calls `carry_sidecar`).
+- **The default keeper can be the backup.** "Fewest folder levels" may prefer a shallow backup folder over your organised library, as in the worked example. That is why "keep the copy in" exists.
+- **Disabled sources and skipped folders are invisible** to both tracks: they filter on `excluded = 0` and `roots.enabled = 1` (`detect.py:31`, `similar.py:121`).
+- **A photo without a thumbnail has no fingerprint,** so a failed thumbnail (`thumb_error`) keeps it out of near-duplicate matching.
+- **Worst case per bucket is 79,800 pair tests** (400 choose 2) before the cap skips larger buckets.
 - **A full verify reads every byte.** A large library takes hours, so it is a pausable job.
 
 # Discrepancies
 
 Where code and docstrings, CLAUDE.md or the CHANGELOG disagree, this document follows the code.
 
-- **Candidate rule.** `detect.py:5-7` and the page text "same size, matching samples" (`dupes_view.py:241`) say candidates share a size. The code also needs the same capture time or none (`detect.py:106-142`), as CLAUDE.md says.
+- **Candidate rule.** `detect.py:5-7` and the page text (`dupes_view.py:241`) say candidates share a size. The code also needs the same capture time or none (`detect.py:106-142`), as CLAUDE.md says.
 - **Near-duplicate rules.** `similar.py:14-29` and CLAUDE.md list "same moment" and "near-blank skipped" as absolute. The code lets same-name copies 61 s to 36 h apart match at up to 16 bits without the moment test, and lets a near-blank picture pair as a shifted copy (`similar.py:197-242`).
-- **Unused code.** `TIME_TOLERANCE_S` (`similar.py:49`) and `_t()` (line 106) are never used.
-- **Keeper docstring.** `similar.keeper_rank` documents no edit step, but the code ranks "is an edit" second (`similar.py:356`). The tab's note (`near_view.py:105-108`) omits it too.
-- **Takeout test differs.** The exact keeper counts "takeout" anywhere in source plus file path (`detect.py:243`). The near-duplicate track uses `takeout_roots`: the source's own folder name, or a `Google Photos` folder inside (`takeout.py:220-234`). CLAUDE.md says only the source's own name counts.
+- **Unused code and a missing step.** `TIME_TOLERANCE_S` (`similar.py:49`) and `_t()` (line 106) are never used. The `keeper_rank` docstring and the tab's note (`near_view.py:105-108`) omit the "is an edit" step the code ranks second (`similar.py:356`).
+- **Takeout test differs.** The exact keeper counts "takeout" anywhere in source plus file path (`detect.py:243`); the near-duplicate track uses `takeout_roots`, the source's own folder name (`takeout.py:220-234`), as CLAUDE.md says is right.
 - **"Exact name".** CLAUDE.md says a copy with the keeper's exact name is suggested. The code compares file stems without extension, lowercased (`similar.py:297`), so `IMG_1.png` matches `IMG_1.jpg`.
-- **Quarantine location.** `move_one`'s docstring (`quarantine.py:112-117`) mentions a Lunelis-folder Duplicates and Trash and cross-drive copies. The duplicates code only builds paths under the file's own source; the cross-drive branch serves migration.
-- **"Network" in Empty.** CLAUDE.md and `manage.py` say network files are deleted and local ones recycled. `_is_network` really means "has no Recycle Bin" (`paths.has_recycle_bin`): also USB sticks, cards, FAT and exFAT volumes, and any non-Windows system.
-- **Verified label.** `load_groups` passes `method == "exact"` to `Group` (`dupes_view.py:96`) and ignores the `verified` column. After the migration 41 trigger clears `verified`, the page still says Verified and offers Set aside, but `quarantine()` refuses it, and the verify job only handles `sampled` groups (`engine.py:75`). CHANGELOG 0.37.3 says such a group "stops counting as verified". Confirmed on a scratch catalog (trigger and refusal); the page was not run.
-- **Hidden, not promoted.** The page hides a sampled group whose members all have a `content_hash` ("already represented by its verified group", `dupes_view.py:92`). Hash everything, integrity and backup runs also write full hashes. If one ran first, nothing creates the exact group: `verify_duplicates` only looks at members with an empty `content_hash` (`main_window.py:3010-3018`). Read from code, not reproduced.
+- **Quarantine location.** `move_one`'s docstring (`quarantine.py:112-117`) mentions a Lunelis-folder Duplicates and Trash and cross-drive copies. The duplicates code only builds paths under the file's own source; that branch serves migration.
+- **"Network" in Empty.** CLAUDE.md and `manage.py` say network files are deleted, local ones recycled. `_is_network` means "has no Recycle Bin" (`paths.has_recycle_bin`): also USB sticks, FAT and exFAT volumes.
+- **Verified label.** `load_groups` passes `method == "exact"` to `Group` (`dupes_view.py:96`) and ignores the `verified` column. After the migration 41 trigger clears it, the page still says Verified and offers Set aside, but `quarantine()` refuses, and the verify job handles only `sampled` groups (`engine.py:75`). CHANGELOG 0.37.3 says such a group "stops counting as verified". Trigger and refusal confirmed on a scratch catalog; the page was not run.
+- **Hidden, not promoted.** The page hides a sampled group whose members all have a `content_hash` ("already represented by its verified group", `dupes_view.py:92`). Hash everything, integrity and backup runs also write full hashes; if one ran first, nothing creates the exact group, because `verify_duplicates` only looks at members with an empty `content_hash` (`main_window.py:3010-3018`). Read from code, not reproduced.
 - **Verify ignores Settings.** `verify_duplicates` calls `create_job` with no options (`main_window.py:3017`): it runs now, with no speed limit, though the tooltip says it "can pause and run at night" (`dupes_view.py:265`). "Verify this group" has no throttle either.
-- **Snapshot folder.** Both tabs snapshot into `paths.BACKUP_DIR` (`dupes_view.py:194,469`; `near_view.py:65`), not the folder `catalog.backup.backup_dir` would return for `catalog_backup_dir` or the Lunelis folder.
-- **"Dissolved".** The `_verify_folder` docstring says a fluke group is dissolved; the row stays and is only hidden.
-- **Request checking.** `quarantine()` raises on a non-member; `quarantine_similar()` silently ignores such ids (`similar.py:374`).
-- **Settings comment drift.** The `trash_keep_days` comment sits on the `similar_grouped_count` line (`settings.py:88-89`).
+- **Snapshot folder.** Both tabs snapshot into `paths.BACKUP_DIR` (`dupes_view.py:194,469`; `near_view.py:65`), not the folder `backup.backup_dir` returns for `catalog_backup_dir`.
+- **Small ones.** `_verify_folder` says a fluke group is "dissolved"; the row stays, hidden. `quarantine()` raises on a non-member, `quarantine_similar()` silently ignores it (`similar.py:374`). The `trash_keep_days` comment sits on the `similar_grouped_count` line (`settings.py:88-89`).
 
 # To check
 

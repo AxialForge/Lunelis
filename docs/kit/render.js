@@ -27,7 +27,7 @@ fs.mkdirSync(CACHE, { recursive: true });
 const FONT = "Calibri", MONO = "Consolas";
 const INK = "1E2327", GREY = "5C6670", RULE = "D5DADF", ZEBRA = "F6F7F8";
 const PAGE_W = 9360;                       // US Letter portrait, 1 inch margins (DXA)
-const IMG_MAX_W = 600, IMG_MAX_H = 620;    // px at 96 dpi
+const IMG_MAX_W = 600, IMG_MAX_H = 700;    // px at 96 dpi
 
 // ---------------------------------------------------------------- front matter
 let text = fs.readFileSync(SRC, "utf8").replace(/\r/g, "");
@@ -167,9 +167,9 @@ const hair = { style: BorderStyle.SINGLE, size: 4, color: RULE };
 const hairBorders = { top: hair, bottom: hair, left: hair, right: hair };
 let figN = 0, listInst = 0, chapterN = 0, diagN = 0;
 
-function cellParas(t, extra = {}, align) {
+function cellParas(t, extra = {}, align, keep = false) {
   const parts = t.split(/<br\s*\/?>/i);
-  return parts.map((s) => new Paragraph({ spacing: { after: 40, line: 252, lineRule: "auto" }, alignment: align, children: runs(s, { size: 19, ...extra }) }));
+  return parts.map((s) => new Paragraph({ keepNext: keep, keepLines: true, spacing: { after: 40, line: 252, lineRule: "auto" }, alignment: align, children: runs(s, { size: 19, ...extra }) }));
 }
 function table(rows, width = PAGE_W) {
   const head = rows[0], body = rows.slice(1), n = head.length;
@@ -196,23 +196,23 @@ function table(rows, width = PAGE_W) {
     w = w.map((v, c) => v - Math.round((room[c] / total) * deficit));
   }
   w[n - 1] += width - w.reduce((a, b) => a + b, 0);
-  const mk = (t, c, isHead, zebra) => {
+  const mk = (t, c, isHead, zebra, keep) => {
     t = t || "";
     const chip = !isHead && t.match(CHIP_RE);
     let fill = isHead ? COLOR : zebra ? ZEBRA : undefined, content, align;
     if (chip) {
       const [label, bg, fg] = CHIPS[chip[1].toLowerCase()];
       fill = bg;
-      content = cellParas(chip[2] || label, { bold: true, color: fg }, AlignmentType.CENTER);
-    } else content = cellParas(t, isHead ? { bold: true, color: "FFFFFF" } : {});
+      content = cellParas(chip[2] || label, { bold: true, color: fg }, AlignmentType.CENTER, keep);
+    } else content = cellParas(t, isHead ? { bold: true, color: "FFFFFF" } : {}, undefined, keep);
     return new TableCell({
       width: { size: w[c], type: WidthType.DXA }, borders: hairBorders, verticalAlign: chip ? VerticalAlign.CENTER : VerticalAlign.TOP,
       shading: fill ? { type: ShadingType.CLEAR, fill, color: "auto" } : undefined,
       margins: { top: 60, bottom: 40, left: 100, right: 100 }, children: content,
     });
   };
-  const trs = [new TableRow({ tableHeader: true, cantSplit: true, children: head.map((t, c) => mk(t, c, true)) })];
-  body.forEach((r, ri) => trs.push(new TableRow({ cantSplit: true, children: head.map((_, c) => mk(r[c], c, false, ri % 2 === 1)) })));
+  const trs = [new TableRow({ tableHeader: true, cantSplit: true, children: head.map((t, c) => mk(t, c, true, false, true)) })];
+  body.forEach((r, ri) => trs.push(new TableRow({ cantSplit: true, children: head.map((_, c) => mk(r[c], c, false, ri % 2 === 1, ri < 1 || ri >= body.length - 2)) })));
   return [new Table({ width: { size: width, type: WidthType.DXA }, columnWidths: w, layout: TableLayoutType.FIXED, rows: trs }), spacer(120)];
 }
 const spacer = (after = 120) => { const p = new Paragraph({ spacing: { after, line: 240, lineRule: "auto" }, children: [] }); p._spacer = true; return p; };
