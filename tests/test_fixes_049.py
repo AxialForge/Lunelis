@@ -55,3 +55,19 @@ def test_a_result_message_survives_the_pages_reload(monkeypatch):
     t = [notice.time.monotonic()]
     monkeypatch.setattr(notice.time, "monotonic", lambda: t[0] + notice.HOLD_S + 1)
     assert n.prefix() == ""                                         # gone after a few seconds
+
+
+def test_the_library_count_says_when_tiles_hide_files(tmp_path):
+    from test_audit_navigation import _window
+    w, ids = _window(tmp_path, 4)
+    try:
+        sid = w.conn.execute("INSERT INTO stacks (kind, cover_file_id, size) VALUES ('burst', ?, 3)", (ids[0],)).lastrowid
+        w.conn.executemany("INSERT INTO stack_files (stack_id, file_id, position) VALUES (?, ?, ?)",
+                           [(sid, f, n) for n, f in enumerate(ids[:3])])
+        w.conn.commit()
+        w.reload()
+        w._update_count(0)
+        assert "files)" in w.count.text() and "as one tile" in w.count.toolTip()
+    finally:
+        w._quitting = True
+        w.close()

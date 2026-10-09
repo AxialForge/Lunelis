@@ -3333,10 +3333,19 @@ class MainWindow(QMainWindow):
 
     def _update_count(self, selected: int) -> None:
         n = len(self.index)
+        files = len(getattr(self.index, "all_rows", None) or self.index.rows)
         text = f"{n:,} photo{'s' if n != 1 else ''}"
         if selected:
             text = f"{selected:,} of {text} selected"
+        # Pages count different things (0.49: 47 here, 52 elsewhere, no reason given):
+        # say when the tiles hide files.
+        if files > n:
+            text += f"  ({files:,} files)"
         self.count.setText(text)
+        self.count.setToolTip(
+            f"{n:,} tiles from {files:,} files: a burst, a timelapse stack or a RAW+JPEG pair shows as one tile."
+            if files > n else "Each photo or video is one tile. Other pages may count only photos, or only "
+            "what's in their own filter.")
 
     # --- background work -----------------------------------------------------
 
