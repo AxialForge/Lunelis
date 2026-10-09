@@ -88,6 +88,9 @@ def _find(conn, path: str) -> int | None:
     return None
 
 
+EXTRA_LABEL_TAG = "darktable labels"   # a photo's 2nd, 3rd... darktable colour label, kept as a tag
+
+
 def import_(conn: sqlite3.Connection) -> ImportResult:
     """Apply darktable's changes, then clear the file (the plugin re-sends
     anything it changes later). Newest change wins."""
@@ -95,16 +98,20 @@ def import_(conn: sqlite3.Connection) -> ImportResult:
     res = ImportResult()
     src = exchange_dir(conn) / FROM_DARKTABLE
     try:
-        lines = src.read_text(encoding="utf-8").splitlines()
+        lines = src.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return res
     for line in lines:
         if not line or line.startswith("#"):
             continue
         parts = line.split("\t")
-        if len(parts) < 4:
+        try:
+            path, rating, labels, when = parts[0], int(parts[1]), parts[2], parts[3]
+        except (IndexError, ValueError):
+            # A damaged line is skipped; the file is still cleared below, so it
+            # doesn't fail again on every check (0.49).
+            res.unknown += 1
             continue
-        path, rating, labels, when = parts[0], int(parts[1]), parts[2], parts[3]
         fid = _find(conn, path)
         if fid is None:
             res.unknown += 1
@@ -121,6 +128,15 @@ def import_(conn: sqlite3.Connection) -> ImportResult:
             next((n for n in LABELS if n.lower() in dt_labels), None)
         stars = max(rating, 0)
         flag = "reject" if rating < 0 else (cur[1] if cur and cur[1] == "pick" else None)
+        # darktable's other labels: Lunelis has one, so the rest become tags -
+        # they're no longer dropped (0.49).
+        extra = [n for n in LABELS if n.lower() in dt_labels and n != label]
+        if extra:
+            from lunelis.tags import model as tags
+            have = set(tags.tags_of(conn, fid))
+            new = [f"{EXTRA_LABEL_TAG}|{n}" for n in extra if f"{EXTRA_LABEL_TAG}|{n}" not in have]
+            if new:
+                tags.add(conn, [fid], new)
         if cur and (cur[0] or 0, cur[1], cur_label) == (stars, flag, label):
             continue
         ratings.set_ratings(conn, [fid], stars=stars, flag=flag, label=label)

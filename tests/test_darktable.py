@@ -158,3 +158,21 @@ def test_install_and_uninstall(lib, tmp_path):
     bridge.uninstall(conn, cfg)
     assert (cfg / "luarc").read_text(encoding="utf-8") == 'require "tools/script_manager"\n'
     assert not bridge.installed(cfg) and not Settings(conn).get("darktable_sync")
+
+
+def test_a_second_label_becomes_a_tag_and_a_damaged_file_is_cleared(lib):
+    """0.49: darktable's second colour label was dropped, and a damaged
+    exchange file errored on every check."""
+    from lunelis.tags import model as tags
+    conn, photos, ex, ids = lib
+    bridge.export(conn)
+    dt = Darktable(photos, ["a.ARW", "b.ARW", "c.jpg"], ex).start()
+    dt.images["c.jpg"]["red"] = True
+    dt.images["c.jpg"]["blue"] = True
+    dt.sync()
+    bridge.import_(conn)
+    assert rating(conn, ids["c.jpg"])[2] == "Red"
+    assert "darktable labels|Blue" in tags.tags_of(conn, ids["c.jpg"])
+    (ex / bridge.FROM_DARKTABLE).write_bytes(b"\xff\xfe garbage\tnot-a-number\n" + b"\x00" * 20)
+    res = bridge.import_(conn)                                       # no exception
+    assert res.unknown >= 1 and not (ex / bridge.FROM_DARKTABLE).exists()
