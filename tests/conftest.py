@@ -4,6 +4,9 @@ import os
 import tempfile
 
 os.environ["LUNELIS_DATA_DIR"] = tempfile.mkdtemp(prefix="lunelis-test-data-")
+# ...and it is removed afterwards (0.50: they piled up in %TEMP%).
+import atexit, shutil
+atexit.register(shutil.rmtree, os.environ["LUNELIS_DATA_DIR"], ignore_errors=True)
 # Offscreen Qt falls back to a much wider font unless it is shown Windows' own
 # fonts; measure layouts with what the app really uses there (Segoe UI).
 if os.name == "nt" and os.path.isdir(r"C:\Windows\Fonts"):

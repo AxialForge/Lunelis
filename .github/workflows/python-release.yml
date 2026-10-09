@@ -30,8 +30,17 @@ jobs:
           pip install -r requirements.txt
           pip install -e . pytest==9.1.1 lupa==2.8
 
+      - name: Fetch a real camera RAW for the tests
+        # A CC0 Sony ILCE-7RM3 sample from raw.pixls.us, checked by its SHA-256
+        # in tests/test_real_files.py (a wrong file just skips those tests).
+        shell: bash
+        run: curl -fsSL --retry 3 -o "$RUNNER_TEMP/sample.arw" "https://raw.pixls.us/data/Sony/ILCE-7RM3/Sony_-_ILCE-7RM3_-_12bit_compressed_(3:2).ARW" || true
+
       - name: Run tests
-        run: python -X faulthandler -m pytest -q
+        shell: bash
+        env:
+          LUNELIS_REAL_MODELS: "1"
+        run: LUNELIS_SAMPLE_ARW="$RUNNER_TEMP/sample.arw" python -X faulthandler -m pytest -q
 
   build-win:
     # Only on a tag, and only if the tests passed.
