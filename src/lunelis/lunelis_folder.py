@@ -9,6 +9,7 @@ videos.
                    \\Backups\\Catalog\\        catalog snapshots
                    \\Duplicates\\              copies a migration didn't keep (0.41)
                    \\Trash\\                   removed files, kept for a while (0.41)
+                   \\Damaged\\                 damaged files with no intact copy, from a migration (0.51)
                    \\Migration logs\\          before / after inventories and manifests (0.41)
 
 Setting `lunelis_folder` (None = off: everything stays where it was). A
@@ -25,8 +26,9 @@ STAGING = "Staging"
 BACKUPS_CATALOG = "Backups\\Catalog"
 DUPLICATES = "Duplicates"
 TRASH = "Trash"
+DAMAGED = "Damaged"
 MIGRATION_LOGS = "Migration logs"
-FIXED = (EXPORTS, STAGING, BACKUPS_CATALOG, DUPLICATES, TRASH, MIGRATION_LOGS)
+FIXED = (EXPORTS, STAGING, BACKUPS_CATALOG, DUPLICATES, TRASH, DAMAGED, MIGRATION_LOGS)
 
 # Create tool -> its folder (title_text in ui/create_page.py).
 CREATE_FOLDERS = {

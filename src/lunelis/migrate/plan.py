@@ -7,7 +7,7 @@ storage template, one good copy of each photo:
 - one copy of each VERIFIED byte-identical duplicate group moves; the others
   are skipped (and follow the keeper's fate - see execute.py);
 - a damaged file whose intact copy exists elsewhere is skipped; a damaged
-  file that is the only copy still moves, flagged;
+  file that is the only copy moves to the Lunelis folder's Damaged (0.51);
 - file names never change: a different file whose name is taken in its
   folder goes to a sibling folder ("6-19-2026 (2)"), and a RAW+JPEG pair
   (same stem) always lands in the same folder;
@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from lunelis.dupes.detect import keeper_rank
+from lunelis.importing.templates import _clean_segment
 from lunelis.importing.templates import Context, render, sibling, validate
 
 VIDEO_FORMATS = {"mp4", "mov", "mpeg-ts"}
@@ -223,7 +224,7 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
         if same and options.skip_damaged_copies:
             action[fid] = ("skip_damaged", same[0][0], "Damaged - an intact copy exists")
         else:
-            action[fid] = ("move", None, "Damaged, and no intact copy was found - moved as it is")
+            action[fid] = ("move", None, "Damaged, and no intact copy was found - moved to the Lunelis folder's Damaged")
 
     # Where each moving file goes, keeping RAW+JPEG pairs together and never renaming.
     # A RAW+JPEG pair (same folder, same stem) follows the event of either half.
@@ -237,6 +238,7 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
 
     lay = _layout_inputs(conn, by_id, options) if options.library_layout else None
 
+    damaged_base = _damaged_folder(conn, target)
     dest: dict[int, str] = {}
     by_pair: dict[tuple[str, str], list[int]] = defaultdict(list)
     for fid, r in by_id.items():
@@ -244,7 +246,12 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
             continue
         ev_name, ev_start = (r[9], r[10]) if r[9] else pair_event.get(pair_key(r), (None, None))
         src_dir = r[3].rsplit("/", 1)[0] if "/" in r[3] else ""
-        if lay is not None:
+        note = action.get(fid, ("move", None, ""))[2] or ""
+        if note.startswith("Damaged"):
+            # The only copy of a damaged file: kept, but out of the Library, under
+            # its source folder's name so where it came from is clear (0.51).
+            folder = damaged_base + "\\" + _clean_segment(src_dir.rsplit("/", 1)[-1] or "Unsorted")
+        elif lay is not None:
             folder = _layout_folder(lay, options, template, r, ev_name, ev_start, src_dir)
         else:
             # In a migration the "import name" of a photo is its event's name, so
@@ -349,6 +356,18 @@ def _layout_inputs(conn: sqlite3.Connection, by_id: dict, options: Options) -> d
             folder_mtimes[(r[1], r[3].rsplit("/", 1)[0] if "/" in r[3] else "")].append(r[13])
     return {"days": days, "frames": frames, "folder_mtimes": folder_mtimes,
             "opts": layout.LayoutOptions(options.undated_by_mtime, options.photo_subfolders)}
+
+
+def _damaged_folder(conn: sqlite3.Connection, target: str) -> str:
+    """The Lunelis folder's Damaged, relative to the target: the Lunelis folder
+    when it is inside the target, else <target>\\Lunelis (0.51)."""
+    from lunelis import lunelis_folder
+    from lunelis.settings import Settings
+    r = lunelis_folder.root(Settings(conn))
+    rel = "Lunelis"
+    if r is not None and _inside(str(r), target):
+        rel = os.path.relpath(str(r), target).replace("/", "\\")
+    return rel + "\\" + lunelis_folder.DAMAGED
 
 
 def _layout_folder(lay: dict, options: Options, template: str, r, ev_name, ev_start, src_dir: str) -> str:

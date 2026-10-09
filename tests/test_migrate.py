@@ -251,3 +251,20 @@ def test_moving_only_the_archive_to_another_drive(lib):
         "2024/6-19-2024 Air Show/DSC001.JPG", "2024/6-19-2024 Air Show/DSC001.JPG.xmp",
         "2024/6-19-2024 Air Show/DSC002.ARW", "2024/6-19-2024 Air Show/DSC002.JPG",
         f"{QUARANTINE_DIR}/migration-{mid}/misc/scan.jpg"])
+
+
+def test_a_damaged_only_copy_goes_to_the_lunelis_folders_damaged(lib):
+    # 0.51: kept (it's the only copy) but out of the Library.
+    from lunelis.settings import Settings
+    conn, tmp, a, b, target, ra, rb, ids = lib
+    conn.execute("INSERT INTO damaged (file_id, problem) VALUES (?, 'corrupt')", (ids["misc/scan.jpg"],))
+    conn.commit()
+    mid = plan(conn, str(target), DEFAULT_TEMPLATE, Options([ra, rb]))
+    dest, act = conn.execute("SELECT dest_rel, action FROM migration_items WHERE migration_id = ? AND src_rel = ?",
+                             (mid, "misc/scan.jpg")).fetchone()
+    assert (dest, act) == ("Lunelis/Damaged/misc/scan.jpg", "move")
+    Settings(conn).set("lunelis_folder", str(target / "Lunelis stuff"))      # a Lunelis folder inside the target
+    conn.execute("DELETE FROM migration_items"); conn.execute("DELETE FROM migrations"); conn.commit()
+    mid = plan(conn, str(target), DEFAULT_TEMPLATE, Options([ra, rb]))
+    assert conn.execute("SELECT dest_rel FROM migration_items WHERE migration_id = ? AND src_rel = ?",
+                        (mid, "misc/scan.jpg")).fetchone()[0] == "Lunelis stuff/Damaged/misc/scan.jpg"
