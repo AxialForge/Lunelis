@@ -15,6 +15,11 @@ answers on this PC's home-network address, and:
   wrong PINs from one address lock it out for ten minutes, and
   twenty wrong PINs for one album (from any addresses) lock that album's PIN
   for an hour.
+- **Only this PC's home address:** the server listens on that one address,
+  not on every adapter (a VPN, a virtual machine's network) - 0.50.
+- **The PIN cookie lasts 12 hours** (signed with its expiry, 0.50).
+- **Originals stream** in 1 MB pieces instead of being read whole into
+  memory (a 2 GB video no longer takes 2 GB of RAM) - 0.50.
 - **At most 32 connections** at once; more are closed straight away.
 - **Rate limit:** each address gets a bucket of requests (burst 120, 20 a
   second); past that, 429.
@@ -70,6 +75,10 @@ def is_home(addr: str) -> bool:
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
         ip = ip.ipv4_mapped
     return any(ip.version == n.version and ip in n for n in HOME_NETS)
+
+
+CHUNK = 1 << 20                  # originals stream in 1 MB pieces
+COOKIE_HOURS = 12                # a right PIN is remembered this long
 
 
 def lan_address() -> str:
@@ -240,6 +249,27 @@ def _handler(app: "Gallery"):
             if self.command != "HEAD":
                 self.wfile.write(body)
 
+        def _send_file(self, path: str, ctype: str, extra: dict | None = None):
+            """An original, streamed in 1 MB pieces (0.50: it was read whole into memory)."""
+            size = os.path.getsize(path)
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(size))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Cache-Control", "private, max-age=300")
+            for k, v in (extra or {}).items():
+                self.send_header(k, v)
+            self.end_headers()
+            if self.command == "HEAD":
+                return
+            with open(path, "rb") as f:
+                while True:
+                    chunk = f.read(CHUNK)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+
         def _deny(self, code: int, text: str):
             self._send(code, PAGE.format(title="Lunelis", body=f"<form><p>{html.escape(text)}</p></form>").encode())
 
@@ -266,7 +296,12 @@ def _handler(app: "Gallery"):
                 return True
             c = cookies.SimpleCookie(self.headers.get("Cookie", ""))
             m = c.get(f"lg{sh['id']}")
-            return bool(m) and hmac.compare_digest(m.value, app.sign(sh["token"] + sh["pin_hash"]))
+            if not m or "." not in m.value:
+                return False
+            exp, sig = m.value.split(".", 1)
+            if not exp.isdigit() or int(exp) < time.time():
+                return False                               # expired: the PIN again (0.50)
+            return hmac.compare_digest(sig, app.sign(sh["token"] + sh["pin_hash"] + exp))
 
         def do_HEAD(self):
             self.do_GET()
@@ -290,14 +325,12 @@ def _handler(app: "Gallery"):
                     if not sh["originals"]:
                         return self._deny(403, "Originals aren't shared for this album.")
                     path = app.original(fid)
-                    with open(path, "rb") as f:
-                        data = f.read()
                     from urllib.parse import quote
                     name = os.path.basename(path)
                     ascii_name = name.encode("ascii", "replace").decode().replace("?", "_").replace('"', "_")
-                    return self._send(200, data, "application/octet-stream",
-                                      {"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; "
-                                                              f"filename*=UTF-8''{quote(name)}"})
+                    return self._send_file(path, "application/octet-stream",
+                                           {"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; "
+                                                                   f"filename*=UTF-8''{quote(name)}"})
                 data = app.resized(fid, THUMB if rest[0] == "thumb" else SIZE)
                 return self._send(200, data, "image/jpeg")
             self._deny(404, "Nothing here.")
@@ -325,7 +358,9 @@ def _handler(app: "Gallery"):
                 app.limiter.share_failed(sh["token"])
                 return self._pin_form(sh, wrong=True)
             app.limiter.succeeded(addr, stamp)
-            ck = f"lg{sh['id']}={app.sign(sh['token'] + sh['pin_hash'])}; Path=/s/{sh['token']}/; HttpOnly; SameSite=Strict"
+            exp = str(int(time.time()) + COOKIE_HOURS * 3600)
+            ck = (f"lg{sh['id']}={exp}.{app.sign(sh['token'] + sh['pin_hash'] + exp)}; Path=/s/{sh['token']}/; "
+                  f"Max-Age={COOKIE_HOURS * 3600}; HttpOnly; SameSite=Strict")
             self._send(303, b"", extra={"Location": f"/s/{sh['token']}/", "Set-Cookie": ck})
 
         def _pin_form(self, sh, wrong: bool = False):
@@ -382,7 +417,8 @@ class _CappedServer(ThreadingHTTPServer):
 class Gallery:
     """The running server. One catalog connection per request (thread-safe)."""
 
-    def __init__(self, db_path: Path, cache: Path, port: int = DEFAULT_PORT, host: str = "0.0.0.0") -> None:
+    def __init__(self, db_path: Path, cache: Path, port: int = DEFAULT_PORT, host: str | None = None) -> None:
+        # Only the home-network address, not every adapter (0.50); chosen at start().
         self.db_path, self.cache, self.port, self.host = db_path, cache, port, host
         self.limiter = _Limiter()
         self.secret = secrets.token_bytes(32)              # cookies don't outlive a restart of the gallery
@@ -455,7 +491,7 @@ class Gallery:
     def start(self) -> None:
         if self.httpd is not None:
             return
-        self.httpd = _CappedServer((self.host, self.port), _handler(self))
+        self.httpd = _CappedServer((self.host or lan_address(), self.port), _handler(self))
         self.httpd.daemon_threads = True
         self.port = self.httpd.server_address[1]
         self.thread = threading.Thread(target=self.httpd.serve_forever, name="lunelis-gallery", daemon=True)

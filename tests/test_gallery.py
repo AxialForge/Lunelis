@@ -1,6 +1,7 @@
 """0.31 family gallery: albums on the home network only, one key each,
 optional PIN, rate-limited, resized copies without location, originals only
 when allowed, and off means nothing listening."""
+import time
 import os
 import urllib.error
 import urllib.parse
@@ -269,3 +270,24 @@ def test_the_server_caps_connections(tmp_path, monkeypatch):
             s.close()
     finally:
         g.stop()
+
+
+def test_0_50_cookie_expires_originals_stream_and_one_address(served, monkeypatch):
+    """0.50: the PIN cookie lasts 12 hours, originals stream instead of being read
+    whole, and the server listens on the home address only."""
+    import inspect
+    conn, ids, aid, other, g = served
+    token = gallery.share(conn, aid, pin="2468", originals=True)
+    st, _, h = get(g, f"/s/{token}/pin", data=b"pin=2468")
+    assert f"Max-Age={gallery.COOKIE_HOURS * 3600}" in h["Set-Cookie"]
+    cookie = h["Set-Cookie"].split(";")[0]
+    assert get(g, f"/s/{token}/", cookie=cookie)[0] == 200
+    real = time.time()
+    monkeypatch.setattr(gallery.time, "time", lambda: real + gallery.COOKIE_HOURS * 3600 + 60)
+    st, body, _ = get(g, f"/s/{token}/", cookie=cookie)
+    assert st == 200 and b"PIN" in body                               # expired: the PIN form again
+    monkeypatch.setattr(gallery.time, "time", lambda: real)
+    st, body, h = get(g, f"/s/{token}/original/{ids[0]}", cookie=cookie)
+    assert st == 200 and int(h["Content-Length"]) == len(body) > 0
+    assert "f.read()" not in inspect.getsource(gallery._handler)      # nothing read whole
+    assert gallery.Gallery(gallery.Path("x"), gallery.Path("y")).host is None   # bound at start() to the home address
