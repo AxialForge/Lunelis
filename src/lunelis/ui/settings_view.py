@@ -1010,6 +1010,9 @@ class SettingsView(QWidget):
         self.auto_update = QCheckBox("Check for updates when Lunelis starts (once a day)")
         self.auto_update.toggled.connect(lambda on: self._set("update_check", on))
         v.addWidget(self.auto_update)
+        self.pre_updates = QCheckBox("Also offer test versions (pre-releases) - newer, but less tried")
+        self.pre_updates.toggled.connect(lambda on: self._set("update_prereleases", on))
+        v.addWidget(self.pre_updates)
         self._release = None
         return card
 
@@ -1019,7 +1022,8 @@ class SettingsView(QWidget):
         from lunelis import updater
         self.check_b.setEnabled(False)
         self.update_status.setText("Checking…")
-        self._run_update_task(lambda: updater.check(), self._checked)
+        pre = bool(Settings(self.conn).get("update_prereleases"))
+        self._run_update_task(lambda: updater.check(prereleases=pre), self._checked)
 
     def _run_update_task(self, fn, done) -> None:
         self._utask = _UpdateTask(fn)
@@ -1615,6 +1619,7 @@ class SettingsView(QWidget):
             self._load_places()
             self.version_label.setText(f"Lunelis {paths.version()}" + (" (from source)" if not paths.FROZEN else ""))
             self.auto_update.setChecked(s.get("update_check"))
+            self.pre_updates.setChecked(bool(s.get("update_prereleases")))
         finally:
             self._loading = False
 

@@ -121,6 +121,7 @@ DEFAULTS: dict[str, Any] = {
     "edit_sections_closed": ["Masks", "Lens corrections", "Effects"],   # folded Edit panel sections
     # Updates (packaged builds): check the public releases once a day at start-up.
     "update_check": True,
+    "update_prereleases": False,         # also offer test (pre-release) versions (0.50)
     "update_last_check": None,           # ISO time of the last check
     "update_skip_version": None,         # "not this one" - stays quiet until a newer one
     # darktable plugin: ratings swapped through files in this folder (None = <data dir>/darktable).

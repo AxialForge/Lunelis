@@ -34,6 +34,8 @@ from typing import Callable
 
 RELEASES_REPO = "AxialForge/Lunelis"
 LATEST_API = f"https://api.github.com/repos/{RELEASES_REPO}/releases/latest"
+ALL_API = f"https://api.github.com/repos/{RELEASES_REPO}/releases?per_page=15"
+MAX_DOWNLOAD = 1_000_000_000     # bytes: a release is ~185 MB; anything past this isn't ours (0.50)
 PAGE = f"https://github.com/{RELEASES_REPO}/releases"
 USER_AGENT = "Lunelis-updater"
 
@@ -55,8 +57,11 @@ class Release:
 
 
 def parse_version(v: str) -> tuple[int, ...]:
-    nums = re.findall(r"\d+", v or "")
-    return tuple(int(n) for n in nums[:3]) + (0,) * (3 - min(3, len(nums)))
+    """'0.50.0' -> (0, 50, 0, 1); '0.50.0-beta.2' -> (0, 50, 0, 0): a pre-release
+    is older than its final release (0.50 - the suffix used to be dropped)."""
+    core, _, pre = (v or "").partition("-")
+    nums = re.findall(r"\d+", core)
+    return tuple(int(n) for n in nums[:3]) + (0,) * (3 - min(3, len(nums))) + (0 if pre else 1,)
 
 
 def is_newer(candidate: str, current: str) -> bool:
@@ -92,9 +97,17 @@ def safe_markdown(text: str) -> str:
     return "".join(out)
 
 
-def check(timeout: float = 15) -> Release:
-    """The newest published release. Raises UpdateError when offline etc."""
+def check(timeout: float = 15, prereleases: bool = False) -> Release:
+    """The newest published release - including test (pre-release) versions
+    when asked (0.50). Raises UpdateError when offline etc."""
     try:
+        if prereleases:
+            with _get(ALL_API, timeout) as r:
+                found = [d for d in json.loads(r.read().decode("utf-8")) if not d.get("draft")]
+            if not found:
+                raise UpdateError("no releases published yet")
+            newest = max(found, key=lambda d: parse_version(d.get("tag_name", "").lstrip("vV")))
+            return release_from_json(newest)
         with _get(LATEST_API, timeout) as r:
             return release_from_json(json.loads(r.read().decode("utf-8")))
     except UpdateError:
@@ -121,9 +134,19 @@ def download(rel: Release, on_progress: Callable[[int, int], None] | None = None
     part = target.with_suffix(".zip.part")
     h = hashlib.sha256()
     done = 0
+    if rel.size > MAX_DOWNLOAD:
+        raise UpdateError(f"the download is {rel.size / 1e9:.1f} GB - far bigger than Lunelis; not downloading it")
     with _get(rel.zip_url, timeout=60) as r, open(part, "wb") as out:
         total = int(r.headers.get("Content-Length") or rel.size or 0)
+        if total > MAX_DOWNLOAD:
+            out.close()
+            part.unlink(missing_ok=True)
+            raise UpdateError("the download is far bigger than Lunelis - not downloading it")
         while chunk := r.read(1 << 20):
+            if done + len(chunk) > max(total, rel.size, 1) * 1.01 + (1 << 20) or done + len(chunk) > MAX_DOWNLOAD:
+                out.close()
+                part.unlink(missing_ok=True)
+                raise UpdateError("the download kept growing past its stated size - stopped")
             if should_cancel and should_cancel():
                 out.close()
                 part.unlink(missing_ok=True)

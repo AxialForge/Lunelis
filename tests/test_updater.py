@@ -48,7 +48,7 @@ def make_release(root: Path, base: str, version: str, *, good_checksum=True, ext
 
 def test_versions():
     assert updater.is_newer("0.10.0", "0.9.3") and not updater.is_newer("0.3.0", "0.3.0")
-    assert updater.parse_version("v1.2") == (1, 2, 0)
+    assert updater.parse_version("v1.2") == (1, 2, 0, 1)                   # final release (0.50: 4th = not a pre-release)
 
 
 def test_check_download_and_stage(server, monkeypatch, tmp_path):
@@ -150,3 +150,20 @@ def test_the_data_folder_cant_move_into_the_program_folder(tmp_path, monkeypatch
     with pytest.raises(ValueError, match="program folder"):
         paths.check_new_data_dir(tmp_path / "Program" / "data", tmp_path / "olddata")
     paths.check_new_data_dir(tmp_path / "elsewhere", tmp_path / "olddata")
+
+
+def test_0_50_pre_releases_and_a_size_cap(monkeypatch, tmp_path):
+    from lunelis import updater
+    assert updater.is_newer("0.50.0", "0.50.0-beta.2") and not updater.is_newer("0.50.0-beta.2", "0.50.0")
+    assert updater.is_newer("0.50.0-beta.1", "0.49.0")
+    rel = updater.Release("9.9.9", "v9.9.9", "", "p", "z", "Lunelis-v9.9.9-windows.zip", 5_000_000_000, "s")
+    monkeypatch.setattr(updater, "updates_dir", lambda: tmp_path)
+
+    class R:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self, *a): return b"0" * 64
+    monkeypatch.setattr(updater, "_get", lambda *a, **k: R())
+    import pytest
+    with pytest.raises(updater.UpdateError, match="bigger"):
+        updater.download(rel)
