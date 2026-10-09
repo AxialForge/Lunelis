@@ -43,6 +43,7 @@ if (!T) { console.error(`unknown type "${typeKey}" - one of: ${Object.keys(TYPES
 const COLOR = T.color, TINT = T.tint;
 const pyproject = path.join(KIT, "..", "..", "pyproject.toml");
 const version = meta.version || (fs.existsSync(pyproject) ? (fs.readFileSync(pyproject, "utf8").match(/^version = "(.+)"/m) || [])[1] : "") || "";
+const revision = meta.revision || "";
 const today = meta.date || new Date().toISOString().slice(0, 10);
 const TITLE = meta.title || "Untitled";
 const product = meta.product || "Lunelis";
@@ -286,7 +287,14 @@ function cards(innerLines, width) {
   return [new Table({ width: { size: width, type: WidthType.DXA }, columnWidths: ws, layout: TableLayoutType.FIXED, rows: [new TableRow({ cantSplit: true, children: cells })] }), spacer(160)];
 }
 function pngSize(buf) { return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }; }
+function lightCheck(file) {
+  if (path.dirname(file).startsWith(CACHE)) return;          // generated diagrams and charts are white already
+  const r = spawnSync("python3", ["-c", "import sys;from PIL import Image;im=Image.open(sys.argv[1]).convert('L').resize((40,40));d=list(im.getdata());print(sum(d)/len(d))", file], { encoding: "utf8" });
+  const v = parseFloat(r.stdout);
+  if (!(v >= 150)) { console.error(`dark screenshot refused: ${file} (mean brightness ${isNaN(v) ? "unknown" : v.toFixed(0)}/255). Documents are printed: capture screenshots in the light theme.`); process.exit(1); }
+}
 function figure(file, caption, width) {
+  lightCheck(file);
   const data = fs.readFileSync(file), { w, h } = pngSize(data);
   const maxW = Math.min(IMG_MAX_W, Math.round(width / 15)), s = Math.min(maxW / w, IMG_MAX_H / h, 1.0 * (maxW / w));
   const dw = Math.round(w * s), dh = Math.round(h * s);
@@ -402,7 +410,7 @@ function cover() {
       ],
     })] })],
   });
-  const facts = [["Product", `${product}${version ? " " + version : ""}`], ["Date", today], ["Status", meta.status || "Draft"]];
+  const facts = [["Product", `${product}${version ? " " + version : ""}`], ...(revision ? [["Document revision", revision]] : []), ["Date", today], ["Status", meta.status || "Draft"]];
   if (meta.audience) facts.push(["Audience", meta.audience]);
   if (meta.sources) facts.push(["Based on", meta.sources]);
   const fw = [1800, PAGE_W - 1800];
@@ -444,7 +452,7 @@ const doc = new Document({
     {
       properties: { type: SectionType.NEXT_PAGE, page: { size: { width: 12240, height: 15840 }, margin: { top: 1300, bottom: 1200, left: 1440, right: 1440, header: 600, footer: 560 } } },
       headers: { default: new Header({ children: [new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: PAGE_W }], border: { bottom: hdrFooterRule }, children: [new TextRun({ text: `${product}  ·  ${TITLE}`, size: 17, color: GREY }), new TextRun({ text: `\t${T.label}`, size: 15, bold: true, color: COLOR, characterSpacing: 30 })] })] }) },
-      footers: { default: new Footer({ children: [new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: PAGE_W }], border: { top: hdrFooterRule }, children: [new TextRun({ text: `${product}${version ? " " + version : ""}  ·  ${today}`, size: 16, color: GREY }), new TextRun({ children: ["\tPage ", PageNumber.CURRENT, " of ", PageNumber.TOTAL_PAGES], size: 16, color: GREY })] })] }) },
+      footers: { default: new Footer({ children: [new Paragraph({ tabStops: [{ type: TabStopType.RIGHT, position: PAGE_W }], border: { top: hdrFooterRule }, children: [new TextRun({ text: `${product}${version ? " " + version : ""}${revision ? "  ·  Rev " + revision : ""}  ·  ${today}`, size: 16, color: GREY }), new TextRun({ children: ["\tPage ", PageNumber.CURRENT, " of ", PageNumber.TOTAL_PAGES], size: 16, color: GREY })] })] }) },
       children: [
         new Paragraph({ spacing: { after: 200 }, border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: COLOR, space: 6 } }, children: [new TextRun({ text: "Contents", bold: true, size: 44, color: COLOR })] }),
         new TableOfContents("Contents", { hyperlink: true, headingStyleRange: "1-2" }),

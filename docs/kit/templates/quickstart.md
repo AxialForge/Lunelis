@@ -7,6 +7,17 @@ audience: New users
 
 <!-- Aim for two to four pages in total. No chapters beyond these. -->
 
+# What you need
+
+| Item | Requirement |
+|:--|:--|
+| Operating system | <versions> |
+| Memory and disk | <minimum and recommended> |
+| Permissions | <admin needed? folders it writes to> |
+| Optional extras | <what adds features> |
+| Download and install | <where from, how big, checksum> |
+| Network | <needed? when?> |
+
 # Get going
 
 ::: stats

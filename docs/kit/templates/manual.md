@@ -34,13 +34,20 @@ Answers: <the question this chapter answers>
 <Shortcut or time saver.>
 :::
 
+## If something goes wrong
+<!-- Every error the user can meet in this area, exactly as the program words it. -->
+| Message or symptom | Cause | Fix |
+|:--|:--|:--|
+| <exact message> | <why it happens> | <what to do> |
+
 # Settings
 | Setting | Default | What it does |
 |:--|:--|:--|
 
 # Troubleshooting
-| Symptom | Cause | Fix |
-|:--|:--|:--|
+<!-- Index of ALL messages, one row each, with the chapter that holds the fix. -->
+| Message or symptom | Chapter with the fix |
+|:--|:--|
 
 # Reference
 ## Keyboard shortcuts

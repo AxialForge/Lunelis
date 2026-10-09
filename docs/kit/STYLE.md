@@ -23,6 +23,14 @@ How Lunelis documents are written. The kit (`render.js`) turns one Markdown file
 Start from `docs/kit/templates/<type>.md`. Delete the sections that do not apply; do not
 leave placeholder text behind.
 
+## Rules that apply to every document
+
+- Ask the owner which document types they want (`DOCSET.md`). Do not build all twelve by default.
+- Screenshots are light theme only. The build refuses dark ones.
+- The manual lists every error with cause and fix, in the chapter where it happens, plus an index.
+- The quick start opens with what you need: system requirements, install, permissions.
+- Files and covers carry the release version and the document revision; the build zips the set.
+
 ## Rules of writing
 
 - Plain English for a photographer. Short sentences. No marketing words.
