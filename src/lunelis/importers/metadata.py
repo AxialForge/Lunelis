@@ -10,9 +10,10 @@ Reader: exifread. It's pure Python and reads through a Python file handle, so
 it takes any path Windows can open - pyexiv2 was measured and rejected because
 Exiv2 can't open non-ASCII paths on Windows (see CLAUDE.md, Gotchas). It
 covers TIFF-based RAW (ARW, NEF, NRW, CR2, DNG, PEF, SRW, ORF, RW2), JPEG,
-HEIC, PNG and WebP. Fuji RAF is read through its embedded full-size JPEG.
-Canon CR3 and video have no reader yet: they get a row with `read_error` set,
-stay in the library, and are picked up once a reader exists.
+HEIC, PNG and WebP. Fuji RAF is read through its embedded full-size JPEG;
+Canon CR3 through the TIFF blocks in its header (0.51, see _cr3_tags). Video
+has no reader here: it gets a row with `read_error` set and stays in the
+library.
 """
 from __future__ import annotations
 
@@ -39,9 +40,8 @@ logging.getLogger("exifread").setLevel(logging.CRITICAL)   # it logs every odd t
 
 # Formats with no reader yet, by sniffed content. When one lands, add a
 # migration deleting exif rows whose read_error starts with
-# 'NotImplementedError' so those files are re-read.
+# 'NotImplementedError' so those files are re-read (as 45 did for CR3).
 NO_READER = {
-    "cr3": "Canon CR3 metadata reader not built yet",
 }
 VIDEO_FORMATS = {"mp4", "mov", "mpeg-ts"}      # read by importers/video.py
 
@@ -101,6 +101,34 @@ def _raf_jpeg(fh) -> _Window:
     return _Window(fh, jpeg_offset)
 
 
+CR3_HEAD = 1 << 18          # the CMT boxes sit in the first few KB of moov
+# CMT1 is IFD0 (make, model, orientation), CMT2 the Exif IFD (date, exposure,
+# lens) - each a complete little TIFF. exifread reads each as IFD0, so its
+# "Image " names are renamed to what a CR2 would give. (CMT4, GPS, comes
+# back as bare tag numbers, so it is left out; Canon bodies rarely fill it.)
+CR3_BOXES = ((b"CMT1", "Image "), (b"CMT2", "EXIF "))
+
+
+def _cr3_tags(fh) -> dict:
+    head = fh.read(CR3_HEAD)
+    tags: dict = {}
+    for box, prefix in CR3_BOXES:
+        i = head.find(box)
+        if i < 4:
+            continue
+        (size,) = struct.unpack(">I", head[i - 4:i])
+        data = head[i + 4:i - 4 + size]
+        if size < 16 or len(data) != size - 8 or data[:4] not in (b"II*\x00", b"MM\x00*"):
+            continue
+        for k, v in exifread.process_file(io.BytesIO(data), details=False, extract_thumbnail=False).items():
+            if k.startswith("Image "):
+                k = prefix + k[6:]
+            tags.setdefault(k, v)
+    if not tags:
+        raise ValueError("no EXIF blocks found in this CR3")
+    return tags
+
+
 def read_tags(fh, fmt: str | None, filename: str) -> dict:
     """Every tag exifread finds, keyed like 'EXIF FNumber'. `fh` at offset 0.
 
@@ -116,6 +144,8 @@ def read_tags(fh, fmt: str | None, filename: str) -> dict:
         raise NotImplementedError(NO_READER[fmt])
     if fmt is None:
         raise ValueError("unrecognised file contents")
+    if fmt == "cr3":
+        return _cr3_tags(fh)
     src = _raf_jpeg(fh) if fmt == "raf" else fh
     return exifread.process_file(
         src, details=is_raw_content(filename, fmt), extract_thumbnail=False

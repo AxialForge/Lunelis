@@ -927,6 +927,15 @@ MIGRATIONS.append((
     """,
 ))
 
+MIGRATIONS.append((
+    45,
+    "Canon CR3 can be read now: CR3 files marked 'no reader' are read again (importers/metadata.py)",
+    """
+    DELETE FROM exif WHERE read_error LIKE 'NotImplementedError%';
+    """,
+))
+
+
 VACUUM_AFTER = {8}
 
 
