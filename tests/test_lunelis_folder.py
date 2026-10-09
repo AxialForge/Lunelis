@@ -18,7 +18,7 @@ def test_outputs_follow_the_lunelis_folder_unless_chosen(tmp_path):
     s.set("lunelis_folder", str(lf))
     made = lunelis_folder.make_folders(s)
     assert {p.relative_to(lf).as_posix() for p in made} == {
-        "Exports", "Staging", "Backups/Catalog", "Duplicates", "Trash", "Migration logs"}
+        "Exports", "Staging", "Backups/Catalog", "Duplicates", "Trash", "Damaged", "Migration logs"}
     assert engine.output_dir(conn, "Timelapse") == lf / "Timelapses"
     assert engine.output_dir(conn, "Something new") == lf / "Something new"
     assert lunelis_folder.exports(s) == lf / "Exports" / str(date.today().year)
