@@ -71,3 +71,11 @@ def test_the_library_count_says_when_tiles_hide_files(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_database_is_locked_is_a_plain_message_not_a_crash():
+    import sqlite3
+    from lunelis.ui.main_window import catalog_busy
+    assert catalog_busy(sqlite3.OperationalError, sqlite3.OperationalError("database is locked"))
+    assert not catalog_busy(sqlite3.OperationalError, sqlite3.OperationalError("no such table: x"))
+    assert not catalog_busy(ValueError, ValueError("locked"))

@@ -399,6 +399,13 @@ def _divider() -> QFrame:
     return f
 
 
+def catalog_busy(exc_type, exc) -> bool:
+    """'database is locked': a background job held the catalog past the wait -
+    shown as a plain 'try again', not as a crash (0.49)."""
+    import sqlite3
+    return issubclass(exc_type, sqlite3.OperationalError) and "locked" in str(exc).lower()
+
+
 class StatusLabel(QLabel):
     # The status line; every message also goes to the log, so the log tells
     # the same story the user saw. A message can carry a link to a page
@@ -1514,6 +1521,12 @@ class MainWindow(QMainWindow):
     def _crashed(self, exc_type, exc) -> None:
         # An unexpected error on the GUI thread: logged already; say so once
         # per session instead of disappearing silently.
+        if catalog_busy(exc_type, exc):
+            # Not a bug: a background job held the catalog longer than the 20 s
+            # wait. Nothing was saved from that click - say so plainly (0.49).
+            self.status.setText("The library was busy saving in the background - that didn't go through. "
+                                "Try it again in a moment.")
+            return
         if getattr(self, "_crash_shown", False):
             self.status.setText(f"Something went wrong ({exc_type.__name__}) - details are in the log")
             return
