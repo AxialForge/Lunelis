@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-10-08
+
+Safety and housekeeping, from the 25-item list.
+
+### Changed
+
+- **Phone gallery:** videos and big files are streamed instead of read into
+  memory whole; the PIN cookie now expires after 12 hours and is tied to the
+  PIN, so changing the PIN signs every phone out; the gallery listens only on
+  the home-network address, not every network the PC is on.
+- **Updates:** a download over 1 GB is refused; test versions are offered
+  only when "Include test versions" is ticked in Settings.
+- **Catalog housekeeping,** once a day: finished jobs older than 90 days,
+  per-file import rows older than 180 days and migration plans never run
+  after 30 days are removed. Photos, ratings, edits and every migration that
+  ran are never touched.
+
+### Tests
+
+- CI now checks a real Sony RAW and the real face models, and the test data
+  folder is removed after each run.
+
 ## [0.49.0] - 2026-10-08
 
 Correctness, from the 25-item list.
