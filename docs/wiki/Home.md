@@ -20,7 +20,7 @@ Your photos never leave your computer, and Lunelis never modifies them.
 | [Tags](Tags.md) | Keywords, nested tags, the Tag filter, and tags in XMP for darktable/Lightroom |
 | [Albums](Albums.md) | Your albums, events and automatic albums (Favorites, Videos, per camera...) |
 | [Events](Events.md) | Trips and shoots: made from a selection, a named import, or suggested from folder names and capture times |
-| [Migrate and consolidate](Migration.md) | One library on one drive: dry-run preview, verified copies, originals to quarantine |
+| [Migrate and consolidate](Migration.md) | One library on one drive: the nine-step wizard, the folder layout, verified copies, release and the accounted-for report |
 | [Backups](Backups.md) | USB drive, stick or network folder: incremental, verified, restore |
 | [darktable](darktable.md) | The darktable plugin: ratings, labels and rejects both ways |
 | [Browsing the library](Browsing.md) | The grid, sorting, filters, selection, keyboard shortcuts |

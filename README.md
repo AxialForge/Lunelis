@@ -38,6 +38,7 @@ Requirements: Windows 10 or 11, 64-bit. The full walkthrough is in
 
 | Area | |
 |---|---|
+| Cameras | JPEG, HEIC, PNG, WebP and RAW from Sony, Canon (CR2 and CR3), Nikon, Fujifilm, Olympus, Panasonic, Pentax, Samsung and DNG, plus MP4 / MOV video. RAW+JPEG pairs are shown as one photo. |
 | Browse and find | A fast grid with a timeline, filters, full-text search, smart albums, a map, On this day, and Ask your library ("sunset on a beach, 2024"). |
 | Rate, cull, organise | Stars, labels, flags, full-screen culling with compare, albums, events, nested tags, scene tag suggestions from a model on this PC. Everything is written to standard XMP sidecars. |
 | Edit | Non-destructive: light, colour, tone curve, crop, lens corrections, noise reduction, masks (including AI subject and sky), retouch, virtual copies, My look, colour-managed export with presets. |
@@ -45,11 +46,12 @@ Requirements: Windows 10 or 11, 64-bit. The full walkthrough is in
 | Videos | Playback with trim to a new file; Sony S-Log3 clips shown with a built-in look or your own LUTs. |
 | Bring photos in | Memory-card, phone and USB-stick import, verified twice, with Autopilot (burst covers, scene tags, event name, draft album) and Review your shoot to undo any step. Google Takeout exports are read with their albums and dates, and reviewed before anything moves. |
 | People | Faces found and grouped on this PC, named once, merged when one person was split in two. |
-| Clean up | Exact and near-duplicates with keeper rules, damaged-file checks, timelapse detection, and a migration wizard that consolidates a scattered library onto one drive - previewed first, every file verified, every original kept in Trash until you empty it, with before-and-after inventories. |
+| Clean up | Exact and near-duplicates with keeper rules, damaged-file checks and timelapse detection. |
+| Migrate | A nine-step wizard that brings a scattered library (drives, NAS pools, Google Takeout) onto one drive as `Library\Photos and Videos\Year\Day\Photos / Videos / Timelapse`. A dry run first; every copy read back and compared; originals kept until you release them, then held in Trash until you empty it; an accounted-for report that checks every source file before anything is released. Resumes after a power cut, waits for a sleeping NAS or a full disk. |
 | Keep safe | Catalog backups, verified photo backups, quarantine instead of deletion, rolling integrity checks, a sensor dust map per camera. |
 | Share at home | A family gallery: an album on phones and TVs on your home network, never the internet. |
 
-How to use each part is in the [wiki](docs/wiki/Home.md).
+How to use each part is in the [wiki](docs/wiki/Home.md); moving a whole library onto one drive is in [Migrate and consolidate](docs/wiki/Migration.md).
 
 ## Screenshots
 
