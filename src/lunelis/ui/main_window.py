@@ -810,6 +810,7 @@ class MainWindow(QMainWindow):
         self._drive_timer.start()
         # Packaged builds: look for a new version once a day, quietly.
         self._later(8000, self._startup_update_check)
+        self._later(20000, self._housekeeping)
         # darktable plugin: pick up its rating changes, hand it ours (cheap when idle).
         self._dt_state: dict = {}
         self._dt_timer = QTimer(self, interval=20_000, timeout=self._darktable_tick)
@@ -1694,6 +1695,19 @@ class MainWindow(QMainWindow):
             self.start(list(root_ids))
         else:
             self.status.setText("A scan is already running - press F5 afterwards to pick up the change.")
+
+    def _housekeeping(self) -> None:
+        """Old job, import and unused-plan rows out of the catalog, once a day (0.50)."""
+        import sqlite3
+        from lunelis.catalog import housekeeping
+        try:
+            res = housekeeping.prune_daily(self.conn)
+        except sqlite3.Error as e:                   # busy: tomorrow
+            LOG.info("Housekeeping skipped: %s", e)
+            return
+        if res and res.total:
+            LOG.info("Housekeeping: %s old jobs, %s import rows, %s unused plans removed",
+                     res.jobs, res.import_items, res.plans)
 
     def _startup_update_check(self) -> None:
         from datetime import datetime, timedelta, timezone
