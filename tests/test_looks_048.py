@@ -171,3 +171,27 @@ def test_video_buttons_are_not_pinned_to_a_clipping_width():
     from lunelis.ui import video_player
     src = inspect.getsource(video_player.VideoPlayer.__init__)
     assert "mute_b.setFixedWidth" not in src and "b.setFixedWidth(30)" not in src
+
+
+def test_a_selected_table_row_is_a_light_tint_with_readable_text():
+    # 0.51: an rgba() ::item:selected was ignored - the row was the palette's
+    # near-black highlight with dark text on it.
+    from PySide6.QtGui import QStandardItem, QStandardItemModel
+    from PySide6.QtWidgets import QApplication, QTableView
+    from lunelis.ui import theme
+    app = QApplication.instance() or QApplication([])
+    t = theme.THEMES["graphite"]
+    v = QTableView()
+    v.setStyleSheet(theme.stylesheet(t))
+    m = QStandardItemModel(2, 2)
+    for r in range(2):
+        for c in range(2):
+            m.setItem(r, c, QStandardItem(""))
+    v.setModel(m)
+    v.resize(300, 120)
+    v.show()
+    v.selectRow(0)
+    app.processEvents()
+    px = v.grab().toImage().pixelColor(120, 38)
+    v.close()
+    assert px.lightness() > 150                        # a tint, not the dark highlight

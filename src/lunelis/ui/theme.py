@@ -226,6 +226,16 @@ def _scale_fonts(qss: str) -> str:
     return re.sub(r"font-size:\s*(\d+(?:\.\d+)?)px", lambda m: f"font-size: {font_pt(float(m.group(1)))}pt", qss)
 
 
+def _mix(hex_colour: str, over: str, alpha: float) -> str:
+    """The accent laid over `over` at `alpha`, as a solid colour. A see-through
+    rgba() for a selected row is ignored by Qt when the view also has a
+    selection-background-color - the row came out near-black, its text
+    unreadable (0.51)."""
+    a, b = QColor(hex_colour), QColor(over)
+    m = [round(x * alpha + y * (1 - alpha)) for x, y in ((a.red(), b.red()), (a.green(), b.green()), (a.blue(), b.blue()))]
+    return QColor(*m).name()
+
+
 def _tint(hex_colour: str, alpha: float) -> str:
     """The accent as a see-through tint: a table's selected row (0.48 - it was a
     heavy near-black bar in the light theme)."""
@@ -340,6 +350,9 @@ def _stylesheet(t: Theme | None = None) -> str:
         background: {t.surface}; alternate-background-color: {t.surface_alt}; color: {t.text};
         gridline-color: {t.border}; border: 1px solid {t.border}; border-radius: 8px;
         selection-background-color: {t.selection}; selection-color: {t.chip_text}; outline: 0;
+    }}
+    QTableView, QTableWidget, QTreeView {{
+        selection-background-color: {_mix(t.accent, t.surface, 0.22)}; selection-color: {t.text};
     }}
     QListWidget::item, QListView::item {{ padding: 6px 4px; border-radius: 4px; }}
     QListWidget::item:hover, QListView::item:hover, QTableView::item:hover {{ background: {t.field_bg}; color: {t.text}; }}
