@@ -79,6 +79,8 @@ def _clean_name(text: str | None) -> str | None:
     # Folders made on a Mac carry private-use characters (U+F0xx) for : ? * etc.
     name = " ".join(re.sub("[\uf000-\uf8ff]", " ", text).replace("_", " ").split())
     name = _DATES_IN_NAME.sub(" ", name)
+    # A month-day with no year at the start ("03-02 Ski trip") - 0.49, it stayed in the name.
+    name = re.sub(r"^\s*\d{1,2}[-.]\d{1,2}(?=\s+[^\d\s])", " ", name)
     name = _WORD_DATE.sub(" ", name)
     name = re.sub(r"\s*\([^)]*\)", " ", name)               # "JPEG (.JPG)", "Air Show (2)"
     name = re.sub(r"(?i)\s+(day|d|pt|part)\s*\d+$", "", " ".join(name.split()))   # "NYC day 3"

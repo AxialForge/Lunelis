@@ -38,3 +38,10 @@ def test_leap_day_photos_show_on_feb_28_in_other_years():
     assert day_keys(date(2026, 2, 28), 0) == ["02-28", "02-29"]
     assert day_keys(date(2028, 2, 28), 0) == ["02-28"]                  # a leap year has its own Feb 29
     assert day_keys(date(2028, 2, 29), 0) == ["02-29"]
+
+
+def test_event_names_lose_a_month_day_prefix():
+    from lunelis.events.suggest import _clean_name
+    assert _clean_name("03-02 Ski trip") == "Ski trip"
+    assert _clean_name("12-25 Christmas") == "Christmas"
+    assert _clean_name("3-2-1 Blastoff") == "3-2-1 Blastoff"            # not a date prefix
