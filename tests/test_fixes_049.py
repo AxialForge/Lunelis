@@ -30,3 +30,11 @@ def test_a_photo_that_cant_be_decoded_greys_the_edit_panel():
     p.set_editable(True)
     assert all(s.isEnabled() for s in p.findChildren(QAbstractSlider))
     p.deleteLater()
+
+
+def test_leap_day_photos_show_on_feb_28_in_other_years():
+    from datetime import date
+    from lunelis.ui.calendar_view import day_keys
+    assert day_keys(date(2026, 2, 28), 0) == ["02-28", "02-29"]
+    assert day_keys(date(2028, 2, 28), 0) == ["02-28"]                  # a leap year has its own Feb 29
+    assert day_keys(date(2028, 2, 29), 0) == ["02-29"]

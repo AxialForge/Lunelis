@@ -28,8 +28,13 @@ THUMB_H = 96
 
 
 def day_keys(day: date, spread: int) -> list[str]:
-    """'MM-DD' for the day and `spread` days either side (Feb 29 included in its week)."""
-    return sorted({(day + timedelta(days=d)).strftime("%m-%d") for d in range(-spread, spread + 1)})
+    """'MM-DD' for the day and `spread` days either side. In a year without a
+    Feb 29, leap-day photos show on Feb 28 (0.49: they never showed at all)."""
+    import calendar
+    keys = {(day + timedelta(days=d)).strftime("%m-%d") for d in range(-spread, spread + 1)}
+    if "02-28" in keys and not calendar.isleap(day.year):
+        keys.add("02-29")
+    return sorted(keys)
 
 
 def on_this_day(conn, day: date, spread: int = 0) -> list[tuple[int, list[int]]]:
