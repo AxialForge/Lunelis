@@ -563,6 +563,24 @@ SOCIAL_ASPECTS = [("Instagram portrait 4 : 5", 0.8), ("Instagram square 1 : 1", 
 
 
 class DevelopPanel(QScrollArea):
+    def set_editable(self, on: bool) -> None:
+        """Every control on or off - off for a photo that can't be decoded, so
+        nothing looks like it would work (0.49). The status line stays."""
+        from PySide6.QtWidgets import (QAbstractButton, QAbstractSlider, QAbstractSpinBox, QComboBox,
+                                       QListWidget)
+        if not on:
+            # Only what was on goes off - and only that comes back (Undo with
+            # nothing to undo stays off).
+            if getattr(self, "_greyed", None) is None:
+                self._greyed = [w for kind in (QAbstractButton, QAbstractSlider, QAbstractSpinBox, QComboBox,
+                                                QListWidget) for w in self.findChildren(kind) if w.isEnabled()]
+                for w in self._greyed:
+                    w.setEnabled(False)
+        elif getattr(self, "_greyed", None) is not None:
+            for w in self._greyed:
+                w.setEnabled(True)
+            self._greyed = None
+
     adjust = Signal(str, float, bool)      # key, value, final
     geometry_action = Signal(str)          # rotate_left | rotate_right | flip_h | flip_v
     angle = Signal(float, bool)
@@ -1244,6 +1262,7 @@ class EditMode(QObject):
     def _ready(self) -> None:
         if getattr(self, "closed", False):
             return
+        self.panel.set_editable(True)
         self.panel.status.setText("")
         self._ensure_ai()
         self._render()
@@ -1273,6 +1292,7 @@ class EditMode(QObject):
 
     def _failed(self, why: str) -> None:
         from lunelis.ui.photoinfo import friendly
+        self.panel.set_editable(False)                     # 0.49: it stayed live on a damaged photo
         self.panel.status.setText(f"This photo can't be edited: {friendly(why)}")
         self.panel.status.setToolTip(why)                  # the technical reason, for a bug report
 

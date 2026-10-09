@@ -106,7 +106,8 @@ def test_healing_is_an_edit_and_can_be_undone(cam, tmp_path):
     out = pipeline.apply(a, store.get(conn, ids["A03.jpg"]))
     y, x = int(0.25 * a.shape[0]), int(0.30 * a.shape[1])
     assert out[y, x].mean() > a[y, x].mean() + 0.04                         # the blot is lifted
-    assert dust.undo(conn, "ILCE-7RM5") == done
+    assert dust.heal(conn, m) == (0, 0)                                     # 0.49: pressed again - nothing new
+    assert dust.undo(conn, "ILCE-7RM5") == done                            # ...so Undo still takes the real heal off
     assert store.get(conn, ids["A03.jpg"]).retouch == ()
 
 

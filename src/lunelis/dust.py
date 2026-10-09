@@ -245,8 +245,11 @@ def heal(conn: sqlite3.Connection, m: DustMap, spots: list[Spot] | None = None) 
         conn.execute("UPDATE files SET thumbnail_path = NULL WHERE id = ?", (fid,))
         record[str(fid)] = [list((s.x, s.y, s.r)) for s in add]
         done += 1
-    conn.execute("INSERT INTO dust_heals (camera, spots, made_at) VALUES (?, ?, datetime('now'))",
-                 (m.camera, json.dumps(record)))
+    if record:
+        # Only a heal that added spots is recorded: a second press added nothing,
+        # and Undo then took off that empty one, so it seemed to do nothing (0.49).
+        conn.execute("INSERT INTO dust_heals (camera, spots, made_at) VALUES (?, ?, datetime('now'))",
+                     (m.camera, json.dumps(record)))
     conn.commit()
     return done, skipped
 

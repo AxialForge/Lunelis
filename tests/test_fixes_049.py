@@ -18,3 +18,15 @@ def test_import_example_uses_the_cards_own_first_date(tmp_path):
     assert all("9-2-2024 Air Show" in f for f in folders)          # the table agrees: one event folder
     v.deleteLater()
     conn.close()
+
+
+def test_a_photo_that_cant_be_decoded_greys_the_edit_panel():
+    QApplication.instance() or QApplication([])
+    from PySide6.QtWidgets import QAbstractSlider
+    from lunelis.ui.develop import DevelopPanel
+    p = DevelopPanel()
+    p.set_editable(False)
+    assert not any(s.isEnabled() for s in p.findChildren(QAbstractSlider))
+    p.set_editable(True)
+    assert all(s.isEnabled() for s in p.findChildren(QAbstractSlider))
+    p.deleteLater()
