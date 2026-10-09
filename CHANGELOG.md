@@ -6,6 +6,59 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-10-09
+
+Canon CR3, and the migration engine audit.
+
+### Added
+
+- **Canon CR3:** the date, camera, lens and exposure are read. CR3 files
+  already in the catalog are read again when this version first opens it,
+  so they get their dates (before, a migration would have filed them under
+  Undated).
+
+### Changed
+
+- **Migration, damaged files:** the only copy of a damaged file now goes to
+  the Lunelis folder's Damaged (under its source folder's name), not into
+  the Library. A damaged file counts as "an intact copy exists" only when
+  the other file's capture time - or, without one, its modified time -
+  agrees too; a name and size alone matched a different camera's photo.
+- **Migration, a full target** pauses the job ("Waiting - the target is
+  full") instead of failing every file that was left; Start checks the
+  free space again.
+- **Migration, releasing kept originals** reads each Library copy back and
+  compares it with the hash taken while copying; one that doesn't match
+  keeps its original.
+
+### Fixed
+
+- **Migration:** with "set originals aside straight away", a duplicate was
+  set aside even when the copy that should have moved failed to copy.
+- **Migration:** an original that couldn't be set aside once (a busy share,
+  a name clash) stayed behind and nothing said so; it is tried again at the
+  end. A duplicate that can't be set aside no longer stops the whole finish.
+- **Migration:** a move into Trash / Duplicates cut short by a dropped share
+  or power cut could leave a cut-off file that looked real, or lose track of
+  where the original went; moves go via a temp name and the place is
+  recorded before the move.
+- **Migration:** a sidecar copy cut short failed its photo for good and left
+  a stray copy at the target; sidecars go via a temp name, and a clash takes
+  back the photo copy. A sidecar shared by a RAW+JPEG pair stays recorded
+  for both halves.
+- **Migration:** a RAW whose date couldn't be read is filed with its JPEG.
+- **Migration:** a name differing only in upper/lower case could give one
+  file two catalog entries.
+- **Migration:** the accounted-for report now lists folders it couldn't read
+  and planned files missing from the before list, and counts darktable /
+  Lightroom-style IMG_1.xmp sidecars as travelled.
+- **Migration:** cancelling it from the Jobs page left it "running", which
+  blocked every new plan. Two sources with the same folder name get their
+  own folders in Trash / Duplicates. Half-written temp files are cleaned up.
+  An original edited (same size) since it was cataloged isn't copied.
+- **Tables:** the selected row was a near-black bar with dark text in the
+  light theme; it is a light tint again.
+
 ## [0.50.0] - 2026-10-08
 
 Safety and housekeeping, from the 25-item list.
