@@ -400,11 +400,16 @@ class ImportView(QWidget):
         self._update_preview()
 
     def _update_example(self) -> None:
+        # The card's own first date once it's been read (0.49: a fixed 6-19-2026
+        # made the line disagree with the folders below it).
+        dated = sorted(t for _, _, t in (self.preview or []) if t)
+        first = dated[0] if dated else datetime(2026, 6, 19)
+        event = self.name.text().strip() or None
         try:
-            ex = render(self.template.currentText(), Context(datetime(2026, 6, 19),
-                                                             import_name=self.name.text(),
-                                                             event=self.name.text() or None))
-            self.example.setText(f"e.g.  {ex}\\IMG_0001.JPG  (file names are never changed)")
+            ex = render(self.template.currentText(), Context(first, import_name=self.name.text(), event=event,
+                                                             event_start=first if event else None))
+            lead = "First folder:" if dated else "e.g."
+            self.example.setText(f"{lead}  {ex}\\IMG_0001.JPG  (file names are never changed)")
         except TemplateError as e:
             self.example.setText(str(e))
 
