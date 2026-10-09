@@ -25,7 +25,7 @@ from __future__ import annotations
 import csv
 import os
 import sqlite3
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -43,15 +43,19 @@ def logs_dir(conn: sqlite3.Connection, migration_id: int) -> Path:
     return base / f"Migration {migration_id}"
 
 
-def inventory(root: str, skip: tuple[str, ...] = ()) -> list[tuple[str, int, float]]:
-    """(rel path with '/', size, mtime) for every file under root, on disk."""
+def inventory(root: str, skip: tuple[str, ...] = (), unreadable: list | None = None) -> list[tuple[str, int, float]]:
+    """(rel path with '/', size, mtime) for every file under root, on disk.
+    A folder that can't be read is added to `unreadable` (rel path, error) -
+    never silently left out (0.51)."""
     out = []
     skip_n = [os.path.normcase(os.path.normpath(s)) for s in skip if s]
 
     def walk(folder: str, rel: str) -> None:
         try:
             entries = list(os.scandir(folder))
-        except OSError:
+        except OSError as e:
+            if unreadable is not None:
+                unreadable.append((rel or ".", f"{type(e).__name__}: {e}"))
             return
         for e in entries:
             r = f"{rel}/{e.name}" if rel else e.name
@@ -91,12 +95,16 @@ def write_before(conn: sqlite3.Connection, migration_id: int) -> Path:
     roots = dict(conn.execute("SELECT id, path FROM roots"))
     src = sorted({r[0] for r in conn.execute(
         "SELECT DISTINCT src_root FROM migration_items WHERE migration_id = ?", (migration_id,))})
-    rows = []
+    rows, bad = [], []
     for rid in src:
-        for rel, size, mtime in inventory(roots[rid], _skip_dirs(conn)):
+        unreadable: list = []
+        for rel, size, mtime in inventory(roots[rid], _skip_dirs(conn), unreadable):
             rows.append((rid, roots[rid], rel, size, datetime.fromtimestamp(mtime).isoformat(timespec="seconds")))
-    path = logs_dir(conn, migration_id) / "before.csv"
+        bad += [(rid, roots[rid], rel, why) for rel, why in unreadable]
+    d = logs_dir(conn, migration_id)
+    path = d / "before.csv"
     _write(path, ["root_id", "source", "path", "size", "modified"], rows)
+    _write(d / "unreadable.csv", ["root_id", "source", "folder", "error"], bad)
     return path
 
 
@@ -166,6 +174,10 @@ def accounted(conn: sqlite3.Connection, migration_id: int, write: bool = True) -
     stems_moved = {(r[0], r[1].lower()) for r in conn.execute(
         "SELECT src_root, src_rel FROM migration_items WHERE migration_id = ? AND state IN"
         f" ({','.join('?' * len(MOVED_STATES))})", (migration_id, *MOVED_STATES))}
+    # IMG_1.xmp (Lightroom / darktable's other naming) belongs to IMG_1.CR2 (0.51).
+    bare_moved: dict[int, set[str]] = defaultdict(set)
+    for r, rel in stems_moved:
+        bare_moved[r].add(rel.rsplit(".", 1)[0])
     from lunelis.importers.formats import CATALOGED_EXTS
 
     with open(before, newline="", encoding="utf-8") as fh:
@@ -192,7 +204,7 @@ def accounted(conn: sqlite3.Connection, migration_id: int, write: bool = True) -
             else:
                 ext = rel.rsplit(".", 1)[-1].lower() if "." in rel else ""
                 stem = rel[:-4] if rel.lower().endswith(".xmp") else None
-                if stem and (rid, stem.lower()) in stems_moved:
+                if stem and ((rid, stem.lower()) in stems_moved or stem.lower() in bare_moved.get(rid, ())):
                     what = "Sidecar - travelled with its photo"
                 elif cataloged.get((rid, rel.lower())) == "excluded":
                     what = "Left in place - excluded from the library"
@@ -206,6 +218,32 @@ def accounted(conn: sqlite3.Connection, migration_id: int, write: bool = True) -
             else:
                 rep.counts[what] += 1
                 rep.rows.append((full, size, what, ""))
+    seen = set()
+    with open(before, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            seen.add((int(row["root_id"]), row["path"].lower()))
+    roots = dict(conn.execute("SELECT id, path FROM roots"))
+    # Every planned file has to be in the check, not only what the walk saw (0.51).
+    for (rid, rel_l), it in items.items():
+        if (rid, rel_l) in seen:
+            continue
+        act, state = it[2], it[3]
+        full = os.path.join(roots.get(rid, "?"), *it[1].split("/"))
+        if act == "move" and state in MOVED_STATES:
+            rep.counts["Copied to the Library (gone from its source)"] += 1
+            rep.rows.append((full, it[5], "Copied to the Library (gone from its source)", ""))
+        elif act == "move" or state == "failed":
+            why = f"planned, but not in the before list ({state})"
+            rep.unaccounted.append((full, why))
+            rep.rows.append((full, it[5], "UNACCOUNTED", why))
+    unreadable = logs_dir(conn, migration_id) / "unreadable.csv"
+    if unreadable.exists():
+        with open(unreadable, newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                full = os.path.join(row["source"], *row["folder"].split("/"))
+                why = f"folder couldn't be read: {row['error']}"
+                rep.unaccounted.append((full, why))
+                rep.rows.append((full, 0, "UNACCOUNTED", why))
     if rep.unaccounted:
         rep.counts["UNACCOUNTED"] = len(rep.unaccounted)
     if write:

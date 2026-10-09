@@ -37,7 +37,10 @@ def prune(conn: sqlite3.Connection, now: str = "now") -> Pruned:
     out = Pruned()
     out.plans = conn.execute(
         "DELETE FROM migrations WHERE state IN ('planned', 'cancelled')"
-        " AND created_at < datetime(?, ?)", (now, f"-{PLAN_DAYS} days")).rowcount
+        " AND created_at < datetime(?, ?)"
+        # A migration cancelled part-way moved files: the Trash restores from its records.
+        " AND NOT EXISTS (SELECT 1 FROM migration_items i WHERE i.migration_id = migrations.id"
+        "   AND i.state NOT IN ('planned', 'skipped'))", (now, f"-{PLAN_DAYS} days")).rowcount
     out.jobs = conn.execute(
         "DELETE FROM jobs WHERE state IN ('done', 'cancelled', 'failed')"
         " AND COALESCE(finished_at, updated_at, created_at) < datetime(?, ?)"

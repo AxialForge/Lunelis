@@ -315,9 +315,11 @@ def run_job(conn: sqlite3.Connection, job_id: int, *, should_stop: Callable[[], 
         try:
             extra = {"options": options} if kind in OPTION_KINDS else {}
             res = fn(conn, root_id, folder, throttle=throttle, should_cancel=should_stop, workers=workers, **extra)
-        except SourceOffline:
+        except SourceOffline as e:
             import os
-            if kind.startswith("backup") and os.path.isdir(root_path):
+            if getattr(e, "message", None):
+                msg = e.message
+            elif kind.startswith("backup") and os.path.isdir(root_path):
                 msg = "Waiting for the backup drive to be connected"
             else:
                 msg = f"Waiting for {root_path} to come back online"
@@ -344,6 +346,10 @@ def resume(conn: sqlite3.Connection, job_id: int) -> None:
 
 def cancel(conn: sqlite3.Connection, job_id: int) -> None:
     set_state(conn, job_id, "cancelled", "Cancelled - hashes already computed are kept")
+    kind = conn.execute("SELECT kind FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    if kind and kind[0] == "migrate":
+        from lunelis.migrate import execute
+        execute.cancelled(conn, job_id)
 
 
 def wake_waiting(conn: sqlite3.Connection) -> int:

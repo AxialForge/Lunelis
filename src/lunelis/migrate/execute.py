@@ -34,6 +34,19 @@ from pathlib import Path
 
 from lunelis.dupes.detect import FolderResult
 from lunelis.dupes.hashing import SourceOffline, Throttle, is_network_error
+
+DISK_FULL = {112, 39}            # ERROR_DISK_FULL, ERROR_HANDLE_DISK_FULL (Windows)
+
+
+class TargetFull(SourceOffline):
+    """The target ran out of space: the job waits instead of failing every
+    file that's left (0.51)."""
+    message = "Waiting - the target is full. Free some space; the migration carries on by itself."
+
+
+def _disk_full(e: OSError) -> bool:
+    import errno
+    return getattr(e, "winerror", None) in DISK_FULL or e.errno == errno.ENOSPC
 from lunelis.dupes.quarantine import QUARANTINE_DIR
 from lunelis.importing.templates import sibling
 
@@ -47,6 +60,16 @@ class MigrationError(Exception):
 
 def _now() -> str:
     return datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+
+
+def _ts(iso) -> float | None:
+    """files.mtime (ISO 8601 text) as a timestamp."""
+    if iso is None:
+        return None
+    try:
+        return iso if isinstance(iso, (int, float)) else datetime.fromisoformat(iso).timestamp()
+    except ValueError:
+        return None
 
 
 def _abs(root: str, rel: str) -> str:
@@ -121,17 +144,32 @@ def set_aside_base(conn: sqlite3.Connection, migration_id: int, kind: str, root:
     if base is None:
         return os.path.join(root, QUARANTINE_DIR, f"migration-{migration_id}")
     leaf = os.path.basename(os.path.normpath(root)) or root.replace(":", "").strip("\\/")
+    # Two sources with the same last folder name (D:\\Photos, \\\\nas\\Photos) mustn't
+    # share one folder there (0.51): the second gets its source number.
+    leaves = [os.path.basename(os.path.normpath(p)).lower() for (p,) in conn.execute(
+        "SELECT DISTINCT r.path FROM migration_items i JOIN roots r ON r.id = i.src_root"
+        " WHERE i.migration_id = ?", (migration_id,))]
+    if leaves.count(leaf.lower()) > 1:
+        rid = conn.execute("SELECT id FROM roots WHERE path = ?", (root,)).fetchone()
+        leaf = f"{leaf} (source {rid[0]})" if rid else leaf
     return os.path.join(str(base), f"Migration {migration_id}", leaf)
 
 
 def _quarantine_original(root: str, rel: str, sidecar: str | None, migration_id: int,
-                         base: str | None = None) -> str:
+                         base: str | None = None, record=None) -> str:
     """Move a source file (and its sidecar) aside - into `base` (the Lunelis
     folder's Duplicates / Trash), else the quarantine folder on its own drive.
-    Nothing is deleted."""
+    Nothing is deleted. `record(path)` is called with the place BEFORE the
+    move, so a crash part-way still knows where the original went (0.51)."""
     src = _abs(root, rel)
     dst = os.path.join(base or os.path.join(root, QUARANTINE_DIR, f"migration-{migration_id}"), *rel.split("/"))
     os.makedirs(os.path.dirname(dst), exist_ok=True)
+    if os.path.exists(dst) and os.path.exists(src) and _same_bytes(src, dst):
+        # Our own copy from a move cut short after the copy: finish that move.
+        if record:
+            record(dst)
+        _finish_cut_move(src, dst, sidecar)
+        return dst
     s_name = sidecar
     if os.path.exists(dst) or (sidecar and os.path.exists(os.path.join(os.path.dirname(dst), sidecar))):
         # Decided before anything moves: the photo and its sidecar get the same new name.
@@ -145,11 +183,37 @@ def _quarantine_original(root: str, rel: str, sidecar: str | None, migration_id:
     s_src = os.path.join(os.path.dirname(src), sidecar) if sidecar else None
     if s_src and not os.path.exists(s_src):
         s_src = None
+    if record:
+        record(dst)
     try:
         move_pair(src, dst, s_src, os.path.join(os.path.dirname(dst), s_name) if s_src else None)   # both or neither
     except QuarantineRefused as e:
         raise FileExistsError(str(e)) from e      # an item error, like any other file problem
     return dst
+
+
+def _finish_cut_move(src: str, dst: str, sidecar: str | None) -> None:
+    """The original's verified copy is already at `dst`: its sidecar follows,
+    then the original is removed - what move_pair would have finished."""
+    from lunelis.dupes.quarantine import move_one
+    if sidecar:
+        s_src = os.path.join(os.path.dirname(src), sidecar)
+        s_dst = os.path.join(os.path.dirname(dst), sidecar)
+        if os.path.exists(s_src) and not os.path.exists(s_dst):
+            move_one(s_src, s_dst)
+    os.remove(src)
+
+
+def _sidecar_after_cut_move(root: str, rel: str, sidecar: str | None, q: str | None) -> None:
+    """The original reached the Trash but its sidecar didn't (the share went
+    between the two): the sidecar follows now."""
+    if not (sidecar and q and os.path.exists(q)):
+        return
+    s_src = os.path.join(os.path.dirname(_abs(root, rel)), sidecar)
+    s_dst = os.path.join(os.path.dirname(q), sidecar)
+    if os.path.exists(s_src) and not os.path.exists(s_dst):
+        from lunelis.dupes.quarantine import move_one
+        move_one(s_src, s_dst)
 
 
 def merge_user_data(conn: sqlite3.Connection, from_id: int, to_id: int) -> None:
@@ -227,6 +291,11 @@ def start(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | Non
         raise MigrationError("another migration is running")
     target = row[0]
     check_target(conn, target)
+    from lunelis.migrate.plan import summary
+    s = summary(conn, migration_id)
+    if not s.enough_space:
+        raise MigrationError("There isn't enough free space on the target any more - free some space, "
+                             "or choose another target and preview again.")
     if backup_dir is not None:
         from lunelis.catalog.backup import snapshot
         snapshot(conn, backup_dir, "before-migration")
@@ -284,15 +353,27 @@ def migrate_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, throt
             result.cancelled = True
             return result
         except OSError as e:
+            if _disk_full(e):
+                conn.rollback()
+                raise TargetFull(str(e)) from e
             if is_network_error(e) or not os.path.isdir(root) or not os.path.isdir(target):
+                conn.rollback()
                 raise SourceOffline(str(e)) from e
-            # A file already copied and repointed stays 'copied': only setting its
-            # original aside is left, and the next run tries that again.
-            conn.execute("UPDATE migration_items SET state = CASE state WHEN 'copied' THEN 'copied' ELSE 'failed'"
-                         " END, error = ? WHERE id = ?", (f"{type(e).__name__}: {e}"[:300], item[0]))
-            conn.commit()
+            _item_failed(conn, item[0], e)
+            result.errors.append(str(e))
+        except Exception as e:                     # noqa: BLE001 - one odd file mustn't stop the job (0.51)
+            conn.rollback()
+            _item_failed(conn, item[0], e)
             result.errors.append(str(e))
     return result
+
+
+def _item_failed(conn, item_id: int, e: BaseException) -> None:
+    # A file already copied and repointed stays 'copied': only setting its
+    # original aside is left, and finish() / the next run tries that again.
+    conn.execute("UPDATE migration_items SET state = CASE state WHEN 'copied' THEN 'copied' ELSE 'failed'"
+                 " END, error = ? WHERE id = ?", (f"{type(e).__name__}: {e}"[:300], item_id))
+    conn.commit()
 
 
 def _fail(conn, item_id: int, why: str) -> int:
@@ -320,6 +401,9 @@ def _migrate_item(conn, mid, target, target_root, opts, root_id, root, item, thr
         return _fail(conn, item_id, "The original is missing")
     if os.path.getsize(src) != size:
         return _fail(conn, item_id, "The original changed since the plan was made - plan again")
+    planned_mtime = _ts(conn.execute("SELECT mtime FROM files WHERE id = ?", (file_id,)).fetchone()[0])
+    if planned_mtime is not None and abs(os.path.getmtime(src) - planned_mtime) > 2:
+        return _fail(conn, item_id, "The original was edited since it was cataloged - rescan, then plan again")
 
     # The destination: never overwrite, never rename. An identical file already
     # there is either our own earlier copy (resuming) or an unverified duplicate.
@@ -335,8 +419,8 @@ def _migrate_item(conn, mid, target, target_root, opts, root_id, root, item, thr
         if os.path.getsize(dst) == size:
             src_hash = _sha256(src, throttle)
             if _sha256(dst, throttle) == src_hash:
-                other = conn.execute("SELECT id FROM files WHERE root_id = ? AND rel_path = ? AND id != ?",
-                                     (target_root, cand_rel, file_id)).fetchone()
+                other = conn.execute("SELECT id FROM files WHERE root_id = ? AND rel_path = ? COLLATE NOCASE"
+                                     " AND id != ?", (target_root, cand_rel, file_id)).fetchone()
                 if other:                          # an identical file already moved there
                     merge_user_data(conn, file_id, other[0])
                     conn.execute("UPDATE migration_items SET action = 'skip_duplicate', keeper_id = ?,"
@@ -367,22 +451,33 @@ def _migrate_item(conn, mid, target, target_root, opts, root_id, root, item, thr
         s_dst = os.path.join(os.path.dirname(dst), sidecar)
         if os.path.exists(s_src):
             if not os.path.exists(s_dst):
-                shutil.copy2(s_src, s_dst)
+                if _copy_hashed(s_src, s_dst, throttle, None) is None:     # via a temp name (0.51)
+                    raise InterruptedError
             if not _same_bytes(s_src, s_dst):
+                # Our verified copy goes again (the original is untouched), so a
+                # new plan doesn't find the name taken and file a second copy.
+                _unlink(dst)
                 return _fail(conn, item_id, f"A different {sidecar} is already at the destination")
+        elif not os.path.exists(s_dst):
+            sidecar = None
+        # (A sidecar two files share - IMG_1.xmp for the CR2 and the JPG - may
+        # have gone aside with the first: it's already beside this one.)
+        if sidecar:
             side_mtime = datetime.fromtimestamp(os.stat(s_dst).st_mtime, tz=timezone.utc).isoformat(
                 timespec="seconds")
-        else:
-            sidecar = None
 
     # Repoint the same catalog entry, and move its central sidecar with it.
-    _move_central_sidecar(conn, file_id, root_id, root, src_rel, target_root, target, dest_rel)
     conn.execute("UPDATE files SET root_id = ?, rel_path = ?, sidecar = ?, sidecar_mtime = ?,"
                  " missing_since = NULL WHERE id = ?", (target_root, dest_rel, sidecar, side_mtime, file_id))
     conn.execute("INSERT INTO file_moves (file_id, from_root, from_path, to_root, to_path, method)"
                  " VALUES (?, ?, ?, ?, ?, 'migrate')", (file_id, root_id, src_rel, target_root, dest_rel))
     conn.execute("UPDATE migration_items SET state = 'copied', sha256 = ? WHERE id = ?", (digest, item_id))
     conn.commit()
+    try:
+        _move_central_sidecar(conn, file_id, root_id, root, src_rel, target_root, target, dest_rel)
+    except OSError as e:                           # the catalog holds the edits; the file is a mirror
+        import logging
+        logging.getLogger(__name__).warning("Central sidecar not moved for %s: %s", dest_rel, e)
     _finish_original(conn, mid, opts, item_id, root, src_rel, size, sidecar)
     return size * 2
 
@@ -407,14 +502,26 @@ def _finish_original(conn, mid, opts, item_id, root, src_rel, size, sidecar) -> 
     if opts.get("keep_sources", True):
         conn.execute("UPDATE migration_items SET state = 'kept' WHERE id = ?", (item_id,))
     elif not os.path.exists(src):
+        # Gone already: moved aside by a run that was cut off - its place was
+        # recorded first, and a sidecar left behind follows it now.
+        q = conn.execute("SELECT quarantine_path FROM migration_items WHERE id = ?", (item_id,)).fetchone()[0]
+        _sidecar_after_cut_move(root, src_rel, sidecar, q)
         conn.execute("UPDATE migration_items SET state = 'done' WHERE id = ?", (item_id,))
     elif os.path.getsize(src) != size:
         conn.execute("UPDATE migration_items SET state = 'kept', note = 'Original changed after copying -"
                      " left in place' WHERE id = ?", (item_id,))
     else:
-        q = _quarantine_original(root, src_rel, sidecar, mid, set_aside_base(conn, mid, "original", root))
+        q = _quarantine_original(root, src_rel, sidecar, mid, set_aside_base(conn, mid, "original", root),
+                                 record=_recorder(conn, item_id))
         conn.execute("UPDATE migration_items SET state = 'done', quarantine_path = ? WHERE id = ?", (q, item_id))
     conn.commit()
+
+
+def _recorder(conn, item_id: int):
+    def record(path: str) -> None:
+        conn.execute("UPDATE migration_items SET quarantine_path = ? WHERE id = ?", (path, item_id))
+        conn.commit()
+    return record
 
 
 # --- the end of the job, and releasing kept originals ---------------------------------------------
@@ -422,11 +529,18 @@ def _finish_original(conn, mid, opts, item_id, root, src_rel, size, sidecar) -> 
 def _set_aside(conn, mid, keep: bool, item_id, file_id, keeper_id, root, src_rel) -> None:
     """A skipped duplicate/damaged copy: merge its user data into the copy that
     moved, then quarantine it (or keep it, in review mode)."""
-    moved = conn.execute("SELECT 1 FROM migration_items WHERE migration_id = ? AND file_id = ?"
-                         " AND state IN ('copied', 'done', 'kept', 'released')", (mid, keeper_id)).fetchone()
-    keeper_live = conn.execute("SELECT 1 FROM files WHERE id = ? AND missing_since IS NULL"
-                               " AND quarantined_at IS NULL", (keeper_id,)).fetchone()
-    if not (moved or keeper_live):
+    in_migration = conn.execute("SELECT 1 FROM migration_items WHERE migration_id = ? AND file_id = ?"
+                                " AND action = 'move'", (mid, keeper_id)).fetchone()
+    if in_migration:
+        # Its keeper had to arrive: one that failed (disk full, a long path)
+        # is still at its source, but that doesn't make this copy spare (0.51).
+        ok = conn.execute("SELECT 1 FROM migration_items WHERE migration_id = ? AND file_id = ?"
+                          " AND action = 'move' AND state IN ('copied', 'done', 'kept', 'released')",
+                          (mid, keeper_id)).fetchone()
+    else:
+        ok = conn.execute("SELECT 1 FROM files WHERE id = ? AND missing_since IS NULL"
+                          " AND quarantined_at IS NULL", (keeper_id,)).fetchone()
+    if not ok:
         return                                     # its keeper didn't make it: leave this copy alone
     merge_user_data(conn, file_id, keeper_id)
     if conn.execute("SELECT action FROM migration_items WHERE id = ?", (item_id,)).fetchone()[0] == "skip_duplicate":
@@ -436,7 +550,8 @@ def _set_aside(conn, mid, keep: bool, item_id, file_id, keeper_id, root, src_rel
     else:
         sidecar = conn.execute("SELECT sidecar FROM files WHERE id = ?", (file_id,)).fetchone()[0]
         if os.path.exists(_abs(root, src_rel)):
-            q = _quarantine_original(root, src_rel, sidecar, mid, set_aside_base(conn, mid, "duplicate", root))
+            q = _quarantine_original(root, src_rel, sidecar, mid, set_aside_base(conn, mid, "duplicate", root),
+                                     record=_recorder(conn, item_id))
             conn.execute("UPDATE files SET quarantined_at = ?, quarantine_path = ? WHERE id = ?", (_now(), q, file_id))
             conn.execute("UPDATE migration_items SET state = 'done', quarantine_path = ? WHERE id = ?", (q, item_id))
     conn.commit()
@@ -450,12 +565,29 @@ def finish(conn: sqlite3.Connection, job_id: int) -> None:
     mid, opts = row[0], json.loads(row[1])
     keep = opts.get("keep_sources", True)
     roots = dict(conn.execute("SELECT id, path FROM roots"))
+    # Copied, but setting the original aside failed (a busy share, a name
+    # clash): one more try now; what's still left shows as 'copied' (0.51).
+    for item_id, file_id, src_root, src_rel, size in conn.execute(
+            "SELECT id, file_id, src_root, src_rel, size FROM migration_items WHERE migration_id = ?"
+            " AND action = 'move' AND state = 'copied'", (mid,)).fetchall():
+        sidecar = conn.execute("SELECT sidecar FROM files WHERE id = ?", (file_id,)).fetchone()[0]
+        try:
+            _finish_original(conn, mid, opts, item_id, roots[src_root], src_rel, size, sidecar)
+        except OSError as e:
+            _item_failed(conn, item_id, e)
+    _remove_temp_files(conn, mid)
     for item_id, file_id, keeper_id, src_root, src_rel in conn.execute(
             "SELECT id, file_id, keeper_id, src_root, src_rel FROM migration_items WHERE migration_id = ?"
             " AND action IN ('skip_duplicate', 'skip_damaged') AND state IN ('planned', 'skipped')",
             (mid,)).fetchall():
         if keeper_id is not None:
-            _set_aside(conn, mid, keep, item_id, file_id, keeper_id, roots[src_root], src_rel)
+            try:
+                _set_aside(conn, mid, keep, item_id, file_id, keeper_id, roots[src_root], src_rel)
+            except OSError as e:                   # one copy that won't move mustn't stop the rest (0.51)
+                conn.rollback()
+                conn.execute("UPDATE migration_items SET error = ? WHERE id = ?",
+                             (f"Not set aside: {type(e).__name__}: {e}"[:300], item_id))
+                conn.commit()
     conn.execute("UPDATE migrations SET state = 'done', finished_at = datetime('now') WHERE id = ?", (mid,))
     conn.commit()
     from lunelis.migrate import logs
@@ -466,6 +598,37 @@ def finish(conn: sqlite3.Connection, job_id: int) -> None:
     except OSError as e:                           # the logs folder unreachable: the report is made at release
         import logging
         logging.getLogger(__name__).warning("Couldn't write the migration logs: %s", e)
+
+
+def _remove_temp_files(conn: sqlite3.Connection, mid: int) -> None:
+    """Half-written copies a power cut left behind (only ever our own temp names)."""
+    target = conn.execute("SELECT target FROM migrations WHERE id = ?", (mid,)).fetchone()[0]
+    folders = {d.rsplit("/", 1)[0] if "/" in d else "" for (d,) in conn.execute(
+        "SELECT dest_rel FROM migration_items WHERE migration_id = ? AND dest_rel IS NOT NULL", (mid,))}
+    for f in folders:
+        try:
+            with os.scandir(_abs(target, f) if f else target) as it:
+                for e in it:
+                    if e.name.startswith(TMP_PREFIX) and e.is_file():
+                        _unlink(e.path)
+        except OSError:
+            continue
+
+
+def cancelled(conn: sqlite3.Connection, job_id: int) -> None:
+    """The job was cancelled from the Jobs page: the migration stops there -
+    no longer 'running' (which blocked every new plan), and its manifest
+    records what did move (0.51)."""
+    row = conn.execute("SELECT id FROM migrations WHERE job_id = ? AND state = 'running'", (job_id,)).fetchone()
+    if row is None:
+        return
+    conn.execute("UPDATE migrations SET state = 'cancelled', finished_at = datetime('now') WHERE id = ?", (row[0],))
+    conn.commit()
+    from lunelis.migrate import logs
+    try:
+        logs.write_manifest(conn, row[0])
+    except OSError:
+        pass
 
 
 def release(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | None = None) -> int:
@@ -489,6 +652,8 @@ def release(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | N
         src = _abs(root, src_rel)
         if not os.path.exists(src) or os.path.getsize(src) != size:
             continue                               # gone or changed: not ours to move any more
+        if act == "move" and not _library_copy_ok(conn, migration_id, item_id):
+            continue                               # the copy doesn't check out: the original stays
         # (A moved file's catalog sidecar name is the same at both ends.)
         sidecar = conn.execute("SELECT sidecar FROM files WHERE id = ?", (file_id,)).fetchone()[0]
         q = _quarantine_original(root, src_rel, sidecar, migration_id, set_aside_base(
@@ -502,6 +667,26 @@ def release(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | N
     conn.commit()
     logs.write_manifest(conn, migration_id)
     return n
+
+
+def _library_copy_ok(conn: sqlite3.Connection, migration_id: int, item_id: int) -> bool:
+    """Re-read the Library copy and compare it with the hash taken while
+    copying. Hours or days after the copy, so it comes from the NAS's disks,
+    not the PC's cache of what it just wrote (0.51)."""
+    target, dest, sha = conn.execute(
+        "SELECT m.target, i.dest_rel, i.sha256 FROM migration_items i JOIN migrations m ON m.id = i.migration_id"
+        " WHERE i.id = ?", (item_id,)).fetchone()
+    if not sha:
+        return True                                # from before hashes were kept: compared at copy time
+    try:
+        ok = _sha256(_abs(target, dest)) == sha
+    except OSError:
+        ok = False
+    if not ok:
+        conn.execute("UPDATE migration_items SET note = 'Library copy failed the re-check - original kept'"
+                     " WHERE id = ?", (item_id,))
+        conn.commit()
+    return ok
 
 
 def kept_sources(conn: sqlite3.Connection, root_id: int) -> set[str]:

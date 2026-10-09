@@ -122,10 +122,20 @@ def move_one(src: str, dst: str) -> None:
         if not (getattr(e, "winerror", None) == 17 or e.errno == 18):   # ERROR_NOT_SAME_DEVICE / EXDEV
             raise
     import shutil
-    shutil.copy2(src, dst)
-    if not _same_bytes(src, dst):
-        os.remove(dst)
-        raise OSError(f"the copy at {dst} didn't match the original - the original was left in place")
+    # Via a temp name (0.51): a share that drops mid-copy leaves no cut-off
+    # file under the real name that would later look like a good copy.
+    tmp = os.path.join(os.path.dirname(dst), ".lunelis-moving-" + os.path.basename(dst))
+    try:
+        shutil.copy2(src, tmp)
+        if not _same_bytes(src, tmp):
+            raise OSError(f"the copy at {dst} didn't match the original - the original was left in place")
+        os.replace(tmp, dst)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
     os.remove(src)
 
 

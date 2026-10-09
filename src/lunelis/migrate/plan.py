@@ -220,7 +220,7 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
     for fid, r in by_id.items():
         if not r[11] or fid in action:
             continue
-        same = [s for s in survivors(conn, fid) if s[2] == SAME_FILE]
+        same = [s for s in survivors(conn, fid) if s[2] == SAME_FILE and _really_same(conn, fid, s[0])]
         if same and options.skip_damaged_copies:
             action[fid] = ("skip_damaged", same[0][0], "Damaged - an intact copy exists")
         else:
@@ -239,11 +239,17 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
     lay = _layout_inputs(conn, by_id, options) if options.library_layout else None
 
     damaged_base = _damaged_folder(conn, target)
+    # A RAW+JPEG pair lands in one folder even when one half's date couldn't be
+    # read (a RAW format with no reader, a damaged JPEG): it takes the other's (0.51).
+    partner = {f: p for f, p in conn.execute("SELECT id, pair_of FROM files WHERE pair_of IS NOT NULL")}
     dest: dict[int, str] = {}
     by_pair: dict[tuple[str, str], list[int]] = defaultdict(list)
     for fid, r in by_id.items():
         if action.get(fid, ("move",))[0] != "move":
             continue
+        p = partner.get(fid)
+        if r[7] is None and p in by_id and by_id[p][7]:
+            r = (*r[:7], by_id[p][7], *r[8:])
         ev_name, ev_start = (r[9], r[10]) if r[9] else pair_event.get(pair_key(r), (None, None))
         src_dir = r[3].rsplit("/", 1)[0] if "/" in r[3] else ""
         note = action.get(fid, ("move", None, ""))[2] or ""
@@ -356,6 +362,25 @@ def _layout_inputs(conn: sqlite3.Connection, by_id: dict, options: Options) -> d
             folder_mtimes[(r[1], r[3].rsplit("/", 1)[0] if "/" in r[3] else "")].append(r[13])
     return {"days": days, "frames": frames, "folder_mtimes": folder_mtimes,
             "opts": layout.LayoutOptions(options.undated_by_mtime, options.photo_subfolders)}
+
+
+MTIME_SLACK_S = 2      # FAT / exFAT keep modified times to 2 seconds
+
+
+def _really_same(conn: sqlite3.Connection, damaged_id: int, other_id: int) -> bool:
+    """Name and size match (damage.check's SAME_FILE). Before the damaged one
+    is left behind as "a copy", something about the shot has to agree too -
+    IMG_0001.CR2 is the same size from any two cameras of one model, and a
+    damaged file often has no capture time to compare (0.51): the capture
+    time when both have one, else the modified time a copy keeps."""
+    (t1, m1), (t2, m2) = [conn.execute(
+        "SELECT e.captured_at, f.mtime FROM files f LEFT JOIN exif e ON e.file_id = f.id WHERE f.id = ?",
+        (i,)).fetchone() for i in (damaged_id, other_id)]
+    if t1 and t2:
+        return t1 == t2
+    from lunelis.migrate.execute import _ts
+    m1, m2 = _ts(m1), _ts(m2)
+    return m1 is not None and m2 is not None and abs(m1 - m2) <= MTIME_SLACK_S
 
 
 def _damaged_folder(conn: sqlite3.Connection, target: str) -> str:
