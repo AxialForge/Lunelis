@@ -184,10 +184,12 @@ function table(rows, width = PAGE_W) {
   const minW = head.map((_, c) => {
     const words = rows.flatMap((r, ri) => {
       const t = (r[c] || "").replace(CHIP_RE, (_, k, rest) => rest || CHIPS[k.toLowerCase()][0]);
-      return t.split(/<br\s*\/?>|\s+/).map((x) => x.replace(/[`*]/g, "").length * (ri === 0 ? 1.15 : 1));
+      return t.split(/<br\s*\/?>|\s+/).map((x) => x.replace(/[`*]/g, "").length * (ri === 0 ? 1.15 : x.includes("`") ? 1.2 : 1));
     });
     return Math.round(Math.max(...words, 4) * 105 + 240);
   });
+  const minSum = minW.reduce((a, b) => a + b, 0);
+  if (minSum > width) { for (let c = 0; c < n; c++) minW[c] = Math.floor((minW[c] / minSum) * width); }   // cannot all fit: share the page
   for (let pass = 0; pass < 6; pass++) {
     let deficit = 0;
     w.forEach((v, c) => { if (v < minW[c]) { deficit += minW[c] - v; w[c] = minW[c]; } });
@@ -195,7 +197,8 @@ function table(rows, width = PAGE_W) {
     const room = w.map((v, c) => Math.max(v - minW[c], 0)), total = room.reduce((a, b) => a + b, 0) || 1;
     w = w.map((v, c) => v - Math.round((room[c] / total) * deficit));
   }
-  w[n - 1] += width - w.reduce((a, b) => a + b, 0);
+  w = w.map((v, c) => Math.max(v, Math.min(minW[c], 600)));
+  w[w.indexOf(Math.max(...w))] += width - w.reduce((a, b) => a + b, 0);
   const mk = (t, c, isHead, zebra, keep) => {
     t = t || "";
     const chip = !isHead && t.match(CHIP_RE);

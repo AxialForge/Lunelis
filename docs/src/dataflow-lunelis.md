@@ -167,9 +167,9 @@ flowchart LR
   subgraph c2["UI thread: the grid"]
     direction TB
     i["LibraryIndex:<br/>rows in memory"] --> g["PhotoGrid paints<br/>visible tiles only"] --> t["ThumbCache:<br/>4 threads, Pillow"]
+    g -. "open a photo" .-> v["Photo view:<br/>2560 px preview"]
   end
   c1 --> c --> c2
-  c2 -. "open a photo" .-> v["Photo view:<br/>2560 px preview"]
 ```
 
 | Step | From | To | Data | Stored in |
@@ -192,7 +192,7 @@ The grid and the filmstrip load only cached JPEG thumbnails. Paint never touches
 flowchart LR
   subgraph c1["1 Change"]
     direction TB
-    A["Rating, flag, label,<br/>tag or edit saved"] --> B[("ratings.xmp_pending = 1")] --> C["Sidecar writer thread:<br/>1.2 s after the last change,<br/>or at close"]
+    A["Rating, flag, label,<br/>tag or edit saved"] --> B[("ratings.xmp_pending = 1")] --> C["Sidecar writer thread:<br/>1.2 s after the last change,<br/>or at close (200 at most)"]
   end
   subgraph c2["2 Where it goes (sidecar_mode)"]
     direction TB
@@ -244,7 +244,7 @@ flowchart LR
 | 1 | Card | Catalog | List of media, companions (Live Photo video) and sidecars, one row each | `imports`, `import_items` |
 | 2 | Card | Staging | Copied to a `.lunelis-importing-*` temp name, hashed while read, flushed, renamed, re-read and compared | `staging/import-<id>/` |
 | 3 | Staging | Library folder | Folder from the template and capture date. A different file with the same name goes to a sibling folder, `... (2)` | Your destination |
-| 4 | Library folder | Library worker | The new copy is re-read and compared with the card hash. Only then is the staged copy deleted | `import_items.state` |
+| 4 | Library folder | Import worker | The new copy is re-read and compared with the card hash. Only then is the staged copy deleted | `import_items.state` |
 | 5 | You | Card | Clear the card re-checks size, time and both hashes, then deletes card files. A changed file is left | The card |
 
 Staging is local while the disk keeps `import_local_reserve_gb` free (50 GB by default), then spills to the network staging folder if set, else the import waits. A pulled card or sleeping share sets `waiting`; the import resumes from `import_items`.
@@ -297,11 +297,11 @@ flowchart LR
 flowchart LR
   subgraph c1["1 Find"]
     direction TB
-    A["You start a job<br/>(jobs, job_folders)"] --> C["Job runner, one folder<br/>at a time: sample hash"]
+    A["You start a job<br/>(jobs, job_folders)"] --> C["Job runner, one folder<br/>at a time: sample hash,<br/>groups 'sampled'"]
   end
   subgraph c2["2 Prove"]
     direction TB
-    D[("groups: sampled")] --> F["Verify job:<br/>full SHA-256"] --> G[("groups: exact,<br/>verified")]
+    F["Verify job:<br/>full SHA-256"] --> G["Groups 'exact',<br/>verified"]
   end
   subgraph c3["3 Set aside"]
     direction TB
@@ -321,11 +321,10 @@ flowchart LR
 | 7 | Thumbnail pass | Catalog | Near-duplicates: a dHash per photo, grouped by complete linkage (4 bits, not RAW, same moment). Method `similar` | `perceptual_hash` |
 
 ::: warn Duplicate rules that must not regress
-- Only verified byte-identical groups can be set aside, never down to zero live copies.
-- A job never hard-deletes. Emptying quarantine is a user action with its own snapshot.
+Only verified byte-identical groups can be set aside, never down to zero live copies. A job never hard-deletes; emptying quarantine is a user action with its own snapshot.
 :::
 
-# Migration
+# Migration {nobreak}
 
 ```mermaid Migration. The same catalog row is repointed to the verified copy, so ratings, tags and thumbnails follow the file.
 %%{init: {"flowchart": {"rankSpacing": 22, "nodeSpacing": 18, "padding": 8}}}%%
@@ -336,7 +335,7 @@ flowchart LR
   end
   subgraph c2["2 Per file"]
     direction TB
-    C["Copy to a temp name, hash while<br/>reading; re-read: same hash?"] --> E["Sidecar copied<br/>and compared"] --> F["Repoint the SAME row"]
+    C["Copy to a temp name,<br/>hash while reading;<br/>re-read: same hash?"] --> E["Sidecar copied<br/>and compared"] --> F["Repoint the SAME row"]
   end
   subgraph c3["3 Original and end"]
     direction TB
@@ -360,22 +359,22 @@ flowchart LR
 - A crash is safe: before step 5 the source is untouched; after it a resume only finishes the original.
 :::
 
-# Backups and catalog snapshots
+# Backups and catalog snapshots {nobreak}
 
 ```mermaid Two separate safety nets. Snapshots protect the catalog; backup sets protect photo files.
 %%{init: {"flowchart": {"rankSpacing": 22, "nodeSpacing": 18, "padding": 8}}}%%
 flowchart LR
   subgraph c1["1 Catalog snapshot"]
     direction TB
-    s1["Daily on start, and<br/>before risky jobs"] --> s2["VACUUM INTO a temp file,<br/>then zip it"] --> s3[("backups/catalog-DATE-<br/>reason.zip, newest 10")]
+    s1["Daily on start, and before<br/>risky jobs: VACUUM INTO a<br/>temp file, then zip it"] --> s3[("backups/catalog-DATE-<br/>reason.zip, newest 10")]
   end
   subgraph c2["2 Backup set (a job)"]
     direction TB
-    b1["Folder by folder: same size<br/>and date? Moved: rename inside"] --> b3["New or changed: old copy to<br/>previous-versions; copy, re-read"] --> b4[("backup_files:<br/>SHA-256")]
+    b1["Folder by folder. Moved files<br/>renamed inside. New or<br/>changed: old copy to<br/>previous-versions, then<br/>copy and re-read"] --> b4[("backup_files:<br/>SHA-256")]
   end
   subgraph c3["3 End and later"]
     direction TB
-    b5["End: catalog snapshot,<br/>sidecars, backup.json"] --> v["Verify job re-reads<br/>every copy"] --> r["Restore: files back;<br/>catalog at next start"]
+    b5["End: catalog snapshot,<br/>sidecars, backup.json"] --> v["Verify job re-reads copies;<br/>restore brings files back"]
   end
   c1 --> c2 --> c3
 ```
@@ -384,61 +383,63 @@ flowchart LR
 |:--|:--|:--|:--|:--|
 | 1 | Catalog | Snapshot folder | A consistent copy made while the catalog stays open, zipped. Newest `catalog_backups_keep` (10) kept | `backups/` |
 | 2 | Library | Backup drive | New or changed files, hashed while read, re-read, compared. A mirror of each source's folders | `<backup>/<id>-<name>/` |
-| 3 | Backup drive | Backup drive | A changed file's old copy moves to `_Lunelis/previous-versions/<time>/`. Nothing is deleted from a backup | Backup drive |
+| 3 | Backup drive | Backup drive | A changed file's old copy moves to `previous-versions/<time>/` inside the backup. Nothing is deleted from a backup | Backup drive |
 | 4 | Job runner | Catalog | Size, time, SHA-256 per copy. The first backup fills `files.content_hash`. At the end: a snapshot (5 kept), sidecars, `backup.json` | `backup_files`, `_Lunelis/` |
 | 5 | Backup drive | Library | Restore: missing or damaged files come back (a damaged one is quarantined first). The catalog returns at the next start | `restore-pending.json` |
-| 6 | Job runner | Catalog | Verify job re-reads each copy against its hash. A missing drive makes the job wait; a full one pauses it | `backup_files.problem` |
+| 6 | Job runner | Catalog | Verify job re-reads each copy against its hash. A missing drive makes the job wait; a full one pauses it | `backup_files` |
 
 ::: warn Snapshots and restores
-- A snapshot is taken before every job that moves or removes files, and before every schema upgrade (kept, never pruned).
-- Picks, events, albums, faces and edits live only in the catalog, so snapshots protect them.
+A snapshot is taken before every job that moves or removes files, and before every schema upgrade. All snapshots share the newest 10, so an old one is deleted as newer ones arrive. Picks, events, albums, faces and edits live only in the catalog, so snapshots protect them.
 :::
 
 # The darktable bridge
 
 ```mermaid darktable bridge. Two TSV files in one exchange folder; the newest change wins. XMP sidecars are a second channel.
-%%{init: {"flowchart": {"rankSpacing": 22, "nodeSpacing": 18, "padding": 8}}}%%
+%%{init: {"flowchart": {"rankSpacing": 30, "nodeSpacing": 26, "padding": 10}}}%%
 flowchart LR
-  C1[("Lunelis<br/>ratings")] -- "when a rating<br/>changed" --> T1["lunelis-ratings.tsv<br/>every rating"] --> L["lunelis.lua in darktable:<br/>applies newer rows"] --> D1["darktable<br/>library"]
-  D2["darktable edits<br/>a rating"] --> T2["darktable-ratings.tsv<br/>changed rows"] -- "every 20 s: apply if<br/>newer, delete file" --> C2[("Lunelis<br/>ratings")]
-  X["XMP sidecars"] <-.-> D3["darktable"]
+  C1[("Lunelis catalog:<br/>ratings")] -- "when a rating<br/>changes" --> T1["lunelis-ratings.tsv<br/>every rating"] -- "plugin reads,<br/>applies newer" --> D1["darktable<br/>(lunelis.lua)"]
+  D2["darktable<br/>(lunelis.lua)"] -- "plugin writes" --> T2["darktable-ratings.tsv<br/>changed rows only"] -- "every 20 s: apply<br/>if newer, delete" --> C2[("Lunelis catalog:<br/>ratings")]
+  X["XMP sidecars"] <-. "second channel" .-> D3["darktable"]
 ```
 
 | Step | From | To | Data | Stored in |
 |:--|:--|:--|:--|:--|
 | 1 | You | darktable | Install copies `lunelis.lua` into darktable's `lua` folder and adds one `require` line to `luarc` | `%LOCALAPPDATA%\darktable\` |
 | 2 | Catalog | Exchange file | Every rating: full path, stars or -1 for reject, label, UTC change time | `lunelis-ratings.tsv` |
-| 3 | Exchange file | darktable | The plugin applies only rows newer than its `last_applied` preference | darktable's library |
-| 4 | darktable | Exchange file | Rows changed since its last snapshot | `darktable-ratings.tsv` |
+| 3 | Exchange file | darktable | At darktable start-up, on a view switch and on "Sync with Lunelis": only rows newer than its `last_applied` preference | darktable's library |
+| 4 | darktable | Exchange file | Same moments, and when darktable closes: rows changed since its last snapshot | `darktable-ratings.tsv`, `darktable-snapshot.tsv` |
 | 5 | Exchange file | Catalog | Matched by full path, case-insensitive. A row older than the catalog's change is skipped | `ratings` |
 | 6 | Catalog | Sidecar | An applied change queues a sidecar write like any rating | See the sidecar chapter |
 
-The exchange folder is `darktable/` in the data folder unless you set another. The check runs on the UI thread every 20 seconds and is cheap when nothing changed. Picks never cross, because darktable has none. darktable may hold several colour labels; Lunelis keeps one and never removes the extras.
+The exchange folder is `darktable/` in the data folder unless you set another. The Lunelis side checks every 20 seconds on the UI thread, and is cheap when nothing changed.
+
+::: warn darktable rules that must not regress
+- The plugin edits no photo, no darktable history and no XMP file directly. darktable writes its own sidecars as usual.
+- Newest change wins. Picks never cross, because darktable has none. darktable may hold several colour labels; Lunelis keeps one and never removes the extras.
+:::
 
 # Models and recognition
 
 ```mermaid Recognition. Everything runs on the CPU in this process. Each path reads different pixels, and only names you confirm become tags.
 %%{init: {"flowchart": {"rankSpacing": 22, "nodeSpacing": 18, "padding": 8}}}%%
 flowchart LR
-  D["Download, you confirm;<br/>SHA-256 checked"] --> M[("data folder, models/")]
-  T["512 px thumbnails"] --> C["CLIP image model"] --> E[("embeddings,<br/>512 numbers")] --> S["Scene suggestions<br/>with a confidence"]
-  O["Original, resized<br/>to 1600 px"] --> F["YuNet finds, SFace<br/>makes 128 numbers"] --> FA[("faces, crops")] --> PT["You confirm a name:<br/>People tag"]
+  T["512 px thumbnails"] --> C["CLIP image model<br/>(models/clip)"] --> E[("embeddings,<br/>512 numbers")] --> S["Scene suggestions<br/>with a confidence"]
+  O["Original, resized<br/>to 1600 px"] --> F["YuNet finds, SFace makes<br/>128 numbers (models/faces)"] --> FA[("faces, crops")] --> PT["You confirm a name:<br/>People tag"]
   G["GPS or a<br/>map pin"] --> PL["Nearest place in<br/>the built-in list"] --> PT2["Places tag"]
 ```
 
 | Step | From | To | Data | Stored in |
 |:--|:--|:--|:--|:--|
 | 1 | Internet | Models folder | You confirm. Each file is checked against its SHA-256 and size, then moved into place | `models/` |
-| 2 | Cache | CLIP | Cached thumbnails only, 16 at a time: never a RAW, never the NAS. Scored against 40 label phrases: 25 % or more, 3 per photo at most | `embeddings`, `file_tags` |
+| 2 | Cache | CLIP | Thumbnails only: never a RAW or the NAS. Scored against 40 labels: 25 % or more, 3 per photo at most | `embeddings`, `file_tags` |
 | 3 | Original | YuNet, SFace | Upright copy, 1600 px at most. A face needs score 0.8 and 2.5 % of the long edge. Videos skipped | Memory |
 | 4 | YuNet, SFace | Catalog | Box as fractions, 128-number fingerprint, model name, 160 px crop. Each photo once per model | `faces`, `cache/faces/` |
-| 5 | Catalog | Catalog | Suggested to a named person at cosine 0.40, grouped with look-alikes at 0.45. Only a face you confirm tags the photo | `faces`, `file_tags` |
+| 5 | Catalog | Catalog | Suggested to a named person at cosine 0.40, grouped at 0.45. Only a face you confirm tags the photo | `faces`, `file_tags` |
 | 6 | Catalog | Catalog | Nearest of 31,735 listed towns: named within 40 km, country only within 250 km. A pin beats GPS | `photo_places`, `locations` |
-| 7 | Original | Mask maker | Subject and sky masks, made on the upright source and cached as PNG. Ask compares your words with stored fingerprints | `cache/masks/` |
+| 7 | Original | Mask maker | Subject and sky masks from the upright source, cached as PNG. Ask matches your words to stored fingerprints | `cache/masks/` |
 
 ::: warn Recognition rules that must not regress
-- Everything that understands pixels goes through the `Recognizer` interface, so it can move to an external service later.
-- Suggestions carry a confidence; every normal tag query filters `confidence IS NULL`. Only manual tags reach XMP; face data never does.
+Everything that understands pixels goes through the `Recognizer` interface, so it can move to an external service later. Suggestions carry a confidence, and every normal tag query filters `confidence IS NULL`.
 :::
 
 # Network use
@@ -455,15 +456,15 @@ flowchart LR
 
 | Destination | Why | When | What is sent | Default |
 |:--|:--|:--|:--|:--|
-| api.github.com | Is a newer release out? | 8 s after start if packaged and the last check is over 20 h old, or the Check button | HTTPS GET, internet address, `User-Agent: Lunelis-updater` | On (`update_check`) |
-| github.com (release files) | Update zip and `.sha256` | Only after you choose to install | HTTPS GET, same headers | Off until you click |
-| github.com (OpenCV models, rembg) | Face and subject-mask models | After you confirm: Settings, Edit panel, installer, Welcome | HTTPS GET, `User-Agent: Lunelis` | Off |
-| huggingface.co | CLIP scene model (4 files), sky mask | Same as above | HTTPS GET, `User-Agent: Lunelis` | Off |
-| tile.openstreetmap.org | Map pictures | While the Map shows tiles and `map_online` is on. Each tile fetched once, kept in `map_tiles` | Zoom, column, row in the URL; `User-Agent: Lunelis/<version>` | Off |
-| www.openstreetmap.org (your browser) | Show a photo's place | Only if "location opens" is set to the browser, and you click | The coordinates, in a URL your browser opens | Off |
-| Home network, port 8735 (in) | Family gallery | While at least one album is shared | 1600 px JPEGs without EXIF; originals if allowed | Off until shared |
+| api.github.com | Is a newer release out? | 8 s after start (packaged build, last check over 20 h ago), or the Check button. Setting `update_check` | GET; internet address, `Lunelis-updater` | On |
+| github.com (releases) | Update zip and `.sha256` | You choose Install | GET; internet address | Off |
+| github.com (OpenCV, rembg) | Face and subject-mask models | You confirm a download | GET; `Lunelis` | Off |
+| huggingface.co | CLIP and sky-mask models | You confirm a download | GET; `Lunelis` | Off |
+| tile.openstreetmap.org | Map pictures | Map shows tiles (`map_online`); each tile fetched once | Zoom, column, row; `Lunelis/x.y.z` | Off |
+| www.openstreetmap.org | Show a place in your browser | You click, and "location opens" is the browser | Coordinates, in a URL | Off |
+| Home network, default port 8735 (in) | Family gallery | While an album is shared | 1600 px JPEGs without EXIF | Off |
 
-A search of `src/lunelis` for `urllib`, `QNetworkAccessManager`, `socket` and `http` finds only the files above. There is no account, no telemetry and no crash upload; Help > Report a problem shows text for you to copy.
+A search of `src/lunelis` for `urllib`, `QNetworkAccessManager`, `socket` and `http` finds only the files above. There is no account, no telemetry and no crash upload; Help > Report a problem shows text for you to copy. Every model download and the update check send the program name in the `User-Agent` header and nothing else you could identify; the host sees your internet address.
 
 ::: note What comes down is checked, but only so far
 - Model downloads are hashed on arrival and deleted on a mismatch. Existing model files are later accepted by size only.
@@ -474,6 +475,15 @@ A search of `src/lunelis` for `urllib`, `QNetworkAccessManager`, `socket` and `h
 ::: warn Family gallery
 Plain HTTP on all addresses of the PC (`0.0.0.0`). A request from outside the home ranges is refused first. Then: a random key per album, an optional PIN (PBKDF2, 200,000 rounds), 5 wrong PINs lock an address for 10 minutes, 20 lock an album for an hour, at most 32 connections, 1600 px copies with no EXIF. Home-network traffic is not encrypted.
 :::
+
+**The model downloads in full.** All four sets come to about 414 MB. Each file is pinned by SHA-256 and size in the code (`recognize/clip.py`, `recognize/faces.py`, `edit/ai.py`).
+
+| Model | Files and sizes in bytes | Source | Saved in |
+|:--|:--|:--|:--|
+| YuNet and SFace (faces) | Detector 232,589; recognizer 38,696,353 | github.com, OpenCV model zoo at a pinned commit | `models/faces/` |
+| CLIP ViT-B/32 (scenes, Ask) | Image model 89,117,001; text model 64,504,507; two word lists 862,328 and 524,619 | huggingface.co, an ONNX copy of OpenAI CLIP | `models/clip/` |
+| Silueta (subject mask) | One file, 44,173,029 | github.com, rembg release v0.0.0 | `models/` |
+| Skyseg (sky mask) | One file, 175,997,079 | huggingface.co, a published skyseg model | `models/` |
 
 # Data inventory
 
@@ -488,7 +498,7 @@ Plain HTTP on all addresses of the PC (`0.0.0.0`). A request from outside the ho
 | Scene fingerprints, suggestions | `embeddings`, `file_tags` | For ever | No |
 | Place tags, pins | `photo_places`, `locations` | For ever | Tags in sidecar text; pins no |
 | Models | `models/` | Until removed | They come in only |
-| Catalog snapshots | `backups/*.zip` or your folder | Newest 10; upgrade snapshots never pruned | In backup sets (5 kept) |
+| Catalog snapshots | `backups/*.zip` or your folder | Newest 10 of all kinds | In backup sets (5 kept) |
 | Set-aside files | `_Lunelis Quarantine`, or Lunelis folder Duplicates and Trash | Until you empty them | No |
 | Staging, update files | `staging/`, `updates/` | Until placed or cleaned | The update zip comes in |
 | Map tiles | `map_tiles/` | For ever | They come in only |
@@ -512,6 +522,10 @@ Plain HTTP on all addresses of the PC (`0.0.0.0`). A request from outside the ho
 | A model is missing | The step is skipped silently; Ask falls back to word search | A "Download and turn on" button in Settings |
 | A download fails its hash | The partial file is deleted; nothing is installed | "Didn't match its checksum - nothing was installed" |
 | The update cannot be swapped in | The script puts the old folder back and starts it | A warning on the next start |
+| A card is pulled mid-copy | The import waits; it resumes when the same card (volume serial) is back. Staged files are kept | "Waiting for the card to be inserted again" |
+| A migration copy does not match | The copy is deleted and the file fails; the original is untouched | A failed item in the Migrate page |
+| Map tiles cannot be reached | Tiles already saved still draw. The dots always work | A one-time note on the Map page |
+| The gallery port is busy | The server does not start | "The family gallery couldn't start on port N" |
 | One library-pass step errors | It is logged; the other steps still run | "Finished, but these stopped on an error: ..." |
 
 # To check
@@ -526,19 +540,21 @@ Plain HTTP on all addresses of the PC (`0.0.0.0`). A request from outside the ho
 - **Proxy settings.** Whether `QNetworkAccessManager` follows the Windows proxy settings was not examined.
 - **darktable plugin.** `CLAUDE.md` says the Lua script was tested only under a Lua 5.4 stand-in, never in a real darktable. Not re-checked here.
 - **Outside the program.** The Inno Setup installer and the CI workflows are not in `src/lunelis` and are not covered.
+- **Full data disk.** No code was found that handles a full data-folder drive in particular. A failed write inside a library-pass step is logged and the other steps run; other pages were not traced.
+- **Request headers.** Qt may add default headers (such as `Accept`) to a tile request beyond the `User-Agent` set in `ui/map_view.py`. Not examined.
+- **Paths in logs.** Status messages and errors go to `logs/lunelis.log` and can name folders and files. The problem report copies the last 200 log lines. Whether to scrub paths is not decided in the code.
+- **Daily snapshot.** The "daily" snapshot is checked once, 3 s after start-up (`_daily_backup`). No timer was found, so a tray program left running for days snapshots again only at its next start, or before a risky job.
 - **Speeds.** Rates quoted in `CLAUDE.md` were measured on its author's library and not re-measured.
 
 # Discrepancies
 
 | Where | The documents say | The code does |
 |:--|:--|:--|
-| `docs/_tools/architecture.mmd` | "SQLite schema v37" | `MIGRATIONS` ends at version 44 |
-| `architecture.mmd` | The jobs engine runs "dust maps"; one box holds "Import + Autopilot, migrate, photo backups" | No dust job kind (`dust_view.py` uses a page loader). Import and autopilot have their own threads; migrate and backups are job kinds |
-| `CLAUDE.md`, Architecture | Edits are "an instruction stack in XMP" | The stack is written to the sidecar but never read back: `import_sidecars` ignores `lunelis:EditStack`, and nothing reads the central store. Edits survive a catalog loss only through snapshots and backups |
-| `CLAUDE.md`, thumbnail and metadata rules | Video thumbnails "not yet"; CR3 and video have no EXIF reader | Videos get a poster-frame thumbnail (PyAV) and a metadata probe. Only CR3 still has no reader |
-| `CLAUDE.md`, thumbnail rules | Cache path `<id//1000>/<id>.jpg` | `cache_rel_path` zero-pads to four digits: `0012/12819.jpg` |
-| `CLAUDE.md`, scanner rules | A change nulls `content_hash`, `perceptual_hash`, `thumbnail_path` | The update also clears `sample_hash` and `thumb_error` |
-| `CLAUDE.md`, non-negotiables | "Lunelis's own files never go in the photo library" | Each source can hold `_Lunelis Quarantine`. Temp files (`.lunelis-*`) sit in the target folder while written. A Lunelis folder you choose can hold exports, trash and logs |
-| `CLAUDE.md`, backup rule | A snapshot is taken before every job that moves or removes files | True, but Duplicates, Near-duplicates and Quarantine snapshot into `paths.BACKUP_DIR` (`data/backups`), not the folder in Settings that daily snapshots use. Start-up recovery also looks only in `data/backups` |
-| `geo/places.py` docstring | About 34,000 places | The list holds 31,735 rows |
+| `docs/_tools/architecture.mmd` | "SQLite schema v37". The jobs engine runs "dust maps". One box holds "Import + Autopilot, migrate, photo backups" | `MIGRATIONS` ends at version 44. There is no dust job kind (`dust_view.py` uses a page loader). Import and autopilot have their own threads; migrate and backups are job kinds |
+| `CLAUDE.md`, Architecture | Edits are "an instruction stack in XMP" | The stack is written to the sidecar but never read back: `import_sidecars` ignores `lunelis:EditStack`, and nothing reads the central store. Only snapshots and backups restore edits |
+| `CLAUDE.md`, thumbnail and metadata rules | Video thumbnails "not yet"; CR3 and video have no EXIF reader. Cache path `<id//1000>/<id>.jpg` | Videos get a poster-frame thumbnail (PyAV) and a metadata probe; only CR3 has no reader. `cache_rel_path` zero-pads: `0012/12819.jpg` |
+| `CLAUDE.md`, non-negotiables | "Lunelis's own files never go in the photo library" | Each source can hold `_Lunelis Quarantine`, and `.lunelis-*` temp files while writing. A Lunelis folder you choose can hold exports, trash and logs |
+| `CLAUDE.md`, backup rule | A snapshot is taken before every job that moves or removes files | True, but Duplicates, Near-duplicates and Quarantine snapshot into `data/backups`, not the Settings folder that daily snapshots use. Start-up recovery also looks only in `data/backups` |
+| `catalog/schema.py`, upgrade snapshot | The pre-upgrade snapshot "prune[s] nothing" and is "the way back" | It prunes nothing when made, but every later snapshot keeps only the newest `catalog_backups_keep` (10), so it is deleted after about ten more |
+| `CLAUDE.md` scanner rules; `geo/places.py` | A change nulls three columns. About 34,000 places | The update also clears `sample_hash` and `thumb_error`. The list holds 31,735 rows |
 | `CLAUDE.md`, Quarantine rules | `empty()` is the only hard removal | Clear the card (`importing/ingest.py`) also deletes, from the card, after a double hash check and your confirmation |

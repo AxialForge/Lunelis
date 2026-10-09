@@ -153,7 +153,7 @@ All findings are open. Every high and medium finding has a detail block in the n
 | D41 | AVIF is sniffed but .avif files are never cataloged | [low] | [open] |
 | D42 | Three docstring slips: tag separator, SFace size, model list | [low] | [open] |
 
-# Finding details
+# Finding details {nobreak}
 
 Detail blocks for every high and medium finding. Each one gives the evidence, who is affected and the change to make.
 
