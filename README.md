@@ -1,5 +1,10 @@
 # Lunelis
 
+[![Latest release](https://img.shields.io/github/v/release/AxialForge/Lunelis)](https://github.com/AxialForge/Lunelis/releases/latest)
+[![Tests](https://github.com/AxialForge/Lunelis/actions/workflows/python-release.yml/badge.svg)](https://github.com/AxialForge/Lunelis/actions/workflows/python-release.yml)
+![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A photo library for Windows that runs entirely on your own PC. Lunelis
 catalogues the photos and videos you already have - on local drives, USB drives
 and network storage - without moving, renaming or changing them, and gives you
@@ -7,6 +12,8 @@ what you need to look after a large collection for the long term.
 
 No accounts, no cloud, no subscriptions. Originals are never touched, and
 nothing is deleted behind your back.
+
+![The library grid](docs/images/library.png)
 
 ## Install
 
@@ -36,12 +43,34 @@ Requirements: Windows 10 or 11, 64-bit. The full walkthrough is in
 | Edit | Non-destructive: light, colour, tone curve, crop, lens corrections, noise reduction, masks (including AI subject and sky), retouch, virtual copies, My look, colour-managed export with presets. |
 | Create | 13 tools: animations, collages, batch copies, contact sheets, timelapses, slideshow videos, before-and-after, prints, focus stacks, star trails, median stacks, panoramas, HDR. |
 | Videos | Playback with trim to a new file; Sony S-Log3 clips shown with a built-in look or your own LUTs. |
-| Bring photos in | Memory-card, phone and USB-stick import, verified twice, with Autopilot (burst covers, scene tags, event name, draft album) and Review your shoot to undo any step. |
-| Clean up | Exact and near-duplicates with keeper rules, damaged-file checks, migration of a scattered library onto one drive. |
+| Bring photos in | Memory-card, phone and USB-stick import, verified twice, with Autopilot (burst covers, scene tags, event name, draft album) and Review your shoot to undo any step. Google Takeout exports are read with their albums and dates, and reviewed before anything moves. |
+| People | Faces found and grouped on this PC, named once, merged when one person was split in two. |
+| Clean up | Exact and near-duplicates with keeper rules, damaged-file checks, timelapse detection, and a migration wizard that consolidates a scattered library onto one drive - previewed first, every file verified, every original kept in Trash until you empty it, with before-and-after inventories. |
 | Keep safe | Catalog backups, verified photo backups, quarantine instead of deletion, rolling integrity checks, a sensor dust map per camera. |
 | Share at home | A family gallery: an album on phones and TVs on your home network, never the internet. |
 
 How to use each part is in the [wiki](docs/wiki/Home.md).
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Editing, dark theme](docs/images/edit.png) | ![The library, dark theme](docs/images/library-dark.png) |
+| **Edit** - non-destructive, with filters, masks and a tone curve. | **Midnight** - one of three themes (Graphite, Midnight, High contrast). |
+| ![Create](docs/images/create.png) | ![Duplicates](docs/images/duplicates.png) |
+| **Create** - 13 tools that make new files and never touch the originals. | **Duplicates** - every copy verified byte for byte before it can be set aside. |
+| ![Migrate](docs/images/migrate.png) | |
+| **Migrate** - one tidy library from many drives, previewed before anything moves. | |
+
+The screenshots show a made-up demo library (`docs/_tools/demo_library.py`), not real photos.
+
+## Privacy
+
+Everything runs on your PC. Lunelis has no account and sends nothing anywhere,
+with three exceptions: the update check against GitHub Releases (on by
+default, off in Settings > Updates), and two you switch on yourself - the
+optional AI model downloads, and map tiles from OpenStreetMap.
+The family gallery is reachable only from your home network.
 
 ## Run from source
 
