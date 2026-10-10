@@ -602,17 +602,44 @@ class PhotoGrid(QAbstractScrollArea):
 
     # --- selecting many ------------------------------------------------------
 
+    EDGE = 40          # px from the top / bottom where a selection box scrolls the grid (0.53)
+    MAX_STEP = 40      # px per tick at the very edge
+
     def _band_start(self, p) -> None:
         from PySide6.QtWidgets import QRubberBand
         if getattr(self, "_band", None) is None:
             self._band = QRubberBand(QRubberBand.Shape.Rectangle, self.viewport())
+            from PySide6.QtCore import QTimer
+            self._band_timer = QTimer(self, interval=30, timeout=self._band_scroll)
+        self._band_at = p
         self._band_origin = p
         self._band_y0 = p.y() + self.verticalScrollBar().value()      # in content coordinates
         self._band_base = set(self.selected)
         self._band.setGeometry(QRect(p, p))
         self._band.show()
 
+    def _band_scroll(self) -> None:
+        """While a selection box is held near the top or bottom, the grid
+        scrolls - faster the closer to the edge - and the box grows with it."""
+        if getattr(self, "_band", None) is None or not self._band.isVisible():
+            self._band_timer.stop()
+            return
+        y, h = self._band_at.y(), self.viewport().height()
+        step = 0
+        if y < self.EDGE:
+            step = -max(4, int(self.MAX_STEP * (self.EDGE - y) / self.EDGE))
+        elif y > h - self.EDGE:
+            step = max(4, int(self.MAX_STEP * (y - (h - self.EDGE)) / self.EDGE))
+        bar = self.verticalScrollBar()
+        new = max(bar.minimum(), min(bar.maximum(), bar.value() + step))
+        if new != bar.value():
+            bar.setValue(new)
+            self._band_move(self._band_at)
+
     def _band_move(self, p) -> None:
+        self._band_at = p
+        if hasattr(self, "_band_timer") and not self._band_timer.isActive():
+            self._band_timer.start()
         y0 = self._band_y0 - self.verticalScrollBar().value()
         rect = QRect(QPoint(self._band_origin.x(), y0), p).normalized()
         self._band.setGeometry(rect.intersected(self.viewport().rect()))
@@ -644,6 +671,7 @@ class PhotoGrid(QAbstractScrollArea):
     def mouseReleaseEvent(self, e: QMouseEvent) -> None:
         if getattr(self, "_band", None) is not None and self._band.isVisible():
             self._band.hide()
+            self._band_timer.stop()
         if e.button() == Qt.MouseButton.LeftButton and getattr(self, "_pending_select", None) is not None:
             self._set_current(self._pending_select, Qt.KeyboardModifier.NoModifier)
         self._pending_select = None

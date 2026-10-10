@@ -174,7 +174,7 @@ def test_the_page_info_button_and_menu(tmp_path):
         w.timelapse_from_selection()
         made = [q for q in timelapses.all_sequences(conn) if q.origin == "manual" and sorted(q.file_ids) == sorted(ids[:2])]
         assert made and made[0].stacked                         # collapsed into one tile (0.52)
-        assert w.grid.selected == set()
+        assert len(w.grid.selected) == 1                     # the new tile, selected and shown (0.53)
         # Timelapses > Stack all.
         w.open_page("Timelapses")
         page.stack_all()

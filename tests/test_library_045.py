@@ -114,3 +114,50 @@ def test_dragging_from_an_unselected_photo_draws_a_box(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_a_selection_box_held_at_the_bottom_scrolls_and_keeps_selecting(tmp_path):
+    # 0.53: a box could only select what was on screen.
+    from PySide6.QtCore import QPoint
+    from test_audit_navigation import _window
+    w, ids = _window(tmp_path, 60)
+    try:
+        w.open_page("Library")
+        w.resize(900, 500)
+        g = w.grid
+        g.set_target_tile(160)
+        g.clear_selection()
+        bar = g.verticalScrollBar()
+        assert bar.maximum() > 0
+        g._band_start(QPoint(2, 2))
+        bottom = QPoint(g.viewport().width() - 2, g.viewport().height() - 3)
+        g._band_move(bottom)
+        before = len(g.selected)
+        for _ in range(200):                                   # the timer's ticks, run by hand
+            g._band_scroll()
+        assert bar.value() == bar.maximum()
+        assert len(g.selected) > before and len(g.selected) == len(w.index)
+        g._band.hide()
+        g._band_timer.stop()
+    finally:
+        w._quitting = True
+        w.close()
+
+
+def test_collapse_into_a_burst_selects_and_shows_the_new_tile(tmp_path):
+    from test_audit_navigation import _window
+    from lunelis import stacks
+    w, ids = _window(tmp_path, 6)
+    try:
+        w.open_page("Library")
+        w.grid.selected = set(ids[1:4])
+        w.burst_from_selection()
+        st = stacks.stack_of(w.conn, ids[1])
+        assert st is not None and set(stacks.members(w.conn, st)) == set(ids[1:4])
+        assert w.conn.execute("SELECT kind FROM stacks WHERE id = ?", (st,)).fetchone()[0] == "chosen_burst"
+        assert len(w.grid.selected) == 1 and w.index.stack_id(w.grid.current) == st
+        stacks.rebuild(w.conn)                                  # the automatic pass leaves it alone
+        assert stacks.stack_of(w.conn, ids[1]) == st
+    finally:
+        w._quitting = True
+        w.close()

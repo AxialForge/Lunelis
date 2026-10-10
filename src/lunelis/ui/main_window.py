@@ -949,6 +949,7 @@ class MainWindow(QMainWindow):
         st.addAction(QAction("This burst is a &timelapse", self, triggered=self.burst_is_timelapse))
         self.photo_menu.addAction(QAction("Collapse into a &timelapse", self,
                                           triggered=self.timelapse_from_selection))
+        self.photo_menu.addAction(QAction("Collapse into a &burst", self, triggered=self.burst_from_selection))
         # Create (0.46): every Create tool, straight from the selection.
         cr = self.photo_menu.addMenu("C&reate")
         from lunelis.ui.create_page import TOOLS
@@ -2965,11 +2966,38 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Timelapse", str(e).capitalize() + ".")
             return
         # One tile in the library, like a burst (0.52: it only went to the Timelapses page).
-        timelapses.stack(self.conn, sid)
-        self.grid.clear_selection()
+        st = timelapses.stack(self.conn, sid)
         self.reload()
+        self._reveal_stack(st)
         self.status.setText(f"Collapsed {len(ids):,} frames into one timelapse - S opens it; "
                             "the Timelapses page builds the video")
+
+    def burst_from_selection(self) -> None:
+        """Photo > Collapse into a burst (0.53): the selection as one tile."""
+        ids = self._selected_or_warn()
+        if not ids:
+            return
+        try:
+            st = stacks.make_burst(self.conn, ids)
+        except ValueError as e:
+            QMessageBox.information(self, "Burst", str(e).capitalize() + ".")
+            return
+        self.reload()
+        self._reveal_stack(st)
+        self.status.setText(f"Collapsed {len(ids):,} photos into one burst - S opens it")
+
+    def _reveal_stack(self, stack_id: int) -> None:
+        """Select the tile a stack just collapsed into and scroll to it (0.53)."""
+        pos = next((i for i, r in enumerate(self.index.rows) if r[11] == stack_id), -1)
+        if pos < 0:
+            self.grid.clear_selection()
+            return
+        fid = self.index.file_id(pos)
+        self.grid.current = self.grid.anchor = pos
+        self.grid.selected = {fid}
+        self.grid.scroll_to(pos)
+        self.grid.selection_changed.emit(1)
+        self.grid.viewport().update()
 
     def burst_is_timelapse(self) -> None:
         cur = self._current_stack()

@@ -167,6 +167,39 @@ def unstack(conn: sqlite3.Connection, stack_id: int) -> int:
     return len(fids)
 
 
+def make_burst(conn: sqlite3.Connection, ids: list[int]) -> int:
+    """Photo > Collapse into a burst (0.53): these photos, in shooting order,
+    as one burst tile. A 'chosen_burst' stack - the automatic rebuild leaves it
+    alone. Its photos leave any other stack or timelapse. Returns the stack id."""
+    if len(ids) < 2:
+        raise ValueError("a burst needs at least two photos")
+    q = ",".join("?" * len(ids))
+    # A RAW+JPEG pair is one shot: the JPEG half rides along behind its RAW.
+    order = [r[0] for r in conn.execute(
+        f"SELECT f.id FROM files f LEFT JOIN exif e ON e.file_id = f.id WHERE f.id IN ({q})"
+        f" AND NOT (f.pair_of IS NOT NULL AND f.pair_of IN ({q}))"
+        f" ORDER BY e.captured_at, f.rel_path", ids + ids)]
+    partners = [r[0] for r in conn.execute(f"SELECT id FROM files WHERE pair_of IN ({q})", ids)]
+    members_ = order + [p for p in partners if p not in set(order)]
+    m = ",".join("?" * len(members_))
+    for (old,) in conn.execute(f"SELECT DISTINCT stack_id FROM stack_files WHERE file_id IN ({m})",
+                               members_).fetchall():
+        conn.execute("DELETE FROM stack_files WHERE stack_id = ?", (old,))
+        conn.execute("DELETE FROM stacks WHERE id = ?", (old,))
+        conn.execute("UPDATE sequences SET stack_id = NULL WHERE stack_id = ?", (old,))
+    import json
+    for sid, fids in conn.execute("SELECT id, file_ids FROM sequences WHERE status != 'dismissed'").fetchall():
+        if set(order) & set(json.loads(fids)):
+            conn.execute("UPDATE sequences SET status = 'dismissed' WHERE id = ?", (sid,))
+    conn.execute(f"DELETE FROM stack_dismissed WHERE file_id IN ({m})", members_)
+    st = conn.execute("INSERT INTO stacks (kind, cover_file_id, cover_chosen, size) VALUES ('chosen_burst', ?, 0, ?)",
+                      (default_cover(conn, order), len(order))).lastrowid
+    conn.executemany("INSERT INTO stack_files (stack_id, file_id, position) VALUES (?, ?, ?)",
+                     [(st, fid, i) for i, fid in enumerate(members_)])
+    conn.commit()
+    return st
+
+
 def stats(conn: sqlite3.Connection) -> tuple[int, int]:
     """(stacks, frames hidden behind covers)."""
     n, size = conn.execute("SELECT COUNT(*), COALESCE(SUM(size), 0) FROM stacks WHERE kind = 'burst'").fetchone()
