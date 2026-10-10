@@ -1,0 +1,14 @@
+{
+  "manual":      { "label": "USER MANUAL",                 "color": "1F5FA8", "tint": "E8F0FA" },
+  "quickstart":  { "label": "QUICK START",                 "color": "0E7C6B", "tint": "E3F4F1" },
+  "ui":          { "label": "INTERFACE REFERENCE",         "color": "5B47B5", "tint": "EEEAF9" },
+  "engine":      { "label": "ENGINE EXPLANATION",          "color": "B5472A", "tint": "FAEDE8" },
+  "dataflow":    { "label": "DATA-FLOW REPORT",            "color": "0A7691", "tint": "E2F2F7" },
+  "schema":      { "label": "DATA MODEL",                  "color": "3B6E3F", "tint": "E8F2E8" },
+  "compat":      { "label": "COMPATIBILITY REPORT",        "color": "8C5B00", "tint": "FAF0DC" },
+  "audit":       { "label": "AUDIT REPORT",                "color": "A3203A", "tint": "FAE6EA" },
+  "security":    { "label": "SECURITY AND PRIVACY REPORT", "color": "2B3F55", "tint": "E6EBF1" },
+  "performance": { "label": "PERFORMANCE AND TEST REPORT", "color": "6B3FA0", "tint": "F0E9F8" },
+  "operations":  { "label": "OPERATIONS GUIDE",            "color": "2F6B2A", "tint": "E7F3E5" },
+  "release":     { "label": "RELEASE AND DECISION LOG",    "color": "6B6B00", "tint": "F4F4D9" }
+}
