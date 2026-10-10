@@ -143,7 +143,7 @@ class MigrateView(QWidget):
         v.setContentsMargins(24, 20, 16, 20)
         v.setSpacing(10)
 
-        wiz = QPushButton("Migration wizard…", objectName="Primary", clicked=self.open_wizard.emit)
+        wiz = QPushButton("Migration wizard…", objectName="Primary", clicked=lambda: self.open_wizard.emit())
         wiz.setToolTip("Every choice in order, a dry run, the copy, then the accounted-for report and release")
         v.addWidget(wiz, 0, Qt.AlignmentFlag.AlignLeft)
         v.addWidget(QLabel("Or set it all up on this page:", objectName="Help"))

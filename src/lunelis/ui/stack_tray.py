@@ -33,7 +33,7 @@ class StackTray(QWidget):
         self.title = QLabel(objectName="SectionTitle")
         head.addWidget(self.title)
         head.addStretch(1)
-        head.addWidget(QPushButton("Open the stack (S)", clicked=self.open_stack.emit))
+        head.addWidget(QPushButton("Open the stack (S)", clicked=lambda: self.open_stack.emit()))
         close = QPushButton("×", clicked=self.hide)
         close.setFixedWidth(30)
         close.setToolTip("Hide the tray")

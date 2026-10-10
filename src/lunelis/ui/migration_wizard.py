@@ -160,7 +160,7 @@ class MigrationWizard(QDialog):
             it.setCheckState(Qt.CheckState.Unchecked)
             self.src_list.addItem(it)
         lv.addWidget(self.src_list, 1)
-        b = QPushButton("Open the Google Takeout page…", clicked=self.open_takeout.emit)
+        b = QPushButton("Open the Google Takeout page…", clicked=lambda: self.open_takeout.emit())
         b.setVisible(bool(takeout))
         lv.addWidget(b, 0, Qt.AlignmentFlag.AlignLeft)
         return w
