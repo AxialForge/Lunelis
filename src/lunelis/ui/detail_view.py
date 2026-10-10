@@ -696,6 +696,7 @@ class Filmstrip(QWidget):
                 p.restore()
             else:
                 p.fillPath(path, qcolor(t.tile_unavailable))
+            self._marks(p, r, self.index.tile(i))
             if i == self.pos:
                 p.setPen(QPen(qcolor(t.accent), 3))
                 p.setBrush(Qt.BrushStyle.NoBrush)
@@ -704,6 +705,42 @@ class Filmstrip(QWidget):
             p.setPen(qcolor(t.text_faint))
             p.drawText(self.rect().adjusted(0, 0, -10, -4), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom,
                        "click a photo to open it")
+
+    def _marks(self, p: QPainter, r: QRect, tile) -> None:
+        """What kind of media a tile is (0.53), as the grid shows it, scaled
+        down: a play mark and the length for a video, the format when it isn't
+        a plain JPEG (RAW, ARW+JPG, GIF, HEIC...), a stack's frame count, and
+        a dot for an edited photo. Small tiles keep only the play mark and the
+        stack count."""
+        f = QFont(self.font())
+        f.setPixelSize(max(8, min(11, self.THUMB // 6)))
+        f.setBold(True)
+        p.setFont(f)
+        fm = p.fontMetrics()
+        h = fm.height() + 2
+        roomy = self.THUMB >= 56
+
+        def pill(x: int, y: int, text: str, right: bool = False) -> None:
+            w = fm.horizontalAdvance(text) + 8
+            box = QRect(x - w if right else x, y, w, h)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(0, 0, 0, 170))
+            p.drawRoundedRect(QRectF(box), 4, 4)
+            p.setPen(QColor(255, 255, 255))
+            p.drawText(box, Qt.AlignmentFlag.AlignCenter, text)
+
+        if tile.is_video:
+            secs = int(round(tile.duration or 0))
+            text = "▶" + (f" {secs // 60}:{secs % 60:02d}" if roomy and secs else "")
+            pill(r.left() + 3, r.bottom() - 3 - h, text)
+        if tile.stack_size:
+            pill(r.left() + 3, r.top() + 3, f"❐{tile.stack_size}")
+        if roomy and tile.badge and tile.badge not in ("JPG", "JPEG"):
+            pill(r.right() - 3, r.top() + 3, tile.badge, right=True)
+        if tile.edited and not tile.is_video:
+            p.setPen(QPen(QColor(0, 0, 0, 170), 1))
+            p.setBrush(qcolor(themes.current().accent))
+            p.drawEllipse(QPointF(r.right() - 7, r.bottom() - 7), 3.5, 3.5)
 
     def mousePressEvent(self, e) -> None:
         i = self.slot_at(int(e.position().x()))

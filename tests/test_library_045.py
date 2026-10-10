@@ -196,3 +196,28 @@ def test_the_filmstrip_matches_the_photo_and_scrolls_on_its_own(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_the_filmstrip_marks_videos_formats_stacks_and_edits():
+    # 0.53: what kind of media each tile is, as the grid shows it.
+    from types import SimpleNamespace
+    from PySide6.QtGui import QImage, QPainter
+    from PySide6.QtCore import QRect
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.detail_view import Filmstrip
+    from lunelis.ui.thumbcache import ThumbCache
+    import tempfile, pathlib
+    s = Filmstrip(ThumbCache(pathlib.Path(tempfile.mkdtemp())))
+    s.resize(800, 90)
+    drawn = []
+    for tile in (SimpleNamespace(is_video=True, duration=75.0, stack_size=0, badge="MP4", edited=False),
+                 SimpleNamespace(is_video=False, duration=None, stack_size=4, badge="ARW+JPG", edited=True),
+                 SimpleNamespace(is_video=False, duration=None, stack_size=0, badge="JPG", edited=False)):
+        img = QImage(80, 80, QImage.Format.Format_ARGB32)
+        img.fill(0)
+        p = QPainter(img)
+        s._marks(p, QRect(0, 0, 66, 66), tile)
+        p.end()
+        drawn.append(sum(img.pixelColor(x, y).alpha() > 0 for x in range(80) for y in range(80)))
+    assert drawn[0] > 0 and drawn[1] > drawn[0] * 0.5 and drawn[2] == 0      # a plain JPEG gets no marks
