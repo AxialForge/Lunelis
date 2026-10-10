@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.52.2] - 2026-10-10
+
+0.52.1 was tagged but never published (its tests failed on the build server);
+this release carries everything in it.
+
+### Added
+
+- **Collapse into a burst** (right-click): the selection becomes one burst
+  tile, which the automatic burst detection leaves alone. After collapsing
+  into a burst or a timelapse, the new tile is selected and scrolled to.
+- **Filmstrip marks:** a play mark and length on videos, the format when it
+  isn't a plain JPEG, a stack's frame count, and a dot on edited photos.
+
+### Changed
+
+- **Library:** a selection box held near the top or bottom scrolls the grid,
+  so it can take in more than one screen.
+- **Filmstrip:** thumbnails fill their tiles without being squashed, the
+  wheel scrolls the strip without changing the photo, and the current photo
+  has an accent frame.
+
+### Fixed
+
+- **Migration:** a modified date kept as a plain number was ignored when
+  choosing which identical copy to keep.
+
 ## [0.52.1] - 2026-10-10
 
 ### Fixed

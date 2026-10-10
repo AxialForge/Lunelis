@@ -66,8 +66,14 @@ def _ts(iso) -> float | None:
     """files.mtime (ISO 8601 text) as a timestamp."""
     if iso is None:
         return None
+    if isinstance(iso, (int, float)):
+        return float(iso)
     try:
-        return iso if isinstance(iso, (int, float)) else datetime.fromisoformat(iso).timestamp()
+        return datetime.fromisoformat(iso).timestamp()
+    except ValueError:
+        pass
+    try:
+        return float(iso)                 # a plain number kept as text (0.52.2)
     except ValueError:
         return None
 

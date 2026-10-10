@@ -109,7 +109,7 @@ def test_the_pets_tab_and_the_photo_overlay(tmp_path, monkeypatch):
         monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda *a, **k: ("Rex", True)))
         d._name_pet(dog, ask_first=True)
         assert "Pets|Rex" in tags.tags_of(w.conn, ids["dog.jpg"])
-        assert [(lab, st) for _, _, lab, st in d.canvas.faces] == [("Rex", "animal")]
+        assert [(lab, st) for _, _, lab, st in d.canvas.faces] == [("Rex", "pet")]    # named: a solid box (0.52.1)
         d.set_faces_overlay(False)
         # The People page's Pets tab: Rex, and an unnamed animal marked there.
         page = w.people_page

@@ -133,8 +133,10 @@ def test_a_selection_box_held_at_the_bottom_scrolls_and_keeps_selecting(tmp_path
         bottom = QPoint(g.viewport().width() - 2, g.viewport().height() - 3)
         g._band_move(bottom)
         before = len(g.selected)
-        for _ in range(200):                                   # the timer's ticks, run by hand
-            g._band_scroll()
+        for _ in range(5000):                                  # the timer's ticks, run by hand, to the end
+            g._band_scroll()                                   # (how far that is depends on the screen)
+            if bar.value() == bar.maximum():
+                break
         assert bar.value() == bar.maximum()
         assert len(g.selected) > before and len(g.selected) == len(w.index)
         g._band.hide()
