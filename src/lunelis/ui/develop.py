@@ -480,9 +480,13 @@ class ParamSlider(QWidget):
         self.slider.valueChanged.connect(self._changed)
         self.slider.sliderReleased.connect(lambda: self.moved.emit(self.key, self.current(), True))
         self.slider.reset.connect(lambda: self.set_value(self.default, emit=True))
+        self.note = QLabel(objectName="Help")           # e.g. the Temperature slider's kelvin (0.53)
+        self.note_for = None                            # value -> text, when this slider has a note
         g.addWidget(self.name, 0, 0)
-        g.addWidget(self.number, 0, 1)
-        g.addWidget(self.slider, 1, 0, 1, 2)
+        g.addWidget(self.note, 0, 1, Qt.AlignmentFlag.AlignRight)
+        g.addWidget(self.number, 0, 2)
+        g.addWidget(self.slider, 1, 0, 1, 3)
+        g.setColumnStretch(1, 1)
         self._show(0)
 
     @property
@@ -496,6 +500,8 @@ class ParamSlider(QWidget):
         self.number.blockSignals(True)
         self.number.setValue(v)
         self.number.blockSignals(False)
+        if self.note_for is not None:
+            self.note.setText(self.note_for(v))
 
     def _changed(self, raw: int) -> None:
         v = raw / self.scale
@@ -772,6 +778,12 @@ class DevelopPanel(QScrollArea):
                     v.addWidget(s)
                     self.sliders[p.key] = s
                     if p.key == "temp":
+                        self.as_shot_k = None            # the shot's white balance, when the file records it
+                        s.note_for = self._kelvin_text
+                        s.note.setText(self._kelvin_text(0))
+                        s.note.setToolTip("The white balance this slider amounts to, in kelvin. From the "
+                                          "camera's own setting for a RAW; other files don't record theirs, "
+                                          "so they're shown from 5,500 K daylight with an ≈.")
                         # White balance picker (0.46): click something that should be grey.
                         self.wb_pick_b = QPushButton("Pick white balance", checkable=True)
                         self.wb_pick_b.setToolTip("Then click something in the photo that should be neutral "
@@ -1024,6 +1036,18 @@ class DevelopPanel(QScrollArea):
         (closed.discard if open_ else closed.add)(title)
         s.set("edit_sections_closed", sorted(closed))
 
+    as_shot_ready = Signal(int, object)      # file id, kelvin or None (read on a thread)
+
+    def _kelvin_text(self, v: float) -> str:
+        from lunelis.edit import kelvin
+        return kelvin.label(self.as_shot_k, v)
+
+    def set_as_shot(self, k: float | None) -> None:
+        """The photo's own white balance in kelvin (None: not recorded)."""
+        self.as_shot_k = k
+        s = self.sliders["temp"]
+        s.note.setText(self._kelvin_text(s.current()))
+
     def show_stack(self, adjust: dict, geometry: Geometry, filter_name=None, amount: int = 100,
                    curves: dict | None = None) -> None:
         """Sliders show the manual adjustments (a filter's own values stay
@@ -1107,6 +1131,7 @@ class EditMode(QObject):
         self._auto_signals = _AutoSignals()
         self._auto_signals.done.connect(self._auto_done)
         panel.adjust.connect(self._adjust)
+        panel.as_shot_ready.connect(self._as_shot)
         panel.angle.connect(self._angle)
         panel.geometry_action.connect(self._geometry_action)
         panel.crop_mode.connect(self.set_crop_mode)
@@ -1206,6 +1231,19 @@ class EditMode(QObject):
         self.session.open(info.path, info.is_raw, max(800, min(render.PROXY_EDGE, edge)),
                           LensInfo(info.make, info.model, info.lens, info.focal, info.aperture))
         self._show_lens()
+        self.panel.set_as_shot(None)
+        if info.is_raw:
+            import threading
+            fid, path = info.file_id, info.path
+
+            def read() -> None:
+                from lunelis.edit import kelvin
+                k = kelvin.as_shot(path, True)
+                try:
+                    self.panel.as_shot_ready.emit(fid, k)
+                except RuntimeError:               # the window closed meanwhile
+                    pass
+            threading.Thread(target=read, daemon=True).start()
         self.active_changed.emit(True)
         return True
 
@@ -1527,6 +1565,10 @@ class EditMode(QObject):
             self._show_panel()
         if changed or not fast:
             self._render(fast)
+
+    def _as_shot(self, file_id: int, k) -> None:
+        if self.info is not None and self.info.file_id == file_id:
+            self.panel.set_as_shot(k)
 
     def _adjust(self, key: str, value: float, final: bool) -> None:
         self._set(self.stack.with_adjust(key, value), record=final, fast=not final)
