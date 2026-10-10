@@ -365,7 +365,8 @@ def _stylesheet(t: Theme | None = None) -> str:
     QListWidget#TagCards::item:selected {{ background: {_mix(t.accent, t.surface, 0.18)}; color: {t.text}; }}
     QPushButton#Segment {{ padding: 4px 12px; }}
     /* The photo view's tool rail (0.52). */
-    QWidget#ToolRail {{ background: {t.viewer_bg}; border-left: 1px solid {t.border}; }}
+    QScrollArea#ToolRail {{ background: {t.viewer_bg}; border: none; border-left: 1px solid {t.border}; }}
+    QWidget#ToolRailInner {{ background: {t.viewer_bg}; }}
     QToolButton#RailButton {{ background: transparent; border: 1px solid transparent; border-radius: 8px; }}
     QToolButton#RailButton:hover {{ background: {t.field_bg}; border-color: {t.border}; }}
     QToolButton#RailButton:checked {{ background: {t.accent}; border-color: {t.accent}; }}

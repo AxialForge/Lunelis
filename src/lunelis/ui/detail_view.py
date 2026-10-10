@@ -976,10 +976,16 @@ class DetailView(QWidget):
     GUIDES = ("thirds", "golden", "centre", "level")
 
     def _tool_rail(self) -> QWidget:
-        from PySide6.QtWidgets import QToolButton
-        rail = QWidget(objectName="ToolRail")
+        from PySide6.QtWidgets import QFrame, QScrollArea, QToolButton
+        # In a scroll area: on the shortest window (350 px) the six buttons
+        # mustn't make the photo view taller than the window.
+        rail = QScrollArea(objectName="ToolRail", widgetResizable=True, frameShape=QFrame.Shape.NoFrame)
+        rail.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        rail.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         rail.setFixedWidth(TOOL_BUTTON + 12)
-        v = QVBoxLayout(rail)
+        inner = QWidget(objectName="ToolRailInner")
+        rail.setWidget(inner)
+        v = QVBoxLayout(inner)
         v.setContentsMargins(6, 10, 6, 10)
         v.setSpacing(6)
         self.tool_b: dict[str, QToolButton] = {}
