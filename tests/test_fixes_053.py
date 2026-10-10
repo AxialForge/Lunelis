@@ -76,3 +76,38 @@ def test_an_import_says_what_it_left_on_the_card(tmp_path):
     text = ingest.not_copied_text(left)
     assert "3 other files" in text and "NOT copied" in text and "WAV x 2" in text
     assert ingest.not_copied(str(tmp_path / "gone")) == {}        # the card was removed: nothing to say
+
+
+def test_photos_that_leave_the_view_leave_the_selection(tmp_path):
+    # Select, then search: the hidden ones stayed selected, and a rating key changed them.
+    from test_audit_navigation import _window
+    from lunelis.ui.library import Filter
+    w, ids = _window(tmp_path, 8)
+    try:
+        w.open_page("Library")
+        w.grid.selected = set(ids)
+        w.set_filter(Filter(ids=tuple(ids[:2])))
+        assert w.grid.selected == set(ids[:2])
+        assert w._targets() and set(w._targets()) <= set(ids[:2])
+    finally:
+        w._quitting = True
+        w.close()
+
+
+def test_the_focus_photo_survives_a_reload_that_adds_photos(tmp_path):
+    from test_audit_navigation import _window
+    w, ids = _window(tmp_path, 8)
+    try:
+        w.open_page("Library")
+        g = w.grid
+        pos = 3
+        fid = w.index.file_id(pos)
+        g.current = g.anchor = pos
+        g._remember_focus()                                   # what a paint does
+        rows = list(w.index.rows)
+        w.index.apply([rows[-1], rows[-2], *rows[:-2]], 0.0)   # two photos now come first
+        g.set_index(w.index)
+        assert w.index.file_id(g.current) == fid and g.current == pos + 2
+    finally:
+        w._quitting = True
+        w.close()

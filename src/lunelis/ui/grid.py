@@ -159,9 +159,27 @@ class PhotoGrid(QAbstractScrollArea):
     # --- data ----------------------------------------------------------------
 
     def set_index(self, index: LibraryIndex) -> None:
+        # The focus photo and the Shift-click anchor are kept by PHOTO, not by
+        # position: a reload that adds or removes photos used to leave the
+        # arrow keys starting from a different one (0.53).
+        # (The window reloads one list object in place, so which photos those
+        # were is remembered at each paint - _remember_focus.)
+        cur_id, anchor_id = getattr(self, "_focus_ids", (None, None))
+        if getattr(self, "_focus_at", None) != (self.current, getattr(self, "anchor", -1)):
+            cur_id = anchor_id = None                  # moved since the last paint: the positions are right
         self.index = index
+        if cur_id is not None:
+            self.current = index.position(cur_id)
+            self.anchor = index.position(anchor_id) if anchor_id is not None else self.current
         if self.current >= len(index):
             self.current = self.anchor = -1
+        # Photos that left the view (a search, a filter) leave the selection too:
+        # a rating key or Tag used to change photos nobody could see (0.53).
+        if self.selected:
+            shown = {fid for fid in self.selected if index.position(fid) >= 0}
+            if len(shown) != len(self.selected):
+                self.selected = shown
+                self.selection_changed.emit(len(shown))
         self._hide_card()
         self._relayout()
         if self.scrubber.isVisible():
@@ -294,7 +312,15 @@ class PhotoGrid(QAbstractScrollArea):
 
     # --- painting ------------------------------------------------------------
 
+    def _remember_focus(self) -> None:
+        n = len(self.index)
+        a = getattr(self, "anchor", -1)
+        self._focus_ids = (self.index.file_id(self.current) if 0 <= self.current < n else None,
+                           self.index.file_id(a) if 0 <= a < n else None)
+        self._focus_at = (self.current, a)
+
     def paintEvent(self, e) -> None:
+        self._remember_focus()
         t = themes.current()
         p = QPainter(self.viewport())
         p.fillRect(self.viewport().rect(), qcolor(t.canvas))
