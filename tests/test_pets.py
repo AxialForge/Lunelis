@@ -123,3 +123,25 @@ def test_the_pets_tab_and_the_photo_overlay(tmp_path, monkeypatch):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_the_tags_page_shows_groups_and_picture_cards(lib):
+    # 0.52: People / Pets / Scene groups, a card per tag with a picture.
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.tags_view import TagsView, _counts
+    conn, ids, rid = lib
+    scan(conn)
+    faces.name_faces(conn, [faces.faces_of(conn, ids["ann1.jpg"])[0].id], "Ann")
+    faces.name_pet(conn, [faces.faces_of(conn, ids["bob1.jpg"])[0].id], "Rex")
+    tags.add(conn, [ids["empty.jpg"]], ["Holidays"])
+    page = TagsView(conn)
+    page._show(_counts(conn))
+    groups = [page.groups.item(i).text().split()[0] for i in range(page.groups.count())]
+    assert groups[:3] == ["All", "People", "Pets"] and "Your" in groups
+    assert {page.cards.item(i).data(0x0100) for i in range(page.cards.count())} >= {"People|Ann", "Pets|Rex", "Holidays"}
+    assert all(not page.cards.item(i).icon().isNull() for i in range(page.cards.count()))   # every card has a picture
+    page.groups.setCurrentRow(groups.index("Pets"))
+    assert [page.cards.item(i).text().split("\n")[0] for i in range(page.cards.count())] == ["Rex"]
+    page.view_group.button(1).click()
+    assert page.views.currentWidget() is page.tree

@@ -355,6 +355,16 @@ def _stylesheet(t: Theme | None = None) -> str:
         selection-background-color: {_mix(t.accent, t.surface, 0.22)}; selection-color: {t.text};
     }}
     QListWidget::item, QListView::item {{ padding: 6px 4px; border-radius: 4px; }}
+    /* The Tags page (0.52): groups on the left, picture cards on the right. */
+    QListWidget#TagGroups {{ background: transparent; border: none; }}
+    QListWidget#TagGroups::item {{ padding: 9px 12px; border-radius: 6px; color: {t.text}; }}
+    QListWidget#TagGroups::item:selected {{ background: {_mix(t.accent, t.canvas, 0.20)}; color: {t.text}; font-weight: 600; }}
+    QListWidget#TagCards {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; padding: 8px; }}
+    QListWidget#TagCards::item {{ padding: 8px 4px; border-radius: 8px; color: {t.text}; }}
+    QListWidget#TagCards::item:hover {{ background: {t.field_bg}; }}
+    QListWidget#TagCards::item:selected {{ background: {_mix(t.accent, t.surface, 0.18)}; color: {t.text}; }}
+    QPushButton#Segment {{ padding: 4px 12px; }}
+    QPushButton#Segment:checked {{ background: {t.accent}; color: {t.accent_text}; border-color: {t.accent}; }}
     QListWidget::item:hover, QListView::item:hover, QTableView::item:hover {{ background: {t.field_bg}; color: {t.text}; }}
     QListWidget::item:selected, QListView::item:selected {{ background: {t.selection}; color: {t.chip_text}; }}
     QTableView::item:selected, QTreeView::item:selected {{ background: {_tint(t.accent, 0.22)}; color: {t.text}; }}
