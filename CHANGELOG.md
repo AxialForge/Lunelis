@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.52.1] - 2026-10-10
+
+### Fixed
+
+- **The migration dry run died** with "'str' object cannot be interpreted as an
+  integer" when "File a photo with no date by its modified date" was ticked:
+  the planner read the catalog's ISO modified dates as numbers. The duplicate
+  ranking had the same mismatch. Both now convert the date first (new test).
+- **Videos showed a black screen** until Play. A loaded clip now waits at its
+  first frame.
+- **Migration wizard, Sources:** the checkboxes ran into each other because the
+  rows were too short; the list now has taller rows.
+
+### Changed
+
+- **Face and pet boxes in the photo view:** a name gives a solid box with the
+  name beneath it; with no name the box changes - dotted for an unnamed pet,
+  dash-dot for an unnamed face (a suggested name stays dashed).
+
 ## [0.52.0] - 2026-10-09
 
 Pets, view tools and a round of interface fixes.

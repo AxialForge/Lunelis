@@ -148,7 +148,7 @@ class MigrationWizard(QDialog):
     def _sources(self) -> QWidget:
         w, lv = self._page("1. Sources", "Tick every folder whose photos and videos go into the new Library. "
                            "A Google Takeout folder: tick it here, then choose what comes on the Google Takeout page.")
-        self.src_list = QListWidget()
+        self.src_list = QListWidget(objectName="CheckList")
         from lunelis.importers.takeout import takeout_roots
         takeout = set(takeout_roots(self.conn))
         for rid, path, n in self.conn.execute(

@@ -268,3 +268,11 @@ def test_a_damaged_only_copy_goes_to_the_lunelis_folders_damaged(lib):
     mid = plan(conn, str(target), DEFAULT_TEMPLATE, Options([ra, rb]))
     assert conn.execute("SELECT dest_rel FROM migration_items WHERE migration_id = ? AND src_rel = ?",
                         (mid, "misc/scan.jpg")).fetchone()[0] == "Lunelis stuff/Damaged/misc/scan.jpg"
+
+
+def test_plan_with_undated_by_modified_date_reads_iso_mtimes(lib):
+    """files.mtime is ISO text; the dry run once died with "'str' object cannot be
+    interpreted as an integer" when 'file an undated photo by its modified date' was on."""
+    conn, tmp, a, b, target, ra, rb, ids = lib
+    mid = plan(conn, str(target), DEFAULT_TEMPLATE, Options([ra, rb], undated_by_mtime=True, library_layout=True))
+    assert summary(conn, mid).move_files > 0

@@ -300,6 +300,7 @@ class VideoPlayer(QWidget):
         self.player.positionChanged.connect(self._position)
         self.player.playbackStateChanged.connect(self._state)
         self.player.errorOccurred.connect(self._error)
+        self.player.mediaStatusChanged.connect(self._media_status)
         self._trim_signals = _TrimSignals()
         self._trim_signals.done.connect(self._trim_done)
         self._update_marks()
@@ -317,6 +318,14 @@ class VideoPlayer(QWidget):
         self._choose_look(path)
         self.player.setSource(QUrl.fromLocalFile(path))
         self._update_marks()
+
+    def _media_status(self, status) -> None:
+        """A freshly loaded clip pauses at its first frame, so the picture shows
+        instead of a black screen until Play."""
+        from PySide6.QtMultimedia import QMediaPlayer
+        if (status == QMediaPlayer.MediaStatus.LoadedMedia and self.path
+                and self.player.playbackState() == QMediaPlayer.PlaybackState.StoppedState):
+            self.player.pause()
 
     def _choose_look(self, path: str) -> None:
         from lunelis.settings import Settings

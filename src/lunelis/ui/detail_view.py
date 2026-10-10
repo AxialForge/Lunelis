@@ -498,7 +498,8 @@ class PhotoCanvas(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         accent = qcolor(themes.current().accent)
         colours = {"named": accent, "suggested": QColor(240, 190, 60), "unknown": QColor(255, 255, 255),
-                   "stranger": QColor(160, 160, 170), "animal": QColor(120, 200, 140)}
+                   "stranger": QColor(160, 160, 170), "animal": QColor(120, 200, 140),
+                   "pet": QColor(120, 200, 140)}
         f = p.font()
         f.setPointSizeF(max(8.0, f.pointSizeF()))
         p.setFont(f)
@@ -507,8 +508,11 @@ class PhotoCanvas(QWidget):
             r = self.face_rect(box)
             c = colours.get(state, colours["unknown"])
             pen = QPen(c, 2)
-            if state in ("suggested", "stranger", "animal"):
-                pen.setStyle(Qt.PenStyle.DashLine if state == "suggested" else Qt.PenStyle.DotLine)
+            # A name draws a solid box with its label; no name changes the box:
+            # dashed = suggested, dotted = unnamed pet / stranger, dash-dot = unnamed face.
+            if state in ("suggested", "stranger", "animal", "unknown"):
+                pen.setStyle({"suggested": Qt.PenStyle.DashLine, "unknown": Qt.PenStyle.DashDotLine}
+                             .get(state, Qt.PenStyle.DotLine))
             p.setPen(pen)
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawRoundedRect(r, 4, 4)
@@ -1650,7 +1654,7 @@ class DetailView(QWidget):
                 if f.stranger:
                     self.canvas.faces.append((f.id, f.box, "Stranger", "stranger"))
                 elif f.animal:
-                    self.canvas.faces.append((f.id, f.box, f.name or "Animal", "animal"))
+                    self.canvas.faces.append((f.id, f.box, f.name or "Animal", "pet" if f.name else "animal"))
                 elif f.name:
                     self.canvas.faces.append((f.id, f.box, f.name, "named"))
                 elif f.suggested:

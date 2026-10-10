@@ -355,6 +355,7 @@ def _stylesheet(t: Theme | None = None) -> str:
         selection-background-color: {_mix(t.accent, t.surface, 0.22)}; selection-color: {t.text};
     }}
     QListWidget::item, QListView::item {{ padding: 6px 4px; border-radius: 4px; }}
+    QListWidget#CheckList::item {{ padding: 8px 4px; min-height: 28px; }}
     /* The Tags page (0.52): groups on the left, picture cards on the right. */
     QListWidget#TagGroups {{ background: transparent; border: none; }}
     QListWidget#TagGroups::item {{ padding: 9px 12px; border-radius: 6px; color: {t.text}; }}

@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from lunelis.dupes.detect import keeper_rank
+from lunelis.migrate.execute import _ts
 from lunelis.importing.templates import _clean_segment
 from lunelis.importing.templates import Context, render, sibling, validate
 
@@ -109,7 +110,7 @@ def migration_keeper_rank(conn: sqlite3.Connection, preferred_roots: list[int] |
             f"            OR rt.color_label IS NOT NULL))"
             f" OR EXISTS (SELECT 1 FROM edits ed WHERE ed.file_id = f.id)"
             f" OR EXISTS (SELECT 1 FROM file_tags ft WHERE ft.file_id = f.id AND ft.confidence IS NULL))", chunk)}
-        mtimes.update(conn.execute(f"SELECT id, mtime FROM files WHERE id IN ({q})", chunk))
+        mtimes.update((i, _ts(m)) for i, m in conn.execute(f"SELECT id, mtime FROM files WHERE id IN ({q})", chunk))
 
     def rank(r):
         fid, rid, root, rel = r[:4]
@@ -175,6 +176,9 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
         " LEFT JOIN event_files ef ON ef.file_id = f.id LEFT JOIN events ev ON ev.id = ef.event_id"
         " WHERE f.missing_since IS NULL AND f.excluded = 0 AND f.quarantined_at IS NULL AND r.enabled = 1"
         f" AND f.root_id IN ({q}) ORDER BY f.root_id, f.rel_path", options.sources).fetchall()
+    # files.mtime is ISO text; the layout code wants a timestamp (0.52: the dry run died
+    # with "'str' object cannot be interpreted as an integer" when undated-by-mtime was on).
+    rows = [r[:13] + (_ts(r[13]),) + r[14:] for r in rows]
     if not options.include_videos:
         rows = [r for r in rows if (r[6] or "") not in VIDEO_FORMATS]
     if options.only_archived:
