@@ -167,13 +167,18 @@ def test_the_page_info_button_and_menu(tmp_path):
         assert w.detail.panel.timelapse_b.isHidden()
         w.detail._offer_timelapse(many[5])
         assert not w.detail.panel.timelapse_b.isHidden() and "120 frames" in w.detail.panel.timelapse_b.text()
-        # Photo > Make a timelapse from the selection.
+        # Photo > Collapse into a timelapse.
         w.close_detail()
         w.open_page("Library")
         w.grid.selected = set(ids[:2])
         w.timelapse_from_selection()
-        assert any(q.origin == "manual" and sorted(q.file_ids) == sorted(ids[:2])
-                   for q in timelapses.all_sequences(conn))
+        made = [q for q in timelapses.all_sequences(conn) if q.origin == "manual" and sorted(q.file_ids) == sorted(ids[:2])]
+        assert made and made[0].stacked                         # collapsed into one tile (0.52)
+        assert w.grid.selected == set()
+        # Timelapses > Stack all.
+        w.open_page("Timelapses")
+        page.stack_all()
+        assert all(q.stacked for q in timelapses.all_sequences(conn) if q.status != "dismissed")
         # Build: the frames go to Create > Timelapse.
         w.build_timelapse(many)
         assert w.pages.currentWidget() is w.create_page

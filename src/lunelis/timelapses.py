@@ -11,7 +11,7 @@ max(1 s, 5 %) of the run's own interval, measured from the capture times.
 - The interval is 2 s or more, and no two frames share a second; faster is
   a burst (stacks.py, up to 50 frames) or continuous shooting.
 - A run needs `timelapse_min_frames` (100) frames. Shorter sets are made by
-  hand: Photo > Make a timelapse from the selection.
+  hand: Photo > Collapse into a timelapse.
 - A pause (a battery or card swap) of up to `timelapse_max_pause_minutes`
   keeps one timelapse unless `timelapse_split_gaps` is on (off by default):
   then each side is its own timelapse.
@@ -278,7 +278,7 @@ def set_status(conn: sqlite3.Connection, sid: int, status: str) -> None:
 
 
 def make_manual(conn: sqlite3.Connection, ids: list[int]) -> int:
-    """Photo > Make a timelapse from the selection: any number of frames, in shooting order."""
+    """Photo > Collapse into a timelapse: any number of frames, in shooting order."""
     if len(ids) < 2:
         raise ValueError("a timelapse needs at least two photos")
     q = ",".join("?" * len(ids))

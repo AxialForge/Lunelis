@@ -94,6 +94,10 @@ class TimelapsesView(QWidget):
         self.show_dismissed = QCheckBox("Show dismissed")
         self.show_dismissed.toggled.connect(self.refresh)
         h.addWidget(self.show_dismissed)
+        self.stack_all_b = QPushButton("Stack all", clicked=self.stack_all)
+        self.stack_all_b.setToolTip("Show every timelapse here as one tile in the library (dismissed ones stay as "
+                                    "they are)")
+        h.addWidget(self.stack_all_b)
         self.look_b = QPushButton("Look again now", clicked=self.look_again)
         self.look_b.setToolTip("Look through the whole library for interval shoots (about a second)")
         h.addWidget(self.look_b)
@@ -120,7 +124,7 @@ class TimelapsesView(QWidget):
         self.note.setText(
             f"Interval shoots of {s.get('timelapse_min_frames'):,} frames or more at a steady interval, from one "
             "camera and lens - a RAW+JPEG pair is one frame. Shorter sets: select them in the library, then "
-            "Photo > Make a timelapse from the selection. Nothing is built until you press Build."
+            "Photo > Collapse into a timelapse. Nothing is built until you press Build."
             + ("" if s.get("timelapse_detect") else "  Looking for them after each scan is off (Settings > Library)."))
         while self.rows.count() > 1:
             w = self.rows.takeAt(0).widget()
@@ -199,6 +203,17 @@ class TimelapsesView(QWidget):
             timelapses.unstack_sequence(self.conn, sid)
         self.changed.emit()
         self.refresh()
+
+    def stack_all(self) -> int:
+        """Every timelapse not dismissed, one tile each (0.52)."""
+        n = 0
+        for q in timelapses.all_sequences(self.conn):
+            if q.status != "dismissed" and not timelapses.stack_of(self.conn, q.id):
+                timelapses.stack(self.conn, q.id)
+                n += 1
+        self.changed.emit()
+        self.refresh()
+        return n
 
     def _burst(self, sid: int) -> None:
         timelapses.to_burst(self.conn, sid)

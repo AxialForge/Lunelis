@@ -947,7 +947,7 @@ class MainWindow(QMainWindow):
         st.addAction(QAction("Make this the stack &cover", self, triggered=self.set_stack_cover))
         st.addAction(QAction("&Unstack (show every frame, for good)", self, triggered=self.unstack))
         st.addAction(QAction("This burst is a &timelapse", self, triggered=self.burst_is_timelapse))
-        self.photo_menu.addAction(QAction("Make a &timelapse from the selection", self,
+        self.photo_menu.addAction(QAction("Collapse into a &timelapse", self,
                                           triggered=self.timelapse_from_selection))
         # Create (0.46): every Create tool, straight from the selection.
         cr = self.photo_menu.addMenu("C&reate")
@@ -2960,11 +2960,16 @@ class MainWindow(QMainWindow):
             return
         from lunelis import timelapses
         try:
-            timelapses.make_manual(self.conn, ids)
+            sid = timelapses.make_manual(self.conn, ids)
         except ValueError as e:
             QMessageBox.information(self, "Timelapse", str(e).capitalize() + ".")
             return
-        self.status.setText(f"Made a timelapse of {len(ids):,} frames - it's on the Timelapses page")
+        # One tile in the library, like a burst (0.52: it only went to the Timelapses page).
+        timelapses.stack(self.conn, sid)
+        self.grid.clear_selection()
+        self.reload()
+        self.status.setText(f"Collapsed {len(ids):,} frames into one timelapse - S opens it; "
+                            "the Timelapses page builds the video")
 
     def burst_is_timelapse(self) -> None:
         cur = self._current_stack()

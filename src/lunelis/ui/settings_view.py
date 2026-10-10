@@ -446,7 +446,7 @@ class SettingsView(QWidget):
         v.addWidget(self.timelapse_cb)
         self.tl_min = self._spin("timelapse_min_frames", 10, 10000, " frames")
         self._row(v, "A timelapse has at least", self.tl_min,
-                  help="Shorter sets: select them, then Photo > Make a timelapse from the selection.")
+                  help="Shorter sets: select them, then Photo > Collapse into a timelapse.")
         self.tl_split = QCheckBox("Split a timelapse where it pauses (a battery or card swap)")
         self.tl_split.toggled.connect(lambda on: self._set("timelapse_split_gaps", on))
         v.addWidget(self.tl_split)

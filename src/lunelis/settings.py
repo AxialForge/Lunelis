@@ -74,7 +74,7 @@ DEFAULTS: dict[str, Any] = {
     "burst_max_frames": 50,              # a longer fast run isn't a burst
     # The timelapse engine (timelapses.py), after each scan.
     "timelapse_detect": True,
-    "timelapse_min_frames": 100,         # shorter sets: Photo > Make a timelapse from the selection
+    "timelapse_min_frames": 100,         # shorter sets: Photo > Collapse into a timelapse
     "timelapse_split_gaps": False,       # a pause (battery swap) starts a new timelapse
     "timelapse_max_pause_minutes": 30,   # longer than this always ends one
     "timelapse_auto_stack": True,        # big ones show as one tile as soon as they're found
