@@ -407,7 +407,7 @@ class PhotoCanvas(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         accent = qcolor(themes.current().accent)
         colours = {"named": accent, "suggested": QColor(240, 190, 60), "unknown": QColor(255, 255, 255),
-                   "stranger": QColor(160, 160, 170)}
+                   "stranger": QColor(160, 160, 170), "animal": QColor(120, 200, 140)}
         f = p.font()
         f.setPointSizeF(max(8.0, f.pointSizeF()))
         p.setFont(f)
@@ -416,7 +416,7 @@ class PhotoCanvas(QWidget):
             r = self.face_rect(box)
             c = colours.get(state, colours["unknown"])
             pen = QPen(c, 2)
-            if state in ("suggested", "stranger"):
+            if state in ("suggested", "stranger", "animal"):
                 pen.setStyle(Qt.PenStyle.DashLine if state == "suggested" else Qt.PenStyle.DotLine)
             p.setPen(pen)
             p.setBrush(Qt.BrushStyle.NoBrush)
@@ -1385,6 +1385,8 @@ class DetailView(QWidget):
             for f in faces.faces_of(self.conn, self.info.file_id, with_strangers=True):
                 if f.stranger:
                     self.canvas.faces.append((f.id, f.box, "Stranger", "stranger"))
+                elif f.animal:
+                    self.canvas.faces.append((f.id, f.box, f.name or "Animal", "animal"))
                 elif f.name:
                     self.canvas.faces.append((f.id, f.box, f.name, "named"))
                 elif f.suggested:
@@ -1420,6 +1422,15 @@ class DetailView(QWidget):
         if f is None:
             return
         m = QMenu(self)
+        if f.animal:                               # 0.52: pets
+            m.addAction("Rename this pet…" if f.name else "Name this pet…", lambda: self._name_pet(f.id))
+            m.addAction("Not an animal", lambda: (faces.ignore(self.conn, [f.id], ignored=False),
+                                                  self._face_changed()))
+            if f.name:
+                m.addSeparator()
+                m.addAction(f"All photos of {f.name}…", lambda: self.show_person.emit(f.person_id))
+            m.exec(at)
+            return
         if f.suggested and not f.name:
             m.addAction(f"Yes, this is {f.suggested}", lambda: (faces.confirm(self.conn, [f.id], f.suggested_id),
                                                                 self._face_changed()))
@@ -1432,6 +1443,7 @@ class DetailView(QWidget):
         else:
             m.addAction("Stranger (tag the photo People > Unknown)",
                         lambda: (faces.mark_strangers(self.conn, [f.id]), self._face_changed()))
+        m.addAction("An animal…", lambda: self._name_pet(f.id, ask_first=True))
         if f.source == "user":
             m.addAction("Remove this box", lambda: (faces.delete_face(self.conn, f.id), self._face_changed()))
         else:
@@ -1449,8 +1461,34 @@ class DetailView(QWidget):
         from lunelis.recognize import faces
         name = self._ask_name("Name this face")
         if name:
-            faces.name_faces(self.conn, [face_id], name)
+            try:
+                faces.name_faces(self.conn, [face_id], name)
+            except ValueError as e:                # a pet's name (0.52)
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.information(self, "Name this face", str(e))
+                return
             self._face_changed()
+
+    def _name_pet(self, face_id: int, ask_first: bool = False) -> None:
+        """Mark a face as an animal and, when a name is given, name the pet."""
+        from PySide6.QtWidgets import QInputDialog
+        from lunelis.recognize import faces
+        pets = [p.name for p in faces.people(self.conn, faces.PET)]
+        name, ok = QInputDialog.getItem(self, "An animal", "Which pet is this? Pick one, type a new name, or "
+                                        "leave it empty for an animal you don't name:", pets or [""], 0, True)
+        if not ok:
+            return
+        name = (name or "").strip()
+        try:
+            if name:
+                faces.name_pet(self.conn, [face_id], name)
+            else:
+                faces.mark_animal(self.conn, [face_id])
+        except ValueError as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "An animal", str(e))
+            return
+        self._face_changed()
 
     def _face_drawn(self, box: list) -> None:
         if self.info is None:

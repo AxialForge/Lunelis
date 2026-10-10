@@ -142,6 +142,7 @@ class PeopleView(QWidget):
         self.tabs.addTab(self._confirm_page(), "To confirm")
         self.tabs.addTab(self._groups_page(), "Unnamed")
         self.tabs.addTab(self._ignored_page(), "Strangers && not faces")       # && shows one & (a lone & is a key mnemonic)
+        self.tabs.addTab(self._pets_page(), "Pets")
 
     # --- pages ---------------------------------------------------------------------------------
 
@@ -187,6 +188,7 @@ class PeopleView(QWidget):
         row.addWidget(QPushButton("Move to…", clicked=lambda: self._move(self.person_faces.chosen())))
         row.addWidget(QPushButton("Stranger", clicked=lambda: self._stranger(self.person_faces.chosen())))
         row.addWidget(QPushButton("Not a face", clicked=lambda: self._ignore(self.person_faces.chosen())))
+        row.addWidget(QPushButton("Animal…", clicked=lambda: self._pet(self.person_faces.chosen())))
         row.addWidget(QPushButton("Use as cover", clicked=self._cover))
         row.addStretch(1)
         row.addWidget(QLabel("Select faces, then choose. Double-click opens the photo.", objectName="Help"))
@@ -219,6 +221,7 @@ class PeopleView(QWidget):
         row.addWidget(QPushButton("Someone else…", clicked=lambda: self._move(self.confirm_faces.chosen())))
         row.addWidget(QPushButton("Stranger", clicked=lambda: self._stranger(self.confirm_faces.chosen())))
         row.addWidget(QPushButton("Not a face", clicked=lambda: self._ignore(self.confirm_faces.chosen())))
+        row.addWidget(QPushButton("Animal…", clicked=lambda: self._pet(self.confirm_faces.chosen())))
         row.addStretch(1)
         rv.addLayout(row)
         split.addWidget(right)
@@ -253,6 +256,8 @@ class PeopleView(QWidget):
         row.addWidget(QPushButton("Not in this group", clicked=self._ungroup))
         row.addWidget(QPushButton("Strangers", clicked=self._group_strangers))
         row.addWidget(QPushButton("Not a face", clicked=lambda: self._ignore(self.group_faces.chosen())))
+        row.addWidget(QPushButton("Animal…", clicked=lambda: self._pet(self.group_faces.chosen()
+                                                                      or self.group_faces.all_ids())))
         row.addStretch(1)
         rv.addLayout(row)
         split.addWidget(right)
@@ -275,9 +280,103 @@ class PeopleView(QWidget):
         row.addWidget(QPushButton("Stranger", clicked=lambda: self._stranger(self.ignored.chosen())))
         row.addWidget(QPushButton("Not a face", clicked=lambda: self._ignore(self.ignored.chosen())))
         row.addWidget(QPushButton("Name…", clicked=lambda: self._move(self.ignored.chosen())))
+        row.addWidget(QPushButton("Animal…", clicked=lambda: self._pet(self.ignored.chosen())))
         row.addStretch(1)
         v.addLayout(row)
         return w
+
+    def _pets_page(self) -> QWidget:
+        """Named pets, and animal faces not named yet (0.52)."""
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(0, 8, 0, 0)
+        v.addWidget(QLabel("The face finder is made for people, but it finds dogs and cats too. Animal faces "
+                           "stay out of the people suggestions. Name your pets and their photos are tagged "
+                           "Pets > name. With the scene model installed, new animal faces are sorted out by "
+                           "themselves.", objectName="Help", wordWrap=True))
+        self.pet_list = QListWidget()
+        self.pet_list.setViewMode(QListWidget.ViewMode.IconMode)
+        self.pet_list.setIconSize(QSize(FACE, FACE))
+        self.pet_list.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self.pet_list.setMovement(QListWidget.Movement.Static)
+        self.pet_list.setWordWrap(True)
+        self.pet_list.setMaximumHeight(FACE + 70)
+        self.pet_list.itemActivated.connect(lambda it: self.open_person(it.data(Qt.ItemDataRole.UserRole)))
+        self.pet_list.itemDoubleClicked.connect(lambda it: self.open_person(it.data(Qt.ItemDataRole.UserRole)))
+        v.addWidget(self.pet_list)
+        self.animals_label = QLabel(objectName="SubTitle")
+        v.addWidget(self.animals_label)
+        self.animals = FaceList()
+        self.animals.open_photo.connect(self.open_photo)
+        v.addWidget(self.animals, 1)
+        row = QHBoxLayout()
+        row.addWidget(QPushButton("Name pet…", objectName="Primary", clicked=lambda: self._pet(self.animals.chosen())))
+        row.addWidget(QPushButton("Not an animal", clicked=lambda: self._unignore(self.animals.chosen())))
+        row.addWidget(QPushButton("Not a face", clicked=lambda: self._ignore(self.animals.chosen())))
+        row.addStretch(1)
+        self.sort_b = QPushButton("Find animals among the faces", clicked=self._sort_animals)
+        self.sort_b.setToolTip("Look through every unnamed face with the scene model and mark the animals "
+                               "(Settings > Library > Scene tags installs it)")
+        row.addWidget(self.sort_b)
+        v.addLayout(row)
+        return w
+
+    def _pet(self, ids: list[int]) -> None:
+        """Mark faces as an animal; with a name, as that pet."""
+        if not ids:
+            return
+        from PySide6.QtWidgets import QInputDialog, QMessageBox
+        pets = [p.name for p in faces.people(self.conn, faces.PET)]
+        name, ok = QInputDialog.getItem(self, "An animal", "Which pet is this? Pick one, type a new name, or "
+                                        "leave it empty for an animal you don't name:", pets or [""], 0, True)
+        if not ok:
+            return
+        name = (name or "").strip()
+        try:
+            if name:
+                faces.name_pet(self.conn, ids, name)
+            else:
+                faces.mark_animal(self.conn, ids)
+        except ValueError as e:
+            QMessageBox.information(self, "An animal", str(e))
+            return
+        self._done(f"Named {name}." if name else f"{len(ids):,} face{'s' if len(ids) != 1 else ''} marked as "
+                   "an animal.")
+
+    def _sort_animals(self) -> None:
+        from lunelis.recognize import animals
+        if not animals.available():
+            self.summary.setText("The scene model isn't installed - Settings > Library > Scene tags. You can still "
+                                 "mark animals by hand.")
+            return
+        self.sort_b.setEnabled(False)
+        self.sort_b.setText("Looking…")
+        self.bg.run("animals", lambda c: animals.sort_out(c), self._sorted)
+
+    @unless_closed
+    def _sorted(self, n: int) -> None:
+        self.sort_b.setEnabled(True)
+        self.sort_b.setText("Find animals among the faces")
+        self._done(f"{n:,} animal face{'s' if n != 1 else ''} found." if n else "No more animal faces found.")
+
+    @unless_closed
+    def _show_pets(self, result) -> None:
+        pets, unnamed = result
+        self.pet_list.clear()
+        for p in pets:
+            it = QListWidgetItem(f"{p.name}\n{p.photos:,} photo{'s' if p.photos != 1 else ''}")
+            it.setData(Qt.ItemDataRole.UserRole, p.id)
+            it.setSizeHint(QSize(FACE + 30, FACE + 50))
+            it.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            pix = QPixmap(str(faces.crop_path(p.cover_face_id))) if p.cover_face_id else QPixmap()
+            if not pix.isNull():
+                it.setIcon(QIcon(pix.scaled(FACE, FACE, Qt.AspectRatioMode.KeepAspectRatio,
+                                            Qt.TransformationMode.SmoothTransformation)))
+            self.pet_list.addItem(it)
+        self.pet_list.setVisible(bool(pets))
+        self.animals_label.setText(f"Animals not named yet ({len(unnamed):,})" if unnamed else
+                                   "No unnamed animal faces")
+        self.animals.fill([_face_item(f, "Animal") for f in unnamed])
 
     # --- loading --------------------------------------------------------------------------
 
@@ -293,6 +392,8 @@ class PeopleView(QWidget):
             self._load_confirm_people()
         elif tab == 2:
             self.bg.run("groups", lambda c: faces.groups(c, 2), self._show_groups)
+        elif tab == 4:
+            self.bg.run("pets", lambda c: (faces.people(c, faces.PET), faces.animal_faces(c, LIMIT)), self._show_pets)
         else:
             self.ignored.fill([_face_item(f, "Stranger" if f.stranger else "Not a face")
                                for f in faces.ignored_faces(self.conn, LIMIT)])
@@ -309,6 +410,8 @@ class PeopleView(QWidget):
         self.summary.setText(f"{c['people']:,} people · {c['named']:,} named faces · {c['waiting']:,} waiting for "
                              f"a yes · {c['faces']:,} faces in {c['scanned']:,} photos looked at")
         self.tabs.setTabText(1, f"To confirm ({c['waiting']:,})" if c["waiting"] else "To confirm")
+        n = c.get("pets", 0) + c.get("animals", 0)
+        self.tabs.setTabText(4, f"Pets ({n:,})" if n else "Pets")
 
     @unless_closed
     def _show_people(self, people) -> None:
@@ -478,7 +581,11 @@ class PeopleView(QWidget):
             return
         name = self.ask_name("Who is this?")
         if name:
-            faces.name_faces(self.conn, ids, name)
+            try:
+                faces.name_faces(self.conn, ids, name)
+            except ValueError as e:                # a pet's name (0.52)
+                self._done(str(e))
+                return
             self._done()
 
     def _name_group(self) -> None:
@@ -487,7 +594,11 @@ class PeopleView(QWidget):
             return
         name = self.ask_name("Name this person")
         if name:
-            faces.name_group(self.conn, c, name)
+            try:
+                faces.name_group(self.conn, c, name)
+            except ValueError as e:
+                self._done(str(e))
+                return
             self._done(f"Named {name}.")
 
     def _ungroup(self) -> None:

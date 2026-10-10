@@ -17,6 +17,14 @@ How a face moves through the catalog (faces table):
     named     person_id + confirmed 1               -> the photo gets People|Ann
     ignored   ignored 1                             ("not a face")
     stranger  ignored 2                             (someone you don't know)  -> People|Unknown
+    animal    ignored 3                             (a pet or an animal, not named yet)
+    pet       person_id of a people row with kind 'pet', confirmed 1  -> Pets|Max
+
+Animals (0.52): the face finder is made for people but finds dogs and cats
+too. An animal face is marked by hand, or by the scene model when it's
+installed (animals.py). A named pet is an ordinary named face whose people
+row has kind 'pet': it never takes part in suggestions (the fingerprints are
+made for human faces), and its photos are tagged Pets|<name>.
 
 Only confirmed faces tag their photo, so a wrong guess never reaches a
 sidecar. "Not this person" is remembered (face_rejections) and that person
@@ -45,8 +53,10 @@ from lunelis.tags import model as tags
 
 MODEL_ID = "yunet-2023mar+sface-2021dec"
 ROOT = "People"                       # person tags: People|Ann
+PETS = "Pets"                         # pet tags: Pets|Max
 UNKNOWN = "Unknown"                   # People|Unknown: a photo with a stranger in it
-NOT_A_FACE, STRANGER = 1, 2           # faces.ignored
+NOT_A_FACE, STRANGER, ANIMAL = 1, 2, 3   # faces.ignored
+PERSON, PET = "person", "pet"         # people.kind
 BASE = "https://github.com/opencv/opencv_zoo/raw/47534e27c9851bb1128ccc0102f1145e27f23f98/models/"
 DETECT_EDGE = 1600                    # faces are found in a 1600 px copy of the photo
 MIN_FACE = 0.025                      # smaller than 2.5 % of the long side: too small to know
@@ -252,6 +262,8 @@ def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None
         conn.commit()
     conn.commit()
     if new_ids:
+        from lunelis.recognize import animals
+        animals.sort_out(conn, new_ids)              # dogs and cats aren't people (0.52)
         suggest(conn, new_ids)
         group(conn, new_ids)
     return looked, found
@@ -304,22 +316,37 @@ def job_folder(conn, root_id, folder, *, throttle=None, should_cancel=None, work
 
 # --- people ------------------------------------------------------------------------------------
 
-def tag_for(name: str) -> str:
-    return f"{ROOT}{tags.SEP}{name}"
+def tag_for(name: str, kind: str = PERSON) -> str:
+    return f"{PETS if kind == PET else ROOT}{tags.SEP}{name}"
 
 
-def person_id(conn: sqlite3.Connection, name: str, create: bool = True) -> int | None:
+def kind_of(conn: sqlite3.Connection, pid: int) -> str:
+    row = conn.execute("SELECT kind FROM people WHERE id = ?", (pid,)).fetchone()
+    return row[0] if row else PERSON
+
+
+def _tag_of(conn: sqlite3.Connection, pid: int, name: str | None = None) -> str | None:
+    name = name or name_of(conn, pid)
+    return tag_for(name, kind_of(conn, pid)) if name else None
+
+
+def person_id(conn: sqlite3.Connection, name: str, create: bool = True, kind: str = PERSON) -> int | None:
+    """A person's (or, kind PET, a pet's) id by name. A pet and a person can't
+    share a name (people.name is unique)."""
     name = " ".join((name or "").replace(tags.SEP, " ").split())
     if not name:
-        raise ValueError("A person needs a name.")
+        raise ValueError("A pet needs a name." if kind == PET else "A person needs a name.")
     if name.casefold() == UNKNOWN.casefold():
         raise ValueError("\"Unknown\" is kept for strangers - mark the face as a stranger instead.")
-    row = conn.execute("SELECT id FROM people WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
-    if row:
+    row = conn.execute("SELECT id, kind FROM people WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
+    if row and row[1] == kind:
         return row[0]
+    if row:
+        raise ValueError(f"{name} is already the name of a {'pet' if row[1] == PET else 'person'} - "
+                         f"give this {'pet' if kind == PET else 'person'} another name.")
     if not create:
         return None
-    return conn.execute("INSERT INTO people (name) VALUES (?)", (name,)).lastrowid
+    return conn.execute("INSERT INTO people (name, kind) VALUES (?, ?)", (name, kind)).lastrowid
 
 
 def name_of(conn: sqlite3.Connection, pid: int) -> str | None:
@@ -331,8 +358,8 @@ def _centroids(conn: sqlite3.Connection) -> tuple[list[int], np.ndarray, dict[in
     """(person ids, their mean fingerprints, every confirmed fingerprint per person)."""
     by: dict[int, list[np.ndarray]] = {}
     for pid, blob in conn.execute(
-            "SELECT person_id, embedding FROM faces WHERE confirmed = 1 AND person_id IS NOT NULL"
-            " AND embedding IS NOT NULL AND ignored = 0"):
+            "SELECT fa.person_id, fa.embedding FROM faces fa JOIN people p ON p.id = fa.person_id"
+            " WHERE fa.confirmed = 1 AND fa.embedding IS NOT NULL AND fa.ignored = 0 AND p.kind = 'person'"):
         by.setdefault(pid, []).append(_vec(blob))
     ids = sorted(by)
     if not ids:
@@ -439,8 +466,8 @@ def group(conn: sqlite3.Connection, face_ids: list[int] | None = None) -> int:
 
 def _sync_tags(conn: sqlite3.Connection, file_ids, pid: int) -> None:
     """A photo carries People|<name> exactly when it has a confirmed face of that person."""
-    name = name_of(conn, pid)
-    if not name:
+    tag = _tag_of(conn, pid)
+    if not tag:
         return
     have, lose = [], []
     for fid in set(file_ids):
@@ -448,9 +475,9 @@ def _sync_tags(conn: sqlite3.Connection, file_ids, pid: int) -> None:
                              " AND ignored = 0 LIMIT 1", (fid, pid)).fetchone()
         (have if named else lose).append(fid)
     if have:
-        tags.add(conn, have, [tag_for(name)], commit=False)
+        tags.add(conn, have, [tag], commit=False)
     if lose:
-        tags.remove(conn, lose, tag_for(name), commit=False)
+        tags.remove(conn, lose, tag, commit=False)
 
 
 def unknown_tag() -> str:
@@ -598,13 +625,14 @@ def rename_person(conn: sqlite3.Connection, pid: int, new: str) -> int:
         raise ValueError("A person needs a name.")
     if new.casefold() == UNKNOWN.casefold():
         raise ValueError("\"Unknown\" is kept for strangers.")
-    other = person_id(conn, new, create=False)
+    kind = kind_of(conn, pid)
+    other = person_id(conn, new, create=False, kind=kind)
     if other is not None and other != pid:
         merge_people(conn, pid, other)
         return other
     conn.execute("UPDATE people SET name = ? WHERE id = ?", (new, pid))
-    if old and tags.tag_id(conn, tag_for(old), create=False) is not None:
-        tags.rename(conn, tag_for(old), tag_for(new))
+    if old and tags.tag_id(conn, tag_for(old, kind), create=False) is not None:
+        tags.rename(conn, tag_for(old, kind), tag_for(new, kind))
     conn.commit()
     return pid
 
@@ -612,30 +640,65 @@ def rename_person(conn: sqlite3.Connection, pid: int, new: str) -> int:
 def merge_people(conn: sqlite3.Connection, source: int, into: int) -> None:
     faces = [r[0] for r in conn.execute("SELECT id FROM faces WHERE person_id = ?", (source,))]
     files = [r[0] for r in conn.execute("SELECT file_id FROM faces WHERE person_id = ?", (source,))]
-    name = name_of(conn, source)
+    tag = _tag_of(conn, source)
     conn.execute("UPDATE faces SET person_id = NULL, confirmed = 0 WHERE person_id = ?", (source,))
-    if name:
-        tags.remove(conn, files, tag_for(name), commit=False)
+    if tag:
+        tags.remove(conn, files, tag, commit=False)
     conn.execute("UPDATE faces SET suggested_person_id = ? WHERE suggested_person_id = ?", (into, source))
     conn.execute("DELETE FROM people WHERE id = ?", (source,))
-    if name and tags.tag_id(conn, tag_for(name), create=False) is not None:
-        tags.delete(conn, tag_for(name))
+    if tag and tags.tag_id(conn, tag, create=False) is not None:
+        tags.delete(conn, tag)
     confirm(conn, faces, into)
 
 
 def delete_person(conn: sqlite3.Connection, pid: int) -> int:
     """Forget a person: their faces become unnamed again; the People tag goes."""
-    name = name_of(conn, pid)
+    tag = _tag_of(conn, pid)
+    pet = kind_of(conn, pid) == PET
     faces = [r[0] for r in conn.execute("SELECT id FROM faces WHERE person_id = ?", (pid,))]
     conn.execute("UPDATE faces SET person_id = NULL, confirmed = 0 WHERE person_id = ?", (pid,))
     conn.execute("UPDATE faces SET suggested_person_id = NULL, suggestion = NULL WHERE suggested_person_id = ?",
                  (pid,))
     conn.execute("DELETE FROM people WHERE id = ?", (pid,))
-    if name and tags.tag_id(conn, tag_for(name), create=False) is not None:
-        tags.delete(conn, tag_for(name))
+    if tag and tags.tag_id(conn, tag, create=False) is not None:
+        tags.delete(conn, tag)
+    if pet:                                        # a forgotten pet's faces are still animals
+        for chunk in _chunks(faces):
+            conn.execute(f"UPDATE faces SET ignored = {ANIMAL} WHERE id IN ({','.join('?' * len(chunk))})", chunk)
     conn.commit()
-    group(conn, faces)
+    if not pet:
+        group(conn, faces)
     return len(faces)
+
+
+def mark_animal(conn: sqlite3.Connection, face_ids) -> int:
+    """These faces are animals (not named yet): out of people suggestions and
+    groups, and off any person they were named as."""
+    face_ids = list(face_ids)
+    before = _files_of(conn, face_ids)
+    for chunk in _chunks(face_ids):
+        conn.execute(f"UPDATE faces SET ignored = {ANIMAL}, person_id = NULL, confirmed = 0,"
+                     f" suggested_person_id = NULL, suggestion = NULL, cluster = NULL"
+                     f" WHERE id IN ({','.join('?' * len(chunk))})", chunk)
+    for old, fs in before.items():
+        if old is not None:
+            _sync_tags(conn, fs, old)
+    _sync_unknown(conn, [f for fs in before.values() for f in fs])
+    conn.commit()
+    return len(face_ids)
+
+
+def name_pet(conn: sqlite3.Connection, face_ids, name: str) -> int:
+    """Name animal faces as a pet (made if new); the photos get Pets|<name>.
+    Returns the pet's id."""
+    pid = person_id(conn, name, kind=PET)
+    confirm(conn, face_ids, pid)
+    return pid
+
+
+def animal_faces(conn, limit: int | None = None) -> list["Face"]:
+    """Animal faces not named as a pet yet, newest first."""
+    return faces_where(conn, f"fa.ignored = {ANIMAL}", (), limit)
 
 
 def add_face(conn: sqlite3.Connection, file_id: int, box: list[float], name: str | None = None) -> int:
@@ -700,26 +763,30 @@ class Face:
     suggested: str | None
     suggestion: float | None
     cluster: int | None
-    ignored: bool                     # set aside: not a face, or a stranger
+    ignored: bool                     # set aside: not a face, a stranger or an unnamed animal
     source: str
     stranger: bool = False
+    animal: bool = False              # an animal - unnamed (ignored 3) or a named pet
+    pet: bool = False                 # named as a pet
 
 
 FACE_SQL = ("SELECT fa.id, fa.file_id, fa.bbox_json, fa.person_id, p.name, fa.suggested_person_id, s.name,"
-            " fa.suggestion, fa.cluster, fa.ignored, fa.source FROM faces fa"
+            " fa.suggestion, fa.cluster, fa.ignored, fa.source, p.kind FROM faces fa"
             " LEFT JOIN people p ON p.id = fa.person_id AND fa.confirmed = 1"
             " LEFT JOIN people s ON s.id = fa.suggested_person_id")
 
 
 def _face(r) -> Face:
+    pet = r[11] == PET
     return Face(r[0], r[1], json.loads(r[2]), r[3] if r[4] is not None else None, r[4], r[5], r[6], r[7], r[8],
-                bool(r[9]), r[10], r[9] == STRANGER)
+                bool(r[9]), r[10], r[9] == STRANGER, r[9] == ANIMAL or pet, pet)
 
 
 def faces_of(conn: sqlite3.Connection, file_id: int, with_ignored: bool = False,
              with_strangers: bool = False) -> list[Face]:
     sql = FACE_SQL + " WHERE fa.file_id = ?" + (
-        "" if with_ignored else f" AND fa.ignored IN (0, {STRANGER})" if with_strangers else " AND fa.ignored = 0")
+        "" if with_ignored else f" AND fa.ignored IN (0, {STRANGER}, {ANIMAL})" if with_strangers
+        else " AND fa.ignored = 0")
     return [_face(r) for r in conn.execute(sql + " ORDER BY json_extract(fa.bbox_json, '$[0]')", (file_id,))]
 
 
@@ -754,12 +821,14 @@ class Person:
     photos: int
     waiting: int
     cover_face_id: int | None
+    kind: str = PERSON
 
 
-def people(conn: sqlite3.Connection) -> list[Person]:
+def people(conn: sqlite3.Connection, kind: str = PERSON) -> list[Person]:
+    """The named people - or, kind PET, the named pets."""
     out = []
     for pid, name, cover in conn.execute("SELECT id, name, cover_face_id FROM people WHERE name IS NOT NULL"
-                                         " AND hidden = 0 ORDER BY name COLLATE NOCASE"):
+                                         " AND hidden = 0 AND kind = ? ORDER BY name COLLATE NOCASE", (kind,)):
         photos = conn.execute(
             f"SELECT COUNT(DISTINCT fa.file_id) FROM faces fa JOIN files f ON f.id = fa.file_id"
             f" WHERE fa.person_id = ? AND fa.confirmed = 1 AND fa.ignored = 0 AND {LIVE}", (pid,)).fetchone()[0]
@@ -771,7 +840,7 @@ def people(conn: sqlite3.Connection) -> list[Person]:
             row = conn.execute("SELECT id FROM faces WHERE person_id = ? AND confirmed = 1 ORDER BY id LIMIT 1",
                                (pid,)).fetchone()
             cover = row[0] if row else None
-        out.append(Person(pid, name, photos, waiting, cover))
+        out.append(Person(pid, name, photos, waiting, cover, kind))
     return out
 
 
@@ -793,8 +862,10 @@ def counts(conn: sqlite3.Connection) -> dict[str, int]:
         "named": one("SELECT COUNT(*) FROM faces WHERE confirmed = 1 AND ignored = 0"),
         "waiting": one("SELECT COUNT(*) FROM faces WHERE suggested_person_id IS NOT NULL AND confirmed = 0"
                        " AND ignored = 0"),
-        "people": one("SELECT COUNT(*) FROM people WHERE name IS NOT NULL"),
+        "people": one(f"SELECT COUNT(*) FROM people WHERE name IS NOT NULL AND kind = '{PERSON}'"),
+        "pets": one(f"SELECT COUNT(*) FROM people WHERE name IS NOT NULL AND kind = '{PET}'"),
         "strangers": one(f"SELECT COUNT(*) FROM faces WHERE ignored = {STRANGER}"),
+        "animals": one(f"SELECT COUNT(*) FROM faces WHERE ignored = {ANIMAL}"),
     }
 
 

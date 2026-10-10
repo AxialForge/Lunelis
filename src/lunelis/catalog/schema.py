@@ -936,6 +936,19 @@ MIGRATIONS.append((
 ))
 
 
+def _pets_v46(conn: sqlite3.Connection) -> None:
+    """people.kind: person | pet. Adds it only when missing (safe to run again)."""
+    if "kind" not in {r[1] for r in conn.execute("PRAGMA table_info(people)")}:
+        conn.execute("ALTER TABLE people ADD COLUMN kind TEXT NOT NULL DEFAULT 'person'")
+
+
+MIGRATIONS.append((
+    46,
+    "pets: a named face can be an animal (people.kind) - recognize/faces.py",
+    _pets_v46,
+))
+
+
 VACUUM_AFTER = {8}
 
 
