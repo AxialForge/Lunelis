@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QScrollArea, QSlider, QStackedWidget, QToolButton,
     QVBoxLayout, QWidget,
 )
+from lunelis.ui.round_slider import RoundSlider  # noqa: E402  true circles (0.52)
 
 from lunelis import paths
 from lunelis.log import LOG
@@ -1273,7 +1274,7 @@ class MainWindow(QMainWindow):
         h.addWidget(self.sort)
         h.addWidget(_divider())
         h.addWidget(QLabel("Grid size", objectName="ToolLabel"))
-        self.size_slider = QSlider(Qt.Orientation.Horizontal, minimum=MIN_TILE, maximum=MAX_TILE,
+        self.size_slider = RoundSlider(Qt.Orientation.Horizontal, minimum=MIN_TILE, maximum=MAX_TILE,
                                    value=max(MIN_TILE, min(MAX_TILE, s.get("grid_default_size") or DEFAULT_TILE)))
         self.size_slider.setFixedWidth(120)
         # Remembered however it changes (dragging, Ctrl+wheel, keys) - once it settles.

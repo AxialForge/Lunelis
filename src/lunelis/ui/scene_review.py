@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QSlider, QSplitter,
     QVBoxLayout, QWidget,
 )
+from lunelis.ui.round_slider import RoundSlider  # noqa: E402  true circles (0.52)
 
 from lunelis import paths
 from lunelis.raw.thumbnails import cache_rel_path
@@ -58,7 +59,7 @@ class SceneReview(QWidget):
         row.addWidget(QPushButton("Tick none", clicked=lambda: self._tick_all(False)))
         row.addStretch(1)
         row.addWidget(QLabel("Accept all at or above"))
-        self.threshold = QSlider(Qt.Orientation.Horizontal, minimum=30, maximum=99, value=70)
+        self.threshold = RoundSlider(Qt.Orientation.Horizontal, minimum=30, maximum=99, value=70)
         self.threshold.setMaximumWidth(160)
         self.threshold_label = QLabel("70 %")
         self.threshold.valueChanged.connect(lambda val: self.threshold_label.setText(f"{val} %"))

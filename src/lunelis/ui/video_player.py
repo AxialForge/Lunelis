@@ -21,6 +21,7 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QUrl, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSlider, QVBoxLayout, QWidget
 
+from lunelis.ui.round_slider import RoundSlider  # true circles (0.52)
 from lunelis.ui.background import unless_closed
 
 STEP_MS = 5000
@@ -251,7 +252,7 @@ class VideoPlayer(QWidget):
         self.mute_b.setMinimumWidth(40)                # sized to fit its icon (0.48: it was clipped)
         self.mute_b.toggled.connect(self._mute)
         h.addWidget(self.mute_b)
-        self.volume = QSlider(Qt.Orientation.Horizontal, minimum=0, maximum=100, value=80)
+        self.volume = RoundSlider(Qt.Orientation.Horizontal, minimum=0, maximum=100, value=80)
         self.volume.setFixedWidth(90)
         self.volume.setToolTip("Volume")
         self.volume.valueChanged.connect(lambda v: self.audio.setVolume(v / 100))

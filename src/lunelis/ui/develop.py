@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QButtonGroup, QComboBox, QFrame, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMenu, QMessageBox,
     QPushButton, QScrollArea, QSizePolicy, QSlider, QToolButton, QVBoxLayout, QWidget,
 )
+from lunelis.ui.round_slider import RoundSlider  # noqa: E402  true circles (0.52)
 
 from lunelis.edit import pipeline, render, store
 from lunelis.edit.stack import GROUPS, PARAMS, Geometry, Stack, effective
@@ -402,7 +403,7 @@ def rotate_crop(c: tuple, quarter_turns_cw: int) -> tuple:
 
 # --- the panel -----------------------------------------------------------------------------
 
-class _ResetSlider(QSlider):
+class _ResetSlider(RoundSlider):
     """A slider that goes back to 0 on a double-click."""
 
     reset = Signal()
@@ -434,12 +435,11 @@ SLIDER_TRACKS: dict[str, tuple[str, ...]] = {
 def _track_style(colors: tuple[str, ...]) -> str:
     n = len(colors) - 1
     stops = ", ".join(f"stop:{i / n:.3f} {c}" for i, c in enumerate(colors))
-    # The handle's margin matches this 6 px groove: with the app's -6 px (made for
-    # the 4 px groove) Qt drew it 16 x 18 - an oval, not a circle (0.46).
+    # The handle's place matches this 6 px groove; RoundSlider paints the circle.
     return (f"QSlider::groove:horizontal {{ height: 6px; border-radius: 3px; border: none;"
             f" background: qlineargradient(x1:0, y1:0, x2:1, y2:0, {stops}); }}"
             " QSlider::sub-page:horizontal, QSlider::add-page:horizontal { background: transparent; }"
-            " QSlider::handle:horizontal { width: 12px; margin: -5px 0; border-radius: 8px; }")
+            " QSlider::handle:horizontal { background: transparent; border: none; width: 16px; margin: -5px 0; }")
 
 
 class ParamSlider(QWidget):
@@ -1176,6 +1176,7 @@ class EditMode(QObject):
     # --- opening / leaving a photo ---
 
     def start(self, info) -> bool:
+        self._full_render_size = None       # the last full preview's size: drag previews are drawn at it
         if info is None or info.is_video:
             return False
         self.finish()
@@ -1302,6 +1303,15 @@ class EditMode(QObject):
         if self.info is None or self.showing_before:
             return
         self.has_render = True
+        # The quick preview while a slider is dragged is half size. Drawn as it
+        # is, a photo whose pixel size isn't on record (the canvas then measures
+        # its zoom by the picture shown) shrank out of the zoom on every drag and
+        # jumped back on release (0.52): it is drawn at the full preview's size.
+        full = getattr(self, "_full_render_size", None)
+        if not fast:
+            self._full_render_size = img.size()
+        elif full is not None and abs(full.width() / full.height() - img.width() / img.height()) < 0.01:
+            img = img.scaled(full, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation)
         size_changed = self.canvas.pix is None or self.canvas.pix.size() != img.size()
         img = self._for_screen(img)
         self.canvas.show_pixmap(QPixmap.fromImage(img), sharp=True)

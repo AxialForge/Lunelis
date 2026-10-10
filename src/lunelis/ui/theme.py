@@ -418,9 +418,8 @@ def _stylesheet(t: Theme | None = None) -> str:
     QSplitter::handle {{ background: {t.canvas}; }}
     QSlider::groove:horizontal {{ height: 4px; background: {t.border}; border-radius: 2px; }}
     QSlider::sub-page:horizontal {{ background: {t.text_muted}; border-radius: 2px; }}
-    QSlider::handle:horizontal {{ background: {t.surface}; border: 2px solid {t.text_muted}; width: 12px;
-        height: 12px; margin: -6px 0; border-radius: 8px; }}
-    QSlider::handle:horizontal:hover {{ border-color: {t.accent}; }}
+    /* The handle's place only: RoundSlider (round_slider.py) paints the circle (0.52). */
+    QSlider::handle:horizontal {{ background: transparent; border: none; width: 16px; margin: -6px 0; }}
     QStatusBar {{ background: {t.surface}; color: {t.text_muted}; border-top: 1px solid {t.border}; min-height: 32px; }}
     QStatusBar::item {{ border: none; }}
     QStatusBar QLabel {{ color: {t.text_muted}; font-size: 13px; padding: 0 6px; }}

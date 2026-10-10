@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QProgressDialog, QPushButton,
     QScrollArea, QSlider, QSpinBox, QStackedWidget, QVBoxLayout, QWidget,
 )
+from lunelis.ui.round_slider import RoundSlider  # noqa: E402  true circles (0.52)
 
 from lunelis import paths
 from lunelis.create import animation, batch, collage, engine
@@ -761,7 +762,7 @@ class CollageTool(Tool):
         self.picker.changed.connect(self._photos_changed)
 
     def _slider(self, lo: int, hi: int, v: int) -> QSlider:
-        s = QSlider(Qt.Orientation.Horizontal, minimum=lo, maximum=hi, value=v)
+        s = RoundSlider(Qt.Orientation.Horizontal, minimum=lo, maximum=hi, value=v)
         s.setToolTip("% of the picture's short side (tenths)")
         return s
 

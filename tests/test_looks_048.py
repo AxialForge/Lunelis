@@ -195,3 +195,20 @@ def test_a_selected_table_row_is_a_light_tint_with_readable_text():
     px = v.grab().toImage().pixelColor(120, 38)
     v.close()
     assert px.lightness() > 150                        # a tint, not the dark highlight
+
+
+def test_every_slider_draws_its_own_round_handle():
+    # 0.52: style-sheet handles came out lumpy ovals; RoundSlider paints a circle.
+    import pathlib
+    import re
+    ui = pathlib.Path(__file__).parents[1] / "src" / "lunelis" / "ui"
+    plain = [f"{p.name}:{i}" for p in ui.glob("*.py") for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+             if re.search(r"(?<![A-Za-z])QSlider\(", line)]
+    assert plain == []
+
+
+def test_a_drag_preview_is_drawn_at_the_full_previews_size():
+    import inspect
+    from lunelis.ui.develop import EditMode
+    src = inspect.getsource(EditMode._rendered)
+    assert "_full_render_size" in src and "scaled(full" in src
