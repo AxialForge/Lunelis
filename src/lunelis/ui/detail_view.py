@@ -1049,6 +1049,12 @@ class DetailView(QWidget):
     faces_changed = Signal()           # a face was named or corrected here (People tags changed)
     show_person = Signal(int)          # "All photos of Ann" from a face's menu
     thumb_made = Signal(int)           # a thumbnail was made on opening the photo
+    nothing_shown = Signal()           # the photo stepped to has left the catalog: no photo is under the keys
+
+    def set_back_target(self, page: str) -> None:
+        """Where Back goes, said on the button (0.54: it read "Back to Library"
+        when the photo was opened from People or On this day)."""
+        self.back_b.setText(f"‹  Back to {page}")
 
     def retheme(self) -> None:
         """The toolbar icons in the theme's text colour (again after a theme switch)."""
@@ -1357,6 +1363,13 @@ class DetailView(QWidget):
             self.counter.setText(f"{pos + 1:,} of {n:,}")
             self.canvas.set_photo(None)
             self.canvas.show_pixmap(None, sharp=False, message="This photo isn't in the library any more")
+            # ...and the photo before it is no longer the one named in the bar or
+            # under the rating keys (0.54: a star key still rated it).
+            for label in (self.name, self.summary, self.stars):
+                label.setText("")
+            self.canvas.faces = []
+            self.edit_b.setEnabled(False)
+            self.nothing_shown.emit()
             return
         self.info = info
         self.refresh_info()

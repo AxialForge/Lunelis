@@ -99,6 +99,7 @@ class PhotoGrid(QAbstractScrollArea):
     selection_changed = Signal(int)       # number selected
     activated = Signal(int)               # file id (double-click / Enter)
     zoom = Signal(int)                    # Ctrl+wheel: +1 bigger / -1 smaller
+    resized = Signal()                    # the viewport changed size (things laid over it re-centre, 0.54)
 
     def __init__(self, thumbs: ThumbCache, parent=None) -> None:
         super().__init__(parent)
@@ -259,6 +260,7 @@ class PhotoGrid(QAbstractScrollArea):
         self._relayout(decode_now=False)
         self.scroll_to(first, top=True)
         self._place_scrubber()
+        self.resized.emit()
 
     def _row_h(self) -> int:
         return self.tile + GAP

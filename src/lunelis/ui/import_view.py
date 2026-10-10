@@ -24,7 +24,7 @@ from lunelis.catalog.schema import open_catalog
 from lunelis.importing import ingest
 from lunelis.importing.templates import PRESETS, Context, TemplateError, render
 from lunelis.settings import Settings
-from lunelis.ui.background import Background, unless_closed
+from lunelis.ui.background import Background, unless_closed, window_closed
 
 
 def _gb(n) -> str:
@@ -35,17 +35,28 @@ def _gb(n) -> str:
 class PreviewWorker(QObject):
     """Reads capture dates from the card to show where everything will go."""
 
-    done = Signal(object)          # list of (rel, size, taken datetime | None)
+    done = Signal(object)          # list of (rel, size, taken datetime | None); None = stopped
+    progress = Signal(int, int)    # files read, files found
 
     def __init__(self, source: str) -> None:
         super().__init__()
         self.source = source
+        self.stop = False          # set from the GUI thread: Stop, another source, or closing (0.54)
 
     def run(self) -> None:
         from lunelis.importers.metadata import read_file
         out = []
         try:
-            for rel, size, _ in ingest.discover(self.source):
+            found = ingest.discover(self.source)
+            for n, (rel, size, _) in enumerate(found):
+                # A big or NAS folder takes minutes (every file's metadata is
+                # read): it can be stopped between files (0.54: it couldn't, and
+                # closing Lunelis waited for all of it).
+                if self.stop:
+                    self.done.emit(None)
+                    return
+                if n % 25 == 0:
+                    self.progress.emit(n, len(found))
                 taken = None
                 try:
                     at = read_file(os.path.join(self.source, *rel.split("/"))).get("captured_at")
@@ -362,8 +373,15 @@ class ImportView(QWidget):
             self.choose(os.path.normpath(picked))
 
     def choose(self, source: str | None) -> None:
-        if not source or self._thread is not None:
+        if not source or self.importing():
             return
+        if self._thread is not None:
+            # Still reading another folder: that read is stopped and this one
+            # starts when it has (0.54: nothing else could be chosen meanwhile).
+            self._next_source = source
+            self._stop()
+            return
+        self._next_source = None
         self.source = source
         if source not in ingest.removable_drives_with_media() and os.path.splitdrive(source)[1].strip("\\/"):
             s = Settings(self.conn)                  # remember it for Recent folders
@@ -375,7 +393,15 @@ class ImportView(QWidget):
         self.clear_b.hide()
         self._clear_id = None
         self.message.setText(f"Reading {source}…")
-        self._run(PreviewWorker(source), self._preview_ready)
+        self.go.setEnabled(False)
+        self.stop_b.show()                             # Stop works on the read too (0.54)
+        w = PreviewWorker(source)
+        w.progress.connect(self._preview_progress)     # bound method: runs on the GUI thread
+        self._run(w, self._preview_ready)
+
+    def _preview_progress(self, done: int, total: int) -> None:
+        if isinstance(self._worker, PreviewWorker) and not self._worker.stop:
+            self.message.setText(f"Reading {self.source}… {done:,} of {total:,} files")
 
     def _choose_folder(self) -> None:
         picked = QFileDialog.getExistingDirectory(self, "Import photos from which folder?")
@@ -384,6 +410,18 @@ class ImportView(QWidget):
 
     def _preview_ready(self, items) -> None:
         self._end_thread()
+        if window_closed(self):                        # stopped by the window closing: nothing to show
+            return
+        self.stop_b.hide()
+        if items is None:                              # stopped (0.54)
+            self.preview = []
+            nxt, self._next_source = getattr(self, "_next_source", None), None
+            self.message.setText(f"Stopped reading {self.source}. Choose a card or a folder to import from.")
+            self.source = None
+            self._update_preview()
+            if nxt:
+                self.choose(nxt)
+            return
         if isinstance(items, Exception):
             self.preview = []
             self.message.setText(str(items))
@@ -474,6 +512,8 @@ class ImportView(QWidget):
         self._run(w, self._finished)
 
     def _stop(self) -> None:
+        # Sets a flag from this (the GUI) thread - never a queued call into the
+        # worker's thread, which is busy and would hear it only when it's done.
         if self._worker is not None and hasattr(self._worker, "stop"):
             self._worker.stop = True
             self.message.setText("Stopping after the current file…")
@@ -588,3 +628,8 @@ class ImportView(QWidget):
 
     def busy(self) -> bool:
         return self._thread is not None
+
+    def importing(self) -> bool:
+        """An import is copying or filing - not a card or folder that is only being
+        read for the preview (0.54: the quit question called that "an import")."""
+        return self._thread is not None and isinstance(self._worker, ImportWorker)

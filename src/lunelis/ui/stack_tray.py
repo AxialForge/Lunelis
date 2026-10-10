@@ -35,13 +35,12 @@ class StackTray(QWidget):
         head.addStretch(1)
         head.addWidget(QPushButton("Open the stack (S)", clicked=lambda: self.open_stack.emit()))
         # A drawn icon (0.53): the "×" was squeezed out of a 30 px button by its own padding.
-        from lunelis.ui import icons, theme
         close = QPushButton(clicked=lambda: self.hide())
-        close.setIcon(icons.icon("close", theme.current().text, size=16))
         close.setIconSize(QSize(16, 16))
         close.setFixedSize(34, 34)
         close.setToolTip("Hide the tray")
         self.close_b = close
+        self.retheme()
         head.addWidget(close)
         v.addLayout(head)
         self.strip = QListWidget()
@@ -58,6 +57,12 @@ class StackTray(QWidget):
         v.addWidget(self.strip)
         self.thumbs.ready.connect(self._thumb_ready)
         self.hide()
+
+    def retheme(self) -> None:
+        """The close icon in the theme's text colour - again after a live theme
+        switch (0.54: it kept the old theme's colour)."""
+        from lunelis.ui import icons, theme
+        self.close_b.setIcon(icons.icon("close", theme.current().text, size=16))
 
     def show_stack(self, stack_id: int | None) -> None:
         if stack_id is None:

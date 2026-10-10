@@ -149,6 +149,10 @@ class CullView(QWidget):
 
     def _show(self) -> None:
         shown = self.shown()
+        # Previews still queued for photos skipped past are taken back, as the
+        # photo view does (0.54: after holding an arrow key, the photo you
+        # stopped on waited behind every one before it).
+        self.previews.keep_only(shown)
         for n, c in enumerate(self.canvases):
             if n >= len(shown):
                 c.show_pixmap(None, False)

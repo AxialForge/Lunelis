@@ -1159,8 +1159,9 @@ class EditMode(QObject):
         panel.look_apply.connect(self.apply_look)
         self._look_signals = _LookSignals()
         self._look_signals.done.connect(self._look_done)
-        self._look_signals.progress.connect(
-            lambda d, t: self.panel.status.setText(f"Learning your look… {d:,} / {t:,} edits"))
+        # A bound method, not a lambda (0.54): a lambda runs on the worker's own
+        # thread, and the label was written from there.
+        self._look_signals.progress.connect(self._look_progress)
         self.look_suggestion: dict | None = None
         panel.reset.connect(lambda: self._set(Stack()))
         panel.before.connect(self.set_before)
@@ -1840,6 +1841,12 @@ class EditMode(QObject):
         self.panel.status.setText("Working out your look…")
         QThreadPool.globalInstance().start(_LookJob(self._look_signals, self.info.file_id, self.session.disp,
                                                     paths.DATA_DIR))
+
+    def _look_progress(self, done: int, total: int) -> None:
+        """How far learning the look is - queued to the GUI thread, where this object lives."""
+        if getattr(self, "closed", False):
+            return
+        self.panel.status.setText(f"Learning your look… {done:,} / {total:,} edits")
 
     def _look_done(self, file_id: int, adjust, n: int, message: str) -> None:
         self.panel.look_b.setEnabled(True)

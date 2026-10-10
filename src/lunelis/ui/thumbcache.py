@@ -21,7 +21,16 @@ from PIL import Image
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 from PySide6.QtGui import QImage, QPixmap
 
-CACHE_LIMIT = 1500           # pixmaps; ~6 screens of tiles at the default size
+# Caches are bound by what their pixmaps weigh, not by how many there are (0.54:
+# 1,500 pixmaps was 1.2 GB at the largest grid size, 2.4 GB at 150 % scaling).
+# A pixmap takes width x height x 4 bytes.
+GRID_CACHE_MB = 400          # the Library grid: ~3,000 tiles at the default size, ~400 at the largest
+CACHE_MB = 200               # every other cache (the photo view's stand-ins, filmstrips, album covers)
+MIN_KEPT = 48                # never fewer than this, however big the tiles (a screenful)
+
+
+def pixmap_bytes(pix: QPixmap) -> int:
+    return pix.width() * pix.height() * 4
 
 
 class _Signals(QObject):
@@ -86,15 +95,18 @@ class ThumbCache(QObject):
 
     ready = Signal(int)                 # file_id whose pixmap just arrived
 
-    def __init__(self, cache_dir: Path, parent: QObject | None = None) -> None:
+    def __init__(self, cache_dir: Path, parent: QObject | None = None, budget_mb: int = CACHE_MB) -> None:
         super().__init__(parent)
         self.cache_dir = cache_dir
         self.px = 0
         self.gen = 0
+        self.budget = budget_mb * 1024 * 1024       # bytes of pixmaps kept
+        self._bytes = 0
         self._pix: OrderedDict[int, QPixmap] = OrderedDict()
         # The previous size's pixmaps, drawn scaled while the new size loads -
         # so resizing the grid never flashes grey placeholders.
         self._stale: dict[int, QPixmap] = {}
+        self._stale_bytes = 0
         self._failed: set[int] = set()
         self._pending: set[int] = set()
         self._signals = _Signals()
@@ -109,8 +121,9 @@ class ThumbCache(QObject):
         self.gen += 1                    # everything in flight is now stale
         self.pool.clear()
         if self._pix:
-            self._stale = dict(self._pix)
+            self._stale, self._stale_bytes = dict(self._pix), self._bytes
         self._pix.clear()
+        self._bytes = 0
         self._pending.clear()
 
     def get(self, file_id: int, rel_path: str | None) -> QPixmap | None:
@@ -129,7 +142,10 @@ class ThumbCache(QObject):
         old one until the new one arrives."""
         pix = self._pix.pop(file_id, None)
         if pix is not None:
+            self._bytes -= pixmap_bytes(pix)
+            self._drop_stale(file_id)
             self._stale[file_id] = pix
+            self._stale_bytes += pixmap_bytes(pix)
         self._failed.discard(file_id)
 
     def reset_failed(self) -> None:
@@ -149,6 +165,15 @@ class ThumbCache(QObject):
     def _is_stale(self, gen: int) -> bool:
         return gen != self.gen
 
+    def _drop_stale(self, file_id: int) -> None:
+        gone = self._stale.pop(file_id, None)
+        if gone is not None:
+            self._stale_bytes -= pixmap_bytes(gone)
+
+    def cached_bytes(self) -> int:
+        """What the cache holds now: this size's pixmaps and the stand-ins."""
+        return self._bytes + self._stale_bytes
+
     def _on_loaded(self, file_id: int, gen: int, img: QImage) -> None:
         if gen != self.gen:
             return
@@ -156,8 +181,17 @@ class ThumbCache(QObject):
         if img.isNull():
             self._failed.add(file_id)    # cache file missing/corrupt: show as unavailable
         else:
-            self._pix[file_id] = QPixmap.fromImage(img)
-            self._stale.pop(file_id, None)
-            while len(self._pix) > CACHE_LIMIT:
-                self._pix.popitem(last=False)
+            old = self._pix.pop(file_id, None)
+            if old is not None:
+                self._bytes -= pixmap_bytes(old)
+            pix = self._pix[file_id] = QPixmap.fromImage(img)
+            self._bytes += pixmap_bytes(pix)
+            self._drop_stale(file_id)
+            # The previous size's stand-ins count too, and go first (oldest
+            # first): the ones scrolled away from would otherwise stay for good.
+            while self._stale and self._bytes + self._stale_bytes > self.budget:
+                self._drop_stale(next(iter(self._stale)))
+            while self._bytes > self.budget and len(self._pix) > MIN_KEPT:
+                _fid, gone = self._pix.popitem(last=False)
+                self._bytes -= pixmap_bytes(gone)
         self.ready.emit(file_id)

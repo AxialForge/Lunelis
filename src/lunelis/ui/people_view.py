@@ -19,7 +19,7 @@ open its photo.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QHBoxLayout, QInputDialog, QLabel, QListWidget, QListWidgetItem, QMenu, QMessageBox,
@@ -61,11 +61,29 @@ class FaceList(QListWidget):
         self._timer = QTimer(self, interval=0, timeout=self._load)
 
     def fill(self, items: list[QListWidgetItem]) -> None:
+        # The same list after an answer (some of its faces are still here) keeps
+        # its place and what's still selected (0.54: every Yes / No sent a long
+        # list back to the top). A different list starts at the top.
+        role = Qt.ItemDataRole.UserRole
+        before = set(self.all_ids())
+        same = bool(before & {it.data(role) for it in items})
+        scroll = self.verticalScrollBar().value() if same else 0
+        chosen = set(self.chosen()) if same else set()
+        row = self.currentRow() if same else -1
         self.clear()
         self._pending = []
         for it in items:
             self.addItem(it)
             self._pending.append(it)
+            if it.data(role) in chosen:
+                it.setSelected(True)
+        if same and items:
+            if row >= 0:                               # the keyboard carries on where it was
+                self.setCurrentRow(min(row, len(items) - 1), QItemSelectionModel.SelectionFlag.NoUpdate)
+            self.doItemsLayout()                       # lay out now, so the old position exists to go back to
+            self.verticalScrollBar().setValue(scroll)
+        else:
+            self.scrollToTop()
         self._timer.start()
 
     def _load(self) -> None:
@@ -103,6 +121,8 @@ class PeopleView(QWidget):
         super().__init__(parent)
         self.conn = conn
         self.bg = Background(self, conn)
+        from lunelis.ui.notice import Notice
+        self.note = Notice()               # what the last action did, kept in front of the counts (0.54)
         self.person: int | None = None
         v = QVBoxLayout(self)
         v.setContentsMargins(24, 20, 24, 16)
@@ -346,8 +366,8 @@ class PeopleView(QWidget):
     def _sort_animals(self) -> None:
         from lunelis.recognize import animals
         if not animals.available():
-            self.summary.setText("The scene model isn't installed - Settings > Library > Scene tags. You can still "
-                                 "mark animals by hand.")
+            self.summary.setText(self.note.say("The scene model isn't installed - Settings > Library > Scene "
+                                               "tags. You can still mark animals by hand."))
             return
         self.sort_b.setEnabled(False)
         self.sort_b.setText("Looking…")
@@ -403,18 +423,22 @@ class PeopleView(QWidget):
         c, have = result
         self.settings_b.setVisible(not have)
         self.find_b.setVisible(have)
+        # The last action's message stays in front for a few seconds (0.54: "Named
+        # Ann." and a refused name were replaced by this line as they appeared).
+        said = self.note.prefix()
         if not have and not c["faces"]:
-            self.summary.setText("Faces are off. Turn them on to download two small models (about 39 MB) that "
-                                 "find and recognise faces on this PC - nothing is sent anywhere.")
+            self.summary.setText(said + "Faces are off. Turn them on to download two small models (about 39 MB) "
+                                 "that find and recognise faces on this PC - nothing is sent anywhere.")
             return
-        self.summary.setText(f"{c['people']:,} people · {c['named']:,} named faces · {c['waiting']:,} waiting for "
-                             f"a yes · {c['faces']:,} faces in {c['scanned']:,} photos looked at")
+        self.summary.setText(f"{said}{c['people']:,} people · {c['named']:,} named faces · {c['waiting']:,} "
+                             f"waiting for a yes · {c['faces']:,} faces in {c['scanned']:,} photos looked at")
         self.tabs.setTabText(1, f"To confirm ({c['waiting']:,})" if c["waiting"] else "To confirm")
         n = c.get("pets", 0) + c.get("animals", 0)
         self.tabs.setTabText(4, f"Pets ({n:,})" if n else "Pets")
 
     @unless_closed
     def _show_people(self, people) -> None:
+        scroll = self.people_list.verticalScrollBar().value()      # kept through the refill (0.54)
         self.people_list.clear()
         for p in people:
             text = f"{p.name}\n{p.photos:,} photo{'s' if p.photos != 1 else ''}"
@@ -429,6 +453,8 @@ class PeopleView(QWidget):
                 it.setIcon(QIcon(pix.scaled(FACE, FACE, Qt.AspectRatioMode.KeepAspectRatio,
                                             Qt.TransformationMode.SmoothTransformation)))
             self.people_list.addItem(it)
+        self.people_list.doItemsLayout()
+        self.people_list.verticalScrollBar().setValue(scroll)
         self.people_box.empty(None if people else
                               "Nobody named yet.\n\nOpen the Unnamed tab to name the faces Lunelis has grouped, or "
                               "click a face in any photo (the Faces button in the photo view). Not looking for faces "
@@ -465,7 +491,7 @@ class PeopleView(QWidget):
         self.person_faces.fill([_face_item(f, "") for f in named])
 
     def _load_confirm_people(self) -> None:
-        keep = self._confirm_pid()
+        keep, row = self._confirm_pid(), self.confirm_people.currentRow()
         self.confirm_people.blockSignals(True)
         self.confirm_people.clear()
         for p in faces.people(self.conn):
@@ -478,7 +504,8 @@ class PeopleView(QWidget):
                 self.confirm_people.setCurrentItem(it)
         self.confirm_people.blockSignals(False)
         if self.confirm_people.currentItem() is None and self.confirm_people.count():
-            self.confirm_people.setCurrentRow(0)
+            # That person is done: on to the next one in the list, not back to the first (0.54).
+            self.confirm_people.setCurrentRow(max(0, min(row, self.confirm_people.count() - 1)))
         self._load_confirm_faces()
 
     def _confirm_pid(self) -> int | None:
@@ -493,7 +520,8 @@ class PeopleView(QWidget):
 
     @unless_closed
     def _show_groups(self, groups) -> None:
-        keep = self._group()
+        keep, row = self._group(), self.group_list.currentRow()
+        scroll = self.group_list.verticalScrollBar().value()
         self.group_list.blockSignals(True)
         self.group_list.clear()
         for cluster, n, first in groups:
@@ -509,8 +537,13 @@ class PeopleView(QWidget):
                 self.group_list.setCurrentItem(it)
         self.group_list.blockSignals(False)
         self.tabs.setTabText(2, f"Unnamed ({len(groups):,})" if groups else "Unnamed")
+        self.group_list.blockSignals(True)
         if self.group_list.currentItem() is None and self.group_list.count():
-            self.group_list.setCurrentRow(0)
+            # The group just named is gone: the one that took its place, not the first (0.54).
+            self.group_list.setCurrentRow(max(0, min(row, self.group_list.count() - 1)))
+        self.group_list.doItemsLayout()
+        self.group_list.verticalScrollBar().setValue(scroll)
+        self.group_list.blockSignals(False)
         self._load_group_faces()
 
     def _group(self) -> int | None:
@@ -538,9 +571,9 @@ class PeopleView(QWidget):
 
     def _done(self, message: str | None = None) -> None:
         self.changed.emit()
-        self.refresh()
         if message:
-            self.summary.setText(message)
+            self.summary.setText(self.note.say(message))   # and kept by _show_counts when the counts arrive
+        self.refresh()
 
     def _confirm(self, ids: list[int], pid: int | None = None) -> None:
         pid = pid if pid is not None else self.person
@@ -612,7 +645,7 @@ class PeopleView(QWidget):
         if ids and self.person is not None:
             self.conn.execute("UPDATE people SET cover_face_id = ? WHERE id = ?", (ids[0], self.person))
             self.conn.commit()
-            self.summary.setText("Cover face changed.")
+            self.summary.setText(self.note.say("Cover face changed."))
 
     def _named_menu(self) -> None:
         ids = self.person_faces.chosen()

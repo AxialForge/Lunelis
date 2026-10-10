@@ -102,6 +102,9 @@ class TakeoutView(QWidget):
     def _fill(self) -> None:
         if getattr(self, "_sync_due", False):
             self._sync()                              # a tick not saved yet goes in first
+        # What was opened stays open through a change of filter (0.54: the whole
+        # tree folded up, and the year and album being worked on had to be found again).
+        was_open = self._opened()
         self._filling = True
         self.tree.clear()
         c = tr.counts(self.items)
@@ -130,6 +133,25 @@ class TakeoutView(QWidget):
                 ny += len(its)
             y.setText(1, f"{ny:,}")
         self._filling = False
+        for k in range(self.tree.topLevelItemCount()):
+            y = self.tree.topLevelItem(k)
+            if (y.text(0),) in was_open:
+                y.setExpanded(True)
+            for j in range(y.childCount()):
+                if (y.text(0), y.child(j).text(0)) in was_open:
+                    y.child(j).setExpanded(True)       # its small pictures come with it (itemExpanded)
+
+    def _opened(self) -> set[tuple]:
+        """The years - (year,) - and albums - (year, album) - that are unfolded now."""
+        out: set[tuple] = set()
+        for k in range(self.tree.topLevelItemCount()):
+            y = self.tree.topLevelItem(k)
+            if y.isExpanded():
+                out.add((y.text(0),))
+            for j in range(y.childCount()):
+                if y.child(j).isExpanded():
+                    out.add((y.text(0), y.child(j).text(0)))
+        return out
 
     def _thumbs_for(self, parent: QTreeWidgetItem) -> None:
         from PySide6.QtGui import QIcon

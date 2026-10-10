@@ -174,6 +174,11 @@ class EditPage(QWidget):
         self.empty.setVisible(n == 0)
         if not n:
             self.view.edit.finish()
+            # Nothing to edit: no photo is left under the rating, paste and reset
+            # keys either (0.54: the last photo edited stayed their target).
+            self.view.index = LibraryIndex()
+            self.view.pos = -1
+            self.view.info = None
             self.empty.setText("Nothing to edit here. Select photos in the Library and come back, or choose "
                                "other photos above.")
             return

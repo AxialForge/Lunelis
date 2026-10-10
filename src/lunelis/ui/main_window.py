@@ -52,7 +52,7 @@ from lunelis.ui.detail_view import DetailView
 from lunelis.ui.albums_view import AlbumsView
 from lunelis.events import model as events
 from lunelis.ui.theme import apply_palette, stylesheet
-from lunelis.ui.thumbcache import ThumbCache
+from lunelis.ui.thumbcache import GRID_CACHE_MB, ThumbCache
 from lunelis.xmp import sync
 from lunelis.xmp.sidecar import LABELS
 from lunelis.ui.widgets import plain
@@ -87,6 +87,7 @@ STICK_COUNT_SECONDS = 10         # how long a new USB drive is looked through fo
 EDITS_INLINE = 20                # Paste / Reset on more photos than this saves on a worker
 SEARCH_NOW_LIMIT = 2000          # search-index rows brought up to date before a query; the rest on a worker
 REACH_CHECK_MS = 60_000          # how often sources are checked for being reachable
+THUMBS_AFTER_EDITS = 500         # thumbnails remade in one go after edits were applied to a shoot
 
 def _thread_catalog():
     """A worker thread's own catalog connection. Not this module's `open_catalog`:
@@ -298,11 +299,12 @@ class LibraryWorker(QObject):
         if be is None:
             return
         todo = faces.pending(conn, be.model_id)
+        memo = faces.Memo()                # the known people and groups, read once for the pass (0.54)
         for start in range(0, len(todo), 50):
             if stop():
                 return
             self._say(7, f"Looking for faces… {start:,} / {len(todo):,}", start, len(todo))
-            faces.scan_files(conn, todo[start:start + 50], be, stop)
+            faces.scan_files(conn, todo[start:start + 50], be, stop, memo=memo)
 
     def _noticed(self, conn, stop) -> None:
         from lunelis.settings import Settings
@@ -574,9 +576,11 @@ class MainWindow(QMainWindow):
         self.ask_bar.closed.connect(self._ask_closed)
         self.ask_bar.hide()
         col.addWidget(self.ask_bar)
-        self.thumbs = ThumbCache(paths.THUMBNAIL_CACHE, self)
+        # The grid's pictures get the larger share of memory (0.54: caches are bound by size).
+        self.thumbs = ThumbCache(paths.THUMBNAIL_CACHE, self, budget_mb=GRID_CACHE_MB)
         self.grid = PhotoGrid(self.thumbs)
         self.grid.selection_changed.connect(self._update_count)
+        self.grid.resized.connect(self._place_empty_add)
         # A selected burst / stack / timelapse shows its frames above the grid (0.45).
         from lunelis.ui.stack_tray import StackTray
         self.stack_tray = StackTray(self.conn, self.thumbs)
@@ -652,6 +656,10 @@ class MainWindow(QMainWindow):
         self.detail.edited.connect(self._photo_edited)
         self.detail.tags_changed.connect(lambda: self.filter.tag and self.reload())
         self.detail.faces_changed.connect(lambda: self.filter.tag and self.reload())
+        # Tags and named faces go to the sidecars as a rating does (0.54: they waited for a restart).
+        self.detail.tags_changed.connect(self._sidecars_due)
+        self.detail.faces_changed.connect(self._sidecars_due)
+        self.detail.nothing_shown.connect(self._detail_emptied)
         self.detail.show_person.connect(self._show_person)
         self.pages.addWidget(self.detail, scroll=False)             # fills the window
         self.grid.activated.connect(self.open_detail)
@@ -676,6 +684,8 @@ class MainWindow(QMainWindow):
         v.rate.connect(lambda change: self.rate(**change))
         v.show_event.connect(self.show_event)
         v.edited.connect(self._photo_edited)
+        v.tags_changed.connect(self._sidecars_due)
+        v.faces_changed.connect(self._sidecars_due)
         self.edit_page.copy_edit.connect(self._copy_edit_of)
         self.edit_page.paste_all.connect(self._paste_edit_to)
         self.edit_page.reset_all.connect(self._reset_edits_of)
@@ -691,12 +701,14 @@ class MainWindow(QMainWindow):
         self.people_page.find_faces.connect(self._find_faces)
         self.people_page.open_settings.connect(self._open_faces_settings)
         self.people_page.changed.connect(lambda: self.reload_later())
+        self.people_page.changed.connect(self._sidecars_due)
         self.pages.addWidget(self.people_page, scroll=False)
         from lunelis.ui.map_view import MapView
         self.map_page = MapView(self.conn)
         self.map_page.show_ids.connect(lambda ids: self.show_photos(ids, "On the map"))
         self.map_page.show_unlocated.connect(lambda ids: self.show_photos(ids, "Without a location"))
         self.map_page.places_changed.connect(lambda: self.reload_later())
+        self.map_page.places_changed.connect(self._sidecars_due)     # a pin gives the photo its Places tag
         self.pages.addWidget(self.map_page, scroll=False)
         from lunelis.ui.autopilot_view import AutopilotView
         self.review_page = AutopilotView(self.conn)
@@ -974,7 +986,9 @@ class MainWindow(QMainWindow):
                               ("The whole &day", None, lambda: self._select_like("day")),
                               ("The whole &folder", None, lambda: self._select_like("folder")),
                               ("Everything &rated like this", None, lambda: self._select_like("stars"))):
-            a = QAction(text, self, triggered=lambda _=False, f=fn: self._on_photo_page() and f())
+            # Only on the grid (0.54): with a photo open, Ctrl+A selected the whole hidden
+            # grid and the next star key rated every photo in the view.
+            a = QAction(text, self, triggered=lambda _=False, f=fn: self._on_grid() and f())
             if key:
                 a.setShortcut(key)
                 self.addAction(a)
@@ -1240,6 +1254,11 @@ class MainWindow(QMainWindow):
             self.create_page.retheme()
         if hasattr(self, "detail"):
             self.detail.retheme()
+        # The Edit page's own photo view and the stack tray drew their icons in the old colour (0.54).
+        if hasattr(self, "edit_page"):
+            self.edit_page.view.retheme()
+        if hasattr(self, "stack_tray"):
+            self.stack_tray.retheme()
 
     def _windows_scheme_changed(self, *_):
         from lunelis.settings import Settings
@@ -1451,12 +1470,20 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "_add_b"):
             self._add_b = QPushButton("Add a folder…", self.grid.viewport(), objectName="Primary",
                                       clicked=self.add_folder)
-            self._add_b.adjustSize()
             self._add_b.hide()
-            self.grid.resized = getattr(self.grid, "resized", None)
-        vp = self.grid.viewport()
-        self._add_b.move((vp.width() - self._add_b.width()) // 2, vp.height() // 2 + 28)
+        self._place_empty_add()
         return self._add_b
+
+    def _place_empty_add(self) -> None:
+        """Centred under the empty-library line - again whenever the grid changes
+        size (0.54: it was placed once, before the window had its size)."""
+        b = getattr(self, "_add_b", None)
+        if b is None:
+            return
+        b.ensurePolished()                             # the Primary style's padding counts
+        b.adjustSize()
+        vp = self.grid.viewport()
+        b.move((vp.width() - b.width()) // 2, vp.height() // 2 + 28)
 
     # --- import, cards & tray ----------------------------------------------------
 
@@ -1466,6 +1493,9 @@ class MainWindow(QMainWindow):
             b.setChecked(True)
             b.setVisible(True)
         self.show_page(name)
+        self._raise_window()
+
+    def _raise_window(self) -> None:
         # Bring the window up (from the tray, or minimized) WITHOUT changing a
         # maximized/full-screen window back to normal size - showNormal() did.
         if not self.isVisible():
@@ -1483,7 +1513,7 @@ class MainWindow(QMainWindow):
         self.tray = QSystemTrayIcon(self.windowIcon(), self)
         self.tray.setToolTip("Lunelis")
         m = QMenu()
-        m.addAction("Open Lunelis", lambda: self.open_page("Library"))
+        m.addAction("Open Lunelis", lambda: self._raise_window())
         m.addAction("Import…", lambda: self.open_page("Import"))
         auto = QAction("Start with Windows", self, checkable=True, checked=autostart_enabled())
         auto.toggled.connect(set_autostart)
@@ -1494,8 +1524,7 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction("Quit Lunelis", self.quit_app)
         self.tray.setContextMenu(m)
-        self.tray.activated.connect(lambda reason: self.open_page("Library")
-                                    if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
+        self.tray.activated.connect(self._tray_activated)
         self._tray_card = None
         self.tray.messageClicked.connect(self._tray_message_clicked)
         self.tray.show()
@@ -1503,6 +1532,13 @@ class MainWindow(QMainWindow):
         self.cards.inserted.connect(self._card_inserted)
         self.cards.stick_inserted.connect(self._stick_inserted)
         self.cards.removed.connect(lambda d: self.importer.update_cards())
+
+    def _tray_activated(self, reason) -> None:
+        """A click on the tray icon: the window comes back on the page (or photo)
+        it was on (0.54: it always switched to the Library)."""
+        from PySide6.QtWidgets import QSystemTrayIcon
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self._raise_window()
 
     def _open_logs(self) -> None:
         from lunelis import log
@@ -1698,8 +1734,13 @@ class MainWindow(QMainWindow):
         """Start a fresh Lunelis that waits for this one to exit (so the
         catalog is closed before a data move or restore touches it), then quit."""
         from PySide6.QtCore import QProcess
+        # Asked first (0.54): a No after the new copy was started left it waiting
+        # for this one to exit.
+        if not self._may_quit():
+            return
         program, args = paths.launch_command("--after", str(os.getpid()))
         if not QProcess.startDetached(program, args):
+            self._quit_confirmed = False
             QMessageBox.information(self, "Restart Lunelis",
                                     "Close and reopen Lunelis to finish - the change happens on the next start.")
             return
@@ -1758,9 +1799,12 @@ class MainWindow(QMainWindow):
 
     def _install_update(self, staged) -> None:
         from lunelis import updater
+        if not self._may_quit():                      # before the swap is started, not after (0.54)
+            return
         try:
             updater.apply(staged)
         except Exception as e:
+            self._quit_confirmed = False
             QMessageBox.warning(self, "Update", f"Couldn't start the update: {e}")
             return
         self.quit_app()
@@ -1975,7 +2019,7 @@ class MainWindow(QMainWindow):
 
     @Slot(int)
     def _on_relinked(self, n: int) -> None:
-        self.status.setText(f"Recognised {n:,} moved file{'s' if n != 1 else ''} - ratings kept")
+        self._scan_result(f"Recognised {n:,} moved file{'s' if n != 1 else ''} - ratings kept")
 
     @Slot(object)
     def _on_steps_failed(self, steps) -> None:
@@ -1983,7 +2027,7 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def _on_takeout_done(self, r) -> None:
-        self.status.setText(f"Google Takeout: dates for {r.dated:,} files, locations for {r.located:,}")
+        self._scan_result(f"Google Takeout: dates for {r.dated:,} files, locations for {r.located:,}")
 
     @unless_closed
     def _autopilot_done(self, reviewable: int) -> None:
@@ -2009,15 +2053,35 @@ class MainWindow(QMainWindow):
 
     def _start_thumbnails_if_needed(self) -> None:
         """Applied edits cleared some thumbnails: a quick pass remakes just those."""
-        ids = [r[0] for r in self.conn.execute(
-            "SELECT id FROM files WHERE thumbnail_path IS NULL AND thumb_error IS NULL AND missing_since IS NULL")]
-        if ids:
-            from lunelis.raw.thumbnails import generate_pending
-            generate_pending(self.conn, paths.THUMBNAIL_CACHE, only=ids[:500])
+        # On a worker with its own connection (0.54: up to 500 were made on the
+        # window's thread, which stopped answering until they were done).
+        cache = paths.THUMBNAIL_CACHE
+
+        def make(conn) -> list[int]:
+            ids = [r[0] for r in conn.execute(
+                "SELECT id FROM files WHERE thumbnail_path IS NULL AND thumb_error IS NULL"
+                " AND missing_since IS NULL LIMIT ?", (THUMBS_AFTER_EDITS,))]
+            if ids:
+                from lunelis.raw.thumbnails import generate_pending
+                generate_pending(conn, cache, only=ids)
+            return ids
+        self._bg().run("thumbnails", make, self._thumbnails_made)
+
+    def _thumbnails_made(self, ids: list[int]) -> None:
+        if not ids:
+            return
+        for fid in ids:
+            self.thumbs.reload(fid)
+        self.thumbs.reset_failed()
+        self.reload_later()
 
     def quit_app(self) -> None:
         self._quitting = True
-        self.close()
+        # A refused close ("Quit anyway?" - No) leaves the window as it was (0.54:
+        # the app was told to quit all the same).
+        if not self.close():
+            self._quitting = False
+            return
         QApplication.instance().quit()
 
     # --- pages & jobs ----------------------------------------------------------
@@ -2025,31 +2089,60 @@ class MainWindow(QMainWindow):
     # --- the photo detail view -------------------------------------------------
 
     def open_detail(self, file_id: int) -> None:
-        pos = self.index.position(file_id)
-        if pos >= 0 and self.index.tile(pos).stack_size:
+        from lunelis.ui.library import ID, STACK
+        index = self.index
+        pos = index.position(file_id)
+        if pos < 0 and index.collapse:
+            # A frame behind its stack's cover (the stack tray, People, On this
+            # day): open the stack, so the frame is there to step through (0.54).
+            sid = next((r[STACK] for r in index.all_rows if r[ID] == file_id), None)
+            if sid is not None and sid not in index.expanded:
+                index.toggle_stack(sid)
+                self.grid.set_index(index)
+                pos = index.position(file_id)
+        if pos >= 0 and index.tile(pos).stack_size:
             # A collapsed burst: open it, so the filmstrip steps through its frames.
-            self.index.toggle_stack(self.index.stack_id(pos))
-            self.grid.set_index(self.index)
-            pos = self.index.position(file_id)
+            index.toggle_stack(index.stack_id(pos))
+            self.grid.set_index(index)
+            pos = index.position(file_id)
         if pos < 0:
-            self.status.setText("That photo isn't in the Library's current view - clear the search or filter"
-                                " to open it")
+            # Not in the Library's list (a search, a filter or an album is on):
+            # it opens all the same, on a list of its own (0.54: "That photo
+            # isn't in the Library's current view").
+            index = self._index_of(file_id)
+            pos = index.position(file_id)
+        if pos < 0:
+            self.status.setText("That photo isn't in the library any more")
             return
         if self.pages.currentWidget() is not self.detail:
             self._detail_from = getattr(self, "_page_name", "Library")    # Back returns here
+        self.detail.set_back_target(getattr(self, "_detail_from", None) or "Library")
         self.toolbar.hide()
         self.filter_bar.hide()
         self.scope_bar.hide()
         self.pages.setCurrentWidget(self.detail)
-        self.detail.open(self.index, pos)
+        self.detail.open(index, pos)
+
+    def _index_of(self, file_id: int) -> LibraryIndex:
+        """A list for one photo the Library isn't showing: the photo itself, or
+        every frame of its burst / timelapse stack."""
+        sid = stacks.stack_of(self.conn, file_id)
+        ids = stacks.members(self.conn, sid) if sid is not None else []
+        if file_id not in ids:
+            ids = [file_id]
+        idx = LibraryIndex()
+        idx.collapse = False
+        idx.load(self.conn, self.sort.currentData(), Filter(ids=tuple(ids)))
+        return idx
 
     # --- edits across a selection ---------------------------------------------------------
 
     def _edit_targets(self) -> list[int]:
         if self.pages.currentWidget() is self.detail and self.detail.info:
             return [self.detail.info.file_id]
-        if self.pages.currentWidget() is self.edit_page and self.edit_page.current() is not None:
-            return [self.edit_page.current()]
+        if self.pages.currentWidget() is self.edit_page:
+            cur = self.edit_page.current()             # nothing to edit: nothing to act on (0.54)
+            return [cur] if cur is not None else []
         return self._targets()
 
     def _editing_view(self):
@@ -2085,7 +2178,8 @@ class MainWindow(QMainWindow):
     def _reset_edits_of(self, ids: list[int]) -> None:
         from lunelis.edit import store
         from lunelis.edit.stack import Stack
-        ids = [f for f in ids if f in store.edited_ids(self.conn, ids)]
+        edited = store.edited_ids(self.conn, ids)       # once, not once per photo (0.54)
+        ids = [f for f in ids if f in edited]
         if not ids:
             self.status.setText("None of these photos are edited")
             return
@@ -2104,7 +2198,16 @@ class MainWindow(QMainWindow):
             view.edit.save()                           # what's on screen, not the last save
         if not ids:
             return
-        fid = ids[0] if len(ids) == 1 or self.grid.current < 0 else self.index.file_id(self.grid.current)
+        # Several selected: the focus photo if it is one of them, else the first
+        # of them in the library's order (0.54: the focus photo, selected or not).
+        focus = self.index.file_id(self.grid.current) if 0 <= self.grid.current < len(self.index) else None
+        if len(ids) == 1:
+            fid = ids[0]
+        elif focus in ids:
+            fid = focus
+        else:
+            inside = [f for f in ids if self.index.position(f) >= 0]
+            fid = min(inside, key=self.index.position) if inside else ids[0]
         stack = store.get(self.conn, fid)
         if stack.is_identity():
             self.status.setText("That photo has no edits to copy")
@@ -2126,7 +2229,9 @@ class MainWindow(QMainWindow):
     def reset_edits(self) -> None:
         from lunelis.edit import store
         from lunelis.edit.stack import Stack
-        ids = [f for f in self._edit_targets() if f in store.edited_ids(self.conn, self._edit_targets())]
+        targets = self._edit_targets()
+        edited = store.edited_ids(self.conn, targets)   # once, not once per photo (0.54)
+        ids = [f for f in targets if f in edited]
         if not ids:
             self.status.setText("None of the selected photos are edited")
             return
@@ -2296,7 +2401,15 @@ class MainWindow(QMainWindow):
         else:
             self._history().forget_last()
 
+    def _sidecars_due(self) -> None:
+        """Tags, named faces and edits are written to sidecars shortly after, as
+        a rating is (0.54: they were only marked pending, and with Lunelis kept
+        running in the tray could wait for days)."""
+        if not getattr(self, "_closed", False):
+            self._xmp_timer.start()                    # restart the debounce
+
     def _tags_changed(self) -> None:
+        self._sidecars_due()
         if self.pages.currentWidget() is self.detail:
             self.detail.refresh_info()
         if self.filter.tag:
@@ -2426,6 +2539,7 @@ class MainWindow(QMainWindow):
         self.thumbs.reload(file_id)
         self.index.refresh_edits(self.conn, [file_id])
         self.grid.viewport().update()
+        self._sidecars_due()                           # the edit goes into its sidecar (0.54)
 
     def _thumb_made_on_open(self, file_id: int) -> None:
         """The photo view made a missing thumbnail: the grid and filmstrip pick it up."""
@@ -2456,6 +2570,16 @@ class MainWindow(QMainWindow):
         """Esc / Backspace on the Edit page: back to the page it was opened from."""
         origin = getattr(self, "_edit_from", "Library") or "Library"
         self.open_page(origin if origin in self._nav and origin != "Edit" else "Library")
+
+    def _detail_emptied(self) -> None:
+        """The photo view landed on a photo that has left the catalog: the photo
+        before it must not stay under the rating keys (0.54)."""
+        if self.pages.currentWidget() is self.detail and self.grid.selected:
+            self.grid.selected = set()
+            self.grid.selection_changed.emit(0)
+
+    def _on_grid(self) -> bool:
+        return self.pages.currentWidget() is self.grid
 
     def _on_photo_page(self) -> bool:
         """A page where the rating, flag and stack keys mean something."""
@@ -2585,6 +2709,8 @@ class MainWindow(QMainWindow):
         if name == "Edit" and prev != "Edit":
             self._edit_from = prev if self.pages.currentWidget() is not getattr(self, "detail", None) \
                 else getattr(self, "_detail_from", "Library")
+        if prev == "Tags" and name != "Tags" and hasattr(self, "_xmp_timer"):
+            self._sidecars_due()                       # tags renamed, merged or removed on the Tags page (0.54)
         if name == "Create" and prev != "Create" and hasattr(self, "create_page"):
             self.create_page.home()                    # a fresh visit starts at the tools, not the last one
         self._page_name = name
@@ -2904,7 +3030,8 @@ class MainWindow(QMainWindow):
         if not ids:
             self.status.setText("Select the photos to place first")
             return
-        self.close_detail()
+        # Straight to the Map (0.54): going by way of the Library put its
+        # selection back to the last photo opened, and the selection was gone.
         self.open_page("Map")
         self.map_page.start_placing(ids)
 
@@ -2925,6 +3052,7 @@ class MainWindow(QMainWindow):
         self.status.setText(f"{n:,} face{'s' if n != 1 else ''} marked as strangers - tagged People > Unknown"
                             if n else "No unnamed faces in these photos")
         if n:
+            self._sidecars_due()                       # their photos got the People > Unknown tag
             self.reload_later()
 
     def toggle_archive(self) -> None:
@@ -3008,8 +3136,21 @@ class MainWindow(QMainWindow):
             self.stack_tray.stack_id = None              # redrawn with the new cover first in line
             self.reload()
 
+    def _shown_photo(self) -> int | None:
+        """The photo on screen in the photo view or on the Edit page (None on the grid)."""
+        page = self.pages.currentWidget()
+        if page is self.detail:
+            return self.detail.info.file_id if self.detail.info else None
+        if page is getattr(self, "edit_page", None):
+            return self.edit_page.current()
+        return None
+
     def _current_stack(self) -> tuple[int, int] | None:
         """(file id, stack id) of the photo the stack actions apply to."""
+        shown = self._shown_photo()
+        if shown is not None:                          # the photo on screen, not the grid's last position (0.54)
+            sid = stacks.stack_of(self.conn, shown)
+            return (shown, sid) if sid is not None else None
         i = self.grid.current
         if not 0 <= i < len(self.index):
             return None
@@ -3026,6 +3167,16 @@ class MainWindow(QMainWindow):
         fid, sid = cur
         opened = self.index.toggle_stack(sid)
         self.grid.set_index(self.index)
+        shown = self._shown_photo()
+        if shown is not None:
+            # A photo is on screen: it stays the one the rating keys act on
+            # (0.54: closing its stack moved them to the stack's cover).
+            self.grid.selected = {shown}
+            pos = self.index.position(shown)
+            if pos >= 0:
+                self.grid.current = self.grid.anchor = pos
+            self.grid.viewport().update()
+            return
         if not opened:
             # Closed: land on the tile that stands for the stack now.
             cover = next((i for i, r in enumerate(self.index.rows) if r[11] == sid), -1)
@@ -3076,6 +3227,7 @@ class MainWindow(QMainWindow):
         if not ids:
             return
         from lunelis import timelapses
+        before = self._stack_undo_state(ids)
         try:
             sid = timelapses.make_manual(self.conn, ids)
         except ValueError as e:
@@ -3083,6 +3235,9 @@ class MainWindow(QMainWindow):
             return
         # One tile in the library, like a burst (0.52: it only went to the Timelapses page).
         st = timelapses.stack(self.conn, sid)
+        if before is not None and st:
+            # Ctrl+Z takes the tile apart again (0.54); the timelapse stays listed on its page.
+            self._history().record("collapse into a timelapse", "stack", before[0], before[1], st)
         self.reload()
         self._reveal_stack(st)
         self.status.setText(f"Collapsed {len(ids):,} frames into one timelapse - S opens it; "
@@ -3093,14 +3248,36 @@ class MainWindow(QMainWindow):
         ids = self._selected_or_warn()
         if not ids:
             return
+        before = self._stack_undo_state(ids)
         try:
             st = stacks.make_burst(self.conn, ids)
         except ValueError as e:
             QMessageBox.information(self, "Burst", str(e).capitalize() + ".")
             return
+        if before is not None:
+            self._history().record("collapse into a burst", "stack", before[0], before[1], st)   # Ctrl+Z (0.54)
         self.reload()
         self._reveal_stack(st)
         self.status.setText(f"Collapsed {len(ids):,} photos into one burst - S opens it")
+
+    def _stack_undo_state(self, ids: list[int]):
+        """(photos, their stack state now) for the undo list, taken before they are
+        collapsed into a new stack (0.54) - or None when undo couldn't put things
+        back: some of them are in another stack or timelapse, which collapsing
+        takes apart, and the history keeps one stack per step."""
+        import json
+        from lunelis.history import KINDS
+        both = self._with_pairs(list(ids))
+        for start in range(0, len(both), 900):
+            chunk = both[start:start + 900]
+            if self.conn.execute(f"SELECT 1 FROM stack_files WHERE file_id IN ({','.join('?' * len(chunk))})"
+                                 " LIMIT 1", chunk).fetchone():
+                return None
+        mine = set(both)
+        for (fids,) in self.conn.execute("SELECT file_ids FROM sequences WHERE status != 'dismissed'"):
+            if mine & set(json.loads(fids)):
+                return None
+        return both, KINDS["stack"][0](self.conn, both, -1)     # -1: no stack yet - undo removes the new one
 
     def _reveal_stack(self, stack_id: int) -> None:
         """Select the tile a stack just collapsed into and scroll to it (0.53)."""
@@ -3133,7 +3310,10 @@ class MainWindow(QMainWindow):
     def _selected_or_warn(self) -> list[int]:
         if not self._on_photo_page():
             return []                                  # a key on Stats must not change hidden photos
-        ids = list(self.grid.selected)
+        if self.pages.currentWidget() is self.detail:
+            ids = [self.detail.info.file_id] if self.detail.info else []     # the photo on screen (0.54)
+        else:
+            ids = list(self.grid.selected)
         if not ids:
             QMessageBox.information(self, "Nothing selected", "Select some photos in the library first.")
         return ids
@@ -3319,8 +3499,17 @@ class MainWindow(QMainWindow):
     def _targets(self) -> list[int]:
         if not self._on_photo_page():
             return []                                  # off the photo pages there's nothing to act on
-        if self.pages.currentWidget() is getattr(self, "edit_page", None) and self.edit_page.current() is not None:
-            return [self.edit_page.current()]          # the Edit page: the photo being edited
+        if self.pages.currentWidget() is getattr(self, "edit_page", None):
+            # The Edit page: the photo being edited - and with nothing to edit, no
+            # photo at all (0.54: the keys went on to the hidden grid's selection).
+            cur = self.edit_page.current()
+            return [cur] if cur is not None else []
+        if self.pages.currentWidget() is self.detail:
+            # The photo view: the photo on screen, whatever the grid behind it has
+            # selected - a photo opened from People needn't be in the Library's
+            # list at all, and one that left the catalog leaves nothing under the
+            # keys (0.54).
+            return [self.detail.info.file_id] if self.detail.info else []
         if self.grid.selected:
             return list(self.grid.selected)
         if 0 <= self.grid.current < len(self.index):
@@ -3571,7 +3760,7 @@ class MainWindow(QMainWindow):
 
     def remove_source(self, root_id: int, path: str) -> None:
         """Settings > Library > Remove a source: out of the catalog, files untouched."""
-        from lunelis.importers.scan import RootInUse, remove_root
+        from lunelis.importers.scan import remove_root
         if self._thread is not None:
             QMessageBox.information(self, "Remove a source", "The library is being updated - press Stop (or "
                                     "wait for it to finish), then remove the source.")
@@ -3591,18 +3780,49 @@ class MainWindow(QMainWindow):
         box.exec()
         if box.clickedButton() is not remove:
             return
-        try:
-            backup.snapshot(self.conn, backup.backup_dir(Settings(self.conn), paths.DATA_DIR), "before-remove-source")
-            removed = remove_root(self.conn, root_id)
-        except RootInUse as e:
-            QMessageBox.information(self, "Remove a source", str(e))
+        if self._bg().busy("remove source"):
             return
-        except Exception as e:
-            QMessageBox.warning(self, "Remove a source", f"Couldn't remove it: {plain(e)}\n\nNothing was changed.")
-            return
+        # The snapshot and the removal run on a worker with its own connection
+        # (0.54: both ran on the window's thread, which froze with no progress).
+        # The note is modal, so nothing else is started meanwhile, and has no
+        # Cancel: the removal is one transaction, all of it or none of it.
+        from PySide6.QtWidgets import QProgressDialog
+        data_dir = paths.DATA_DIR
+        note = QProgressDialog(f"Taking {path} out of the library…\nThe catalog is backed up first.", None, 0, 0, self)
+        note.setWindowTitle("Remove a source")
+        note.setWindowModality(Qt.WindowModality.WindowModal)
+        note.setMinimumDuration(0)
+        self._remove_note = note
+        self._removing = path
+
+        def work(conn) -> int:
+            backup.snapshot(conn, backup.backup_dir(Settings(conn), data_dir), "before-remove-source")
+            return remove_root(conn, root_id)
+        self.status.setText(f"Removing {path} from Lunelis…")
+        note.show()
+        self._bg().run("remove source", work, self._source_removed, error=self._source_not_removed)
+
+    def _close_remove_note(self) -> str:
+        note, self._remove_note = getattr(self, "_remove_note", None), None
+        if note is not None:
+            note.close()
+            note.deleteLater()
+        return getattr(self, "_removing", "") or ""
+
+    def _source_removed(self, removed: int) -> None:
+        path = self._close_remove_note()
         self.status.setText(f"Removed {path} from Lunelis ({removed:,} photos and videos; nothing on disk changed)")
         self.settings_page.refresh()
         self.reload()
+
+    def _source_not_removed(self, e: Exception) -> None:
+        from lunelis.importers.scan import RootInUse
+        self._close_remove_note()
+        self.status.setText("")
+        if isinstance(e, RootInUse):
+            QMessageBox.information(self, "Remove a source", str(e))
+        else:
+            QMessageBox.warning(self, "Remove a source", f"Couldn't remove it: {plain(e)}\n\nNothing was changed.")
 
     def _read_waiting(self) -> None:
         """Files whose metadata hasn't been read - a new reader in this version
@@ -3632,7 +3852,7 @@ class MainWindow(QMainWindow):
         self._worker = LibraryWorker(root_ids)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
-        self._worker.progress.connect(self.status.setText)
+        self._worker.progress.connect(self._scan_progress)
         self._worker.step.connect(self._scan_step)
         self._worker.step.connect(self.status_page.step)
         self._worker.progress.connect(self.status_page.step_text)
@@ -3649,8 +3869,25 @@ class MainWindow(QMainWindow):
         self._worker.steps_failed.connect(self._on_steps_failed)
         self._worker.finished.connect(self._on_finished)
         self._set_busy(True)
+        self._scan_state_said = False
         self._thread.start()
         self._refresh_timer.start()
+
+    def _scan_note(self):
+        if not hasattr(self, "_scan_notice"):
+            from lunelis.ui.notice import Notice
+            self._scan_notice = Notice()
+        return self._scan_notice
+
+    def _scan_result(self, text: str) -> None:
+        """A result of the library pass ("Scanned in...", "Recognised 3 moved
+        files"): it stays in front of the progress text for a few seconds
+        (0.54: the next step's progress replaced it within milliseconds)."""
+        self.status.setText(self._scan_note().say(text))
+
+    @Slot(str)
+    def _scan_progress(self, text: str) -> None:
+        self.status.setText(self._scan_note().prefix() + text)
 
     def cancel_scan(self) -> None:
         if self._worker:
@@ -3659,21 +3896,21 @@ class MainWindow(QMainWindow):
 
     @unless_closed
     def _on_root_done(self, r: ScanResult) -> None:
-        self.status.setText(f"Scanned in {r.seconds:.1f}s: {r.added:,} new, {r.updated:,} changed, "
-                            f"{r.missing:,} missing")
+        self._scan_result(f"Scanned in {r.seconds:.1f}s: {r.added:,} new, {r.updated:,} changed, "
+                          f"{r.missing:,} missing")
         self.reload()
 
     @unless_closed
     def _on_meta_done(self, r: ExtractResult) -> None:
         if r.read or r.failed:
-            self.status.setText(f"Metadata read for {r.read:,} files in {r.seconds:.1f}s")
+            self._scan_result(f"Metadata read for {r.read:,} files in {r.seconds:.1f}s")
             self.reload()
 
     @unless_closed
     def _on_thumb_done(self, r) -> None:
         if r.made or r.failed:
-            self.status.setText(f"Made {r.made:,} thumbnails in {r.seconds:.1f}s"
-                                + (f" ({r.failed:,} preview unavailable)" if r.failed else ""))
+            self._scan_result(f"Made {r.made:,} thumbnails in {r.seconds:.1f}s"
+                              + (f" ({r.failed:,} preview unavailable)" if r.failed else ""))
 
     @unless_closed
     def _integrity_tick(self) -> None:
@@ -3813,11 +4050,13 @@ class MainWindow(QMainWindow):
         n = sum(r.found.values())
         from lunelis.ui import photoinfo
         when = photoinfo.clock(datetime.now())
+        last = self._scan_note().prefix()               # the last result stays readable beside it (0.54)
         if n:
-            self.status.set_link(f"Up to date - {n:,} damaged file{'s' if n != 1 else ''}: ",
+            self.status.set_link(f"{last}Up to date - {n:,} damaged file{'s' if n != 1 else ''}: ",
                                  "see Damaged files", "Damaged files")
         else:
-            self.status.setText("Up to date")
+            self.status.setText(f"{last}Up to date")
+        self._scan_state_said = True
         self.library_state.set_links([(f"Library up to date ({when})", "Library status")]
                                      + ([(f"{n:,} damaged file{'s' if n != 1 else ''}", "Damaged files")] if n else []))
 
@@ -3834,6 +4073,10 @@ class MainWindow(QMainWindow):
         stopped = bool(self._worker and self._worker._cancel)
         self._thread = self._worker = None
         self._set_busy(False)
+        if not getattr(self, "_scan_state_said", False):
+            # Stopped, or the last step failed: "Updating the library…" would
+            # stay for good (0.54). Back to what the catalog says.
+            self._show_library_state()
         queued, self._scan_queue = getattr(self, "_scan_queue", None), None
         if queued and not stopped:                     # asked for while this one ran (Stop drops them)
             QTimer.singleShot(0, lambda: self.start(queued))
@@ -3875,11 +4118,26 @@ class MainWindow(QMainWindow):
             busy.append("a merge")
         if getattr(self, "_batch_thread", None) is not None:
             busy.append("rendering edits")
-        if self.importer.busy():
+        if self.importer.importing():                  # not a card that is only being read (0.54)
             busy.append("an import")
         if getattr(self.runner, "current", None) is not None:
             busy.append("a background job")
         return busy
+
+    def _may_quit(self) -> bool:
+        """The "Quit anyway?" question while work is running; True to go on. Asked
+        once: Restart and an update ask before they start anything (0.54)."""
+        busy = self._busy_work()
+        if not busy or not Settings(self.conn).get("confirm_quit") or getattr(self, "_quit_confirmed", False):
+            return True
+        answer = QMessageBox.question(
+            self, "Quit Lunelis?",
+            "Still running: " + ", ".join(busy) + ".\n\nQuit anyway? It stops safely and picks up where it "
+            "left off next time where it can.")
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        self._quit_confirmed = True
+        return True
 
     def closeEvent(self, event) -> None:
         if self.tray is not None and not self._quitting:
@@ -3895,19 +4153,12 @@ class MainWindow(QMainWindow):
             Settings(self.conn).set("window_geometry", bytes(self.saveGeometry().toHex()).decode("ascii"))
         except Exception:
             pass                                       # never let this stop a close
-        busy = self._busy_work()
-        if busy and Settings(self.conn).get("confirm_quit") and not getattr(self, "_quit_confirmed", False):
-            answer = QMessageBox.question(
-                self, "Quit Lunelis?",
-                "Still running: " + ", ".join(busy) + ".\n\nQuit anyway? It stops safely and picks up where it "
-                "left off next time where it can.")
-            if answer != QMessageBox.StandardButton.Yes:
-                event.ignore()
-                self._quitting = False
-                return
-            self._quit_confirmed = True
+        if not self._may_quit():
+            event.ignore()
+            self._quitting = False
+            return
         if self.importer.busy():
-            self.importer._stop()
+            self.importer._stop()                      # an import, or a folder still being read (0.54)
             self.importer._thread.wait(15_000)
         # An edit in progress is saved; its proxy + thumbnail finish rendering.
         self.detail.set_editing(False)

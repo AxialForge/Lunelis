@@ -63,7 +63,11 @@ class SimilarWorker(QObject):
             else:
                 moved = freed = 0
                 errors: list[str] = []
-                backup_dir = paths.BACKUP_DIR          # one catalog snapshot, before the first move
+                # One catalog snapshot, before the first move - in the backup folder
+                # Settings names, like the daily one (0.54: always the default folder).
+                from lunelis.catalog import backup
+                from lunelis.settings import Settings
+                backup_dir = backup.backup_dir(Settings(conn), paths.DATA_DIR)
                 for i, g in enumerate(self.groups, 1):
                     if self._cancel:
                         break

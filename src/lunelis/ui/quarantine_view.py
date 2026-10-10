@@ -124,7 +124,10 @@ class EmptyWorker(QObject):
         conn = open_catalog(self.db)
         try:
             items = [e for e in manage.entries(conn) if e.key in self.keys]
-            res = manage.empty(conn, items, backup_dir=paths.BACKUP_DIR,
+            # The snapshot goes where Settings keeps catalog backups (0.54: always the default folder).
+            from lunelis.catalog import backup
+            from lunelis.settings import Settings
+            res = manage.empty(conn, items, backup_dir=backup.backup_dir(Settings(conn), paths.DATA_DIR),
                                on_progress=self.progress.emit, should_cancel=lambda: self._cancel)
         except Exception as e:                     # reported, so the dialog never hangs
             res = e

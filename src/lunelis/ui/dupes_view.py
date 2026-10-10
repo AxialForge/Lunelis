@@ -192,7 +192,7 @@ class QuarantineWorker(QObject):
         errors: list[str] = []
         try:
             groups = [g for g in load_groups(conn, self.preferred) if g.verified]
-            backup_dir = paths.BACKUP_DIR           # one snapshot, before the first move
+            backup_dir = _snapshot_dir(conn)        # one snapshot, before the first move
             for i, g in enumerate(groups, 1):
                 others = [m[0] for m in g.members if m[0] != g.keeper]
                 try:
@@ -206,6 +206,13 @@ class QuarantineWorker(QObject):
         finally:
             conn.close()
             self.done.emit(moved, freed, errors)
+
+
+def _snapshot_dir(conn):
+    """Where the safety snapshot before a set-aside goes: the backup folder
+    Settings names, as the daily snapshot does (0.54: always the default folder)."""
+    from lunelis.catalog import backup
+    return backup.backup_dir(Settings(conn), paths.DATA_DIR)
 
 
 def _card() -> tuple[QFrame, QVBoxLayout]:
@@ -317,6 +324,7 @@ class DuplicatesView(QWidget):
         self._thread = None
         self._all: list[Group] = []
         self.current: Group | None = None
+        self._verify_queue: list[Group] = []       # groups waiting for "Verify this group", in order
 
     # --- data ----------------------------------------------------------------
 
@@ -334,12 +342,16 @@ class DuplicatesView(QWidget):
         if self.tabs.currentIndex() == 1:
             self.near.refresh()
         # Thousands of groups with their copies: loaded on a worker.
-        if not hasattr(self, "bg"):
-            self.bg = Background(self, self.conn)
+        self._bg()
         if not self._all:
             self.summary.setText("Loading duplicate groups…")
         self.bg.run("groups", lambda c: load_groups(c, preferred), self._show_groups,
                     error=lambda e: self.summary.setText(f"Couldn't load the duplicates: {e}"))
+
+    def _bg(self) -> Background:
+        if not hasattr(self, "bg"):
+            self.bg = Background(self, self.conn)
+        return self.bg
 
     def _show_groups(self, groups) -> None:
         self._all = groups
@@ -463,23 +475,59 @@ class DuplicatesView(QWidget):
         self._show(self.model.groups.index(g) if g in self.model.groups else -1)
 
     def _verify_one(self, g: Group) -> None:
-        self.summary.setText(f"Verifying {g.name}…")
-        self.bg.run("verify-one", lambda c: detect.verify_group(c, g.id), lambda _ids: self.refresh(),
-                    error=lambda e: QMessageBox.warning(self, "Verify", f"Couldn't verify these copies: {e}"))
+        # Queued, one after another (0.54: asking for A, B and C in a row verified
+        # A and C - the background runner keeps only the newest request of a kind).
+        if all(q.id != g.id for q in self._verify_queue):
+            self._verify_queue.append(g)
+        if not self._bg().busy("verify-one"):
+            self._verify_next()
+
+    def _verify_next(self) -> None:
+        if not self._verify_queue:
+            self.refresh()
+            return
+        g = self._verify_queue[0]
+        left = len(self._verify_queue) - 1
+        self.summary.setText(f"Verifying {g.name}…" + (f" ({left:,} more waiting)" if left else ""))
+        self._bg().run("verify-one", lambda c: detect.verify_group(c, g.id), self._verified_one,
+                       error=self._verify_failed)
+
+    def _verified_one(self, _ids=None) -> None:
+        del self._verify_queue[:1]
+        self._verify_next()
+
+    def _verify_failed(self, e) -> None:
+        del self._verify_queue[:1]
+        QMessageBox.warning(self, "Verify", f"Couldn't verify these copies: {e}")
+        self._verify_next()
 
     def _quarantine_one(self, g: Group) -> None:
         others = [m[0] for m in g.members if m[0] != g.keeper]
+        if self._bg().busy("aside-one"):
+            self.summary.setText("Still setting the last group aside - try again in a moment")
+            return
         if QMessageBox.question(
                 self, "Set aside", f"Set aside {len(others)} extra cop{'y' if len(others) == 1 else 'ies'} of "
                 f"{g.name} ({_gb(g.extra_bytes)})? They move into '{QUARANTINE_DIR}' on the same drive; "
                 "the Quarantine page can put them back.") != QMessageBox.StandardButton.Yes:
             return
-        try:
-            quarantine(self.conn, g.id, others, backup_dir=paths.BACKUP_DIR)
-        except (QuarantineRefused, OSError) as e:
-            QMessageBox.warning(self, "Set aside", f"Nothing was moved: {e}")
-            return
+        # On a worker with its own connection, like "set aside all" (0.54: the
+        # catalog snapshot and the moves froze the window).
+        gid = g.id
+        self.summary.setText(f"Setting aside {len(others)} extra cop{'y' if len(others) == 1 else 'ies'} of "
+                             f"{g.name}…")
+        self.detail.setEnabled(False)                  # no second click on the same group meanwhile
+        self._bg().run("aside-one", lambda c: quarantine(c, gid, others, backup_dir=_snapshot_dir(c)),
+                       self._aside_one_done, error=self._aside_one_failed)
+
+    def _aside_one_done(self, _result=None) -> None:
+        self.detail.setEnabled(True)
         self.current = None
+        self.refresh()
+
+    def _aside_one_failed(self, e) -> None:
+        self.detail.setEnabled(True)
+        QMessageBox.warning(self, "Set aside", f"Nothing was moved: {e}")
         self.refresh()
 
     # --- set aside everything verified ---------------------------------------------------

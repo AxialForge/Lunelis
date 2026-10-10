@@ -22,6 +22,7 @@ from lunelis.albums import model as albums
 from lunelis.catalog.schema import open_catalog
 from lunelis.raw.thumbnails import cache_rel_path
 from lunelis.ui import theme as themes
+from lunelis.ui.background import window_closed
 from lunelis.ui.theme import qcolor
 from lunelis.ui.thumbcache import ThumbCache
 
@@ -29,12 +30,19 @@ TILE = 196
 
 
 class _AutoWorker(QObject):
-    done = Signal(object)            # list[Album] | Exception
+    done = Signal(object)            # (automatic albums, smart albums) | Exception
+
+    def __init__(self, db: str | None = None) -> None:
+        super().__init__()
+        self.db = db
 
     def run(self) -> None:
-        conn = open_catalog(paths.DEFAULT_CATALOG_PATH)
+        conn = open_catalog(self.db or paths.DEFAULT_CATALOG_PATH)
         try:
-            self.done.emit(albums.auto_albums(conn))
+            # The smart albums are counted here too (0.54: each one's rules ran
+            # on the window's thread at every visit).
+            from lunelis.albums import smart
+            self.done.emit((albums.auto_albums(conn), smart.smart_albums(conn)))
         except Exception as e:       # shown on the page, never fatal
             self.done.emit(e)
         finally:
@@ -168,6 +176,8 @@ class NewAlbumTile(QWidget):
         super().__init__(parent)
         self.setFixedSize(TILE, TILE + 46)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)       # Tab reaches it; Enter / Space make an album (0.54)
+        self.setAccessibleName("New album")
         self._hover = False
         self._font = QFont(self.font())
         self._font.setPixelSize(14)
@@ -177,10 +187,11 @@ class NewAlbumTile(QWidget):
         t = themes.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(qcolor(t.accent if self._hover else t.border), 2, Qt.PenStyle.DashLine)
+        lit = self._hover or self.hasFocus()
+        pen = QPen(qcolor(t.accent if lit else t.border), 3 if self.hasFocus() else 2, Qt.PenStyle.DashLine)
         p.setPen(pen)
-        p.drawRoundedRect(QRectF(1, 1, TILE - 2, TILE - 2), 10, 10)
-        p.setPen(qcolor(t.text if self._hover else t.text_muted))
+        p.drawRoundedRect(QRectF(1.5, 1.5, TILE - 3, TILE - 3), 10, 10)
+        p.setPen(qcolor(t.text if lit else t.text_muted))
         p.setFont(self._font)
         p.drawText(QRect(0, 0, TILE, TILE), Qt.AlignmentFlag.AlignCenter, "+\nNew album")
 
@@ -195,6 +206,20 @@ class NewAlbumTile(QWidget):
     def mouseReleaseEvent(self, e) -> None:
         if e.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
+
+    def keyPressEvent(self, e) -> None:
+        if e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.clicked.emit()
+        else:
+            super().keyPressEvent(e)
+
+    def focusInEvent(self, e) -> None:
+        super().focusInEvent(e)
+        self.update()
+
+    def focusOutEvent(self, e) -> None:
+        super().focusOutEvent(e)
+        self.update()
 
 
 class TileFlow(QWidget):
@@ -224,6 +249,11 @@ class TileFlow(QWidget):
         self._cols = cols
         while self.grid.count():
             self.grid.takeAt(0)
+        # The spare width goes to the column after the last one - and to no other:
+        # the column that had it at the old width now holds tiles, and a stretch
+        # left on it opened an uneven gap there (0.54).
+        for c in range(max(self.grid.columnCount(), cols) + 1):
+            self.grid.setColumnStretch(c, 0)
         for n, w in enumerate(self.widgets):
             self.grid.addWidget(w, n // cols, n % cols, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.grid.setColumnStretch(cols, 1)
@@ -253,6 +283,8 @@ class AlbumsView(QWidget):
         self.thumbs.ready.connect(lambda _: self._repaint_tiles())
         self._thread: QThread | None = None
         self._auto: list[albums.Album] | None = None
+        self._smart: list[albums.Album] | None = None    # counted on the worker with the automatic ones
+        self._again = False                              # asked to count again while a count was running
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -333,25 +365,45 @@ class AlbumsView(QWidget):
                                  "in your folder names and capture times." if evs else
                                  "No events yet. Event suggestions finds them in your folder names and capture "
                                  "times, or select photos in the library and use Photo > Event.")
-        from lunelis.albums import smart
-        smarts = smart.smart_albums(self.conn)
-        self.smart.set_widgets([self._tile(a) for a in smarts])
-        self.smart_help.setText("Saved rules that keep themselves up to date - e.g. ISO above 3200, 5 stars and "
-                                "one lens." if not smarts else "Kept up to date by their rules.")
         self.count.setText(f"{len(mine):,} albums · {len(evs):,} events")
+        # Smart and automatic albums: the last count is shown at once, the new
+        # one comes from a worker (0.54: the smart albums were counted here).
+        if self._smart is not None:
+            self._show_smart(self._smart)
+        else:
+            self.smart_help.setText("Counting your smart albums…")
         if self._auto is not None:
             self.auto.set_widgets([self._tile(a) for a in self._auto])
         self._load_auto()
 
+    def _show_smart(self, smarts: list) -> None:
+        self.smart.set_widgets([self._tile(a) for a in smarts])
+        self.smart_help.setText("Saved rules that keep themselves up to date - e.g. ISO above 3200, 5 stars and "
+                                "one lens." if not smarts else "Kept up to date by their rules.")
+
     def _load_auto(self) -> None:
         if self._thread is not None:
+            self._again = True                         # e.g. a smart album made meanwhile: count once more after
+            return
+        from lunelis.ui.background import db_file
+        try:
+            db = db_file(self.conn)
+        except Exception:                              # the catalog was closed under the page
+            return
+        if not db:
+            # An in-memory catalog can't be opened twice: counted here.
+            from lunelis.albums import smart
+            try:
+                self._counted((albums.auto_albums(self.conn), smart.smart_albums(self.conn)))
+            except Exception as e:
+                self._counted(e)
             return
         if self._auto is None:
             self.auto_help.setText("Building the automatic albums from your library - favourites, videos, "
                                    "each camera, recent, no date… This takes a few seconds on a big library.")
             self.auto_busy.show()
         self._thread = QThread(self)
-        self._worker = _AutoWorker()
+        self._worker = _AutoWorker(db)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.done.connect(self._auto_loaded)      # bound method: GUI thread
@@ -361,13 +413,26 @@ class AlbumsView(QWidget):
         self._thread.quit()
         self._thread.wait()
         self._thread = None
+        if window_closed(self):                        # the catalog closed meanwhile: nothing to show
+            return
+        if self._again:
+            self._again = False
+            self._load_auto()                          # the newer count is the one to show
+            if self._thread is not None:
+                return
+        self._counted(result)
+
+    def _counted(self, result) -> None:
         self.auto_busy.hide()
         if isinstance(result, Exception):
             self.auto_help.setText(f"Couldn't count the automatic albums: {result}")
+            if self._smart is None:
+                self.smart_help.setText(f"Couldn't count the smart albums: {result}")
             return
-        self._auto = result
+        self._auto, self._smart = result
         self.auto_help.setText("Kept up to date by Lunelis.")
-        self.auto.set_widgets([self._tile(a) for a in result])
+        self.auto.set_widgets([self._tile(a) for a in self._auto])
+        self._show_smart(self._smart)
 
     def _tile(self, a: albums.Album) -> AlbumTile:
         t = AlbumTile(a, self.thumbs)
