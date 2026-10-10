@@ -145,3 +145,67 @@ def test_the_tags_page_shows_groups_and_picture_cards(lib):
     assert [page.cards.item(i).text().split("\n")[0] for i in range(page.cards.count())] == ["Rex"]
     page.view_group.button(1).click()
     assert page.views.currentWidget() is page.tree
+
+
+def test_the_faces_menu_adds_redraws_and_removes_by_hand(tmp_path, monkeypatch):
+    # 0.53: a menu beside Faces - add a person or a pet by dragging a box,
+    # redraw a box, remove any box.
+    from PySide6.QtWidgets import QApplication, QInputDialog
+    QApplication.instance() or QApplication([])
+    from lunelis import paths
+    from lunelis.importers.scan import add_root, scan_root
+    from lunelis.raw.thumbnails import generate_pending
+    from lunelis.ui import main_window as mw
+    from test_faces import RED, photo
+    monkeypatch.setattr(faces, "backend", lambda: None)
+    w = mw.MainWindow()
+    try:
+        root = tmp_path / "P"
+        root.mkdir()
+        photo(root / "one.jpg", RED)
+        rid = add_root(w.conn, root)
+        scan_root(w.conn, rid)
+        generate_pending(w.conn, paths.THUMBNAIL_CACHE)
+        faces.scan_files(w.conn, faces.pending(w.conn, FakeBackend.model_id, root_id=rid), FakeBackend())
+        fid = w.conn.execute("SELECT id FROM files WHERE root_id = ?", (rid,)).fetchone()[0]
+        w.reload()
+        w.open_detail(fid)
+        d = w.detail
+        found = faces.faces_of(w.conn, fid)[0]
+        # Add a pet: drag a box (no Ctrl), name it.
+        d.start_face_draw("pet")
+        assert d.canvas.draw_mode == "pet" and d.faces_b.isChecked()
+        monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda *a, **k: ("Rex", True)))
+        d._face_drawn([0.6, 0.1, 0.2, 0.2])
+        assert d.canvas.draw_mode is None and "Pets|Rex" in tags.tags_of(w.conn, fid)
+        # Add a person.
+        d.start_face_draw("person")
+        monkeypatch.setattr(d, "_ask_name", lambda title: "Eve")
+        d._face_drawn([0.05, 0.6, 0.2, 0.2])
+        assert "People|Eve" in tags.tags_of(w.conn, fid)
+        eve = next(f for f in faces.faces_of(w.conn, fid) if f.name == "Eve")
+        # Redraw Eve's box: she keeps her name.
+        d.start_face_draw(("redraw", eve.id))
+        d._face_drawn([0.1, 0.5, 0.3, 0.3])
+        again = next(f for f in faces.faces_of(w.conn, fid) if f.id == eve.id)
+        assert again.name == "Eve" and again.box == [0.1, 0.5, 0.3, 0.3]
+        # Remove: a hand-drawn box goes; a found one is remembered as "not a face".
+        faces.remove_face(w.conn, eve.id)
+        faces.remove_face(w.conn, found.id)
+        left = faces.faces_of(w.conn, fid, with_ignored=True)
+        assert eve.id not in [f.id for f in left] and next(f for f in left if f.id == found.id).ignored
+        assert "People|Eve" not in tags.tags_of(w.conn, fid)
+        # The menu lists what's there, and Esc backs out of drawing.
+        d._fill_faces_menu()
+        texts = [a.text() for a in d.faces_menu.actions()]
+        assert any(t.startswith("Add a person") for t in texts) and any("Rex" in t for t in texts)
+        d.start_face_draw("person")
+        d._end_face_draw()
+        assert d.canvas.draw_mode is None
+    finally:
+        for kind in (faces.PERSON, faces.PET):               # the window's catalog is shared with other tests
+            for p in faces.people(w.conn, kind):
+                if p.name in ("Eve", "Rex"):
+                    faces.delete_person(w.conn, p.id)
+        w._quitting = True
+        w.close()

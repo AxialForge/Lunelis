@@ -269,6 +269,7 @@ class PhotoCanvas(QWidget):
         self.af: tuple | None = None          # the camera's focus area while peaking: (x, y[, w, h]) fractions
         self._tool_cache: tuple | None = None # (pix key, tool) -> (overlay QImage, histogram)
         self._draw: tuple[QPointF, QPointF] | None = None
+        self.draw_mode = None             # set: the next drag draws a face box without Ctrl (0.53)
         self.setMinimumSize(200, 100)                 # short windows (the 900 x 350 minimum) still fit
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -549,7 +550,7 @@ class PhotoCanvas(QWidget):
         """With the overlay on: a click on a box opens its menu; Ctrl+drag draws a new box."""
         if not self.show_faces or self._turned() or self.pix is None or e.button() != Qt.MouseButton.LeftButton:
             return False
-        if e.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        if self.draw_mode is not None or e.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self._draw = (e.position(), e.position())
             return True
         fid = self.face_at(e.position())
@@ -1057,6 +1058,8 @@ class DetailView(QWidget):
             b.setIcon(icons.icon(name, t.text, t.text, TOOL_ICON))
         for name, b in getattr(self, "tool_b", {}).items():
             b.setIcon(icons.icon(name, t.text_muted, t.accent_text, TOOL_ICON))
+        if hasattr(self, "faces_menu_b"):
+            self.faces_menu_b.setIcon(icons.icon("chevron_down", t.text, size=14))
 
     # --- view tools (0.52) ---------------------------------------------------------------------
 
@@ -1193,6 +1196,16 @@ class DetailView(QWidget):
                                 "correct it; Ctrl+drag draws one Lunelis missed.")
         self.faces_b.toggled.connect(self.set_faces_overlay)
         h.addWidget(self.faces_b)
+        from PySide6.QtWidgets import QMenu, QToolButton
+        self.faces_menu_b = QToolButton(popupMode=QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.faces_menu_b.setObjectName("MenuArrow")
+        self.faces_menu_b.setFixedSize(28, TOOL_BUTTON)
+        self.faces_menu_b.setIconSize(QSize(14, 14))
+        self.faces_menu_b.setToolTip("Add, change or remove the faces, pets and animals in this photo")
+        self.faces_menu = QMenu(self.faces_menu_b)
+        self.faces_menu.aboutToShow.connect(self._fill_faces_menu)
+        self.faces_menu_b.setMenu(self.faces_menu)
+        h.addWidget(self.faces_menu_b)
         self.rotate_l = QPushButton(clicked=lambda: self.rotate_requested.emit(-1))
         self.rotate_l.setToolTip("Rotate left (Ctrl+[) - how it's shown; the file isn't changed")
         self.rotate_r = QPushButton(clicked=lambda: self.rotate_requested.emit(1))
@@ -1700,14 +1713,58 @@ class DetailView(QWidget):
         if f is None:
             return
         m = QMenu(self)
+        self._face_actions(m, f)
+        m.exec(at)
+
+    def _fill_faces_menu(self) -> None:
+        """The menu beside the Faces button (0.53): add, change or remove faces by hand."""
+        from lunelis.recognize import faces
+        m = self.faces_menu
+        m.clear()
+        show = m.addAction("Show faces (F)", lambda: self.set_faces_overlay(not self.faces_b.isChecked()))
+        show.setCheckable(True)
+        show.setChecked(self.faces_b.isChecked())
+        ok = self.info is not None and not self.info.is_video and not self.editing
+        m.addSeparator()
+        for text, mode in (("Add a person… (drag a box around the face)", "person"),
+                           ("Add a pet or animal… (drag a box around it)", "pet")):
+            m.addAction(text, lambda md=mode: self.start_face_draw(md)).setEnabled(ok)
+        again = m.addAction("Look for faces in this photo again", self._faces_look_again)
+        again.setEnabled(ok and faces.available())
+        if ok:
+            here = faces.faces_of(self.conn, self.info.file_id, with_strangers=True)
+            if here:
+                m.addSeparator()
+            n = 0
+            for f in here:
+                if f.name:
+                    label = f.name + (" (pet)" if f.pet else "")
+                elif f.animal:
+                    label = "Animal"
+                elif f.stranger:
+                    label = "Stranger"
+                else:
+                    n += 1
+                    label = f"Unnamed face {n}" + (f" - {f.suggested}?" if f.suggested else "")
+                self._face_actions(m.addMenu(label), f)
+        m.addSeparator()
+        m.addAction("Open the People page", lambda: self.show_person.emit(-1))
+
+    def _face_actions(self, m, f) -> None:
+        """What can be done to one face: in its right-click menu and the Faces menu."""
+        from lunelis.recognize import faces
+        m.addAction("Redraw this box… (drag a new one)", lambda: self.start_face_draw(("redraw", f.id)))
+        m.addAction("Remove this box", lambda: (faces.remove_face(self.conn, f.id), self._face_changed()))
+        m.addSeparator()
         if f.animal:                               # 0.52: pets
             m.addAction("Rename this pet…" if f.name else "Name this pet…", lambda: self._name_pet(f.id))
             m.addAction("Not an animal", lambda: (faces.ignore(self.conn, [f.id], ignored=False),
                                                   self._face_changed()))
+            m.addAction("A person, not an animal…", lambda: (faces.ignore(self.conn, [f.id], ignored=False),
+                                                           self._name_face(f.id)))
             if f.name:
                 m.addSeparator()
                 m.addAction(f"All photos of {f.name}…", lambda: self.show_person.emit(f.person_id))
-            m.exec(at)
             return
         if f.suggested and not f.name:
             m.addAction(f"Yes, this is {f.suggested}", lambda: (faces.confirm(self.conn, [f.id], f.suggested_id),
@@ -1722,10 +1779,6 @@ class DetailView(QWidget):
             m.addAction("Stranger (tag the photo People > Unknown)",
                         lambda: (faces.mark_strangers(self.conn, [f.id]), self._face_changed()))
         m.addAction("An animal…", lambda: self._name_pet(f.id, ask_first=True))
-        if f.source == "user":
-            m.addAction("Remove this box", lambda: (faces.delete_face(self.conn, f.id), self._face_changed()))
-        else:
-            m.addAction("Not a face", lambda: (faces.ignore(self.conn, [f.id]), self._face_changed()))
         if faces.unnamed_in(self.conn, [f.file_id]):
             m.addSeparator()
             m.addAction("Everyone not named here is a stranger",
@@ -1733,7 +1786,40 @@ class DetailView(QWidget):
         if f.name:
             m.addSeparator()
             m.addAction(f"All photos of {f.name}…", lambda: self.show_person.emit(f.person_id))
-        m.exec(at)
+
+    def start_face_draw(self, mode) -> None:
+        """The next drag on the photo draws a box: a new person, a new pet, or
+        an existing face's box again. Esc cancels."""
+        if self.info is None or self.info.is_video:
+            return
+        if not self.faces_b.isChecked():
+            self.set_faces_overlay(True)
+        self.canvas.draw_mode = mode
+        self.canvas.setCursor(Qt.CursorShape.CrossCursor)
+        self.canvas.message = "Drag a box around it - Esc to cancel"
+        self.canvas.update()
+
+    def _end_face_draw(self) -> None:
+        self.canvas.draw_mode = None
+        self.canvas.message = ""
+        self.canvas.setCursor(Qt.CursorShape.ArrowCursor)
+        self.canvas.update()
+
+    def _faces_look_again(self) -> None:
+        from lunelis.recognize import faces
+        if self.info is None:
+            return
+        try:
+            n = faces.look_again(self.conn, self.info.file_id)
+        except RuntimeError as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Faces", str(e).capitalize() + ".")
+            return
+        if not self.faces_b.isChecked():
+            self.set_faces_overlay(True)
+        self._face_changed()
+        self.canvas.message = f"{n} face{'s' if n != 1 else ''} found" if n else "No faces found - add one by hand"
+        self.canvas.update()
 
     def _name_face(self, face_id: int) -> None:
         from lunelis.recognize import faces
@@ -1772,16 +1858,35 @@ class DetailView(QWidget):
         if self.info is None:
             return
         from lunelis.recognize import faces
+        mode = self.canvas.draw_mode
+        self._end_face_draw()
+        if isinstance(mode, tuple) and mode[0] == "redraw":
+            faces.move_face(self.conn, mode[1], box)
+            self._face_changed()
+            return
+        if mode == "pet":
+            fid = faces.add_face(self.conn, self.info.file_id, box, None)
+            faces.mark_animal(self.conn, [fid])
+            self._face_changed()
+            self._name_pet(fid)                      # a name is optional: it stays an animal without one
+            return
         name = self._ask_name("A face Lunelis missed")
         if name is None:
             self.canvas.update()                     # cancelled: no box is added
             return
-        faces.add_face(self.conn, self.info.file_id, box, name or None)
+        try:
+            faces.add_face(self.conn, self.info.file_id, box, name or None)
+        except ValueError as e:                      # a pet's name
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Name this face", str(e))
         self._face_changed()
 
     def keyPressEvent(self, e) -> None:
         k, mods = e.key(), e.modifiers()
         ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        if k == Qt.Key.Key_Escape and self.canvas.draw_mode is not None:
+            self._end_face_draw()                      # not adding a face after all
+            return
         if k == Qt.Key.Key_F and not ctrl and not self.editing and not (mods & Qt.KeyboardModifier.ShiftModifier):
             self.set_faces_overlay(not self.faces_b.isChecked())
             return

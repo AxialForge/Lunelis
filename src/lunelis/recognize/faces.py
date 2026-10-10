@@ -770,6 +770,41 @@ def add_face(conn: sqlite3.Connection, file_id: int, box: list[float], name: str
     return face_id
 
 
+def move_face(conn: sqlite3.Connection, face_id: int, box: list[float]) -> None:
+    """Redraw a face's box (0.53): the face keeps its name; its crop is made again."""
+    box = [max(0.0, min(1.0, float(v))) for v in box]
+    row = conn.execute("SELECT file_id FROM faces WHERE id = ?", (face_id,)).fetchone()
+    if row is None:
+        return
+    conn.execute("UPDATE faces SET bbox_json = ? WHERE id = ?", (json.dumps([round(v, 5) for v in box]), face_id))
+    conn.commit()
+    try:
+        save_crop(_image(conn, row[0]), face_id, box)
+    except Exception:                              # noqa: BLE001 - offline: the old crop stays
+        pass
+
+
+def remove_face(conn: sqlite3.Connection, face_id: int) -> None:
+    """Take a box off a photo (0.53), whoever made it: one drawn by hand is
+    deleted; one Lunelis found is kept as "not a face", so the next look at
+    the photo doesn't bring it back."""
+    row = conn.execute("SELECT source FROM faces WHERE id = ?", (face_id,)).fetchone()
+    if row is None:
+        return
+    if row[0] == "user":
+        delete_face(conn, face_id)
+    else:
+        ignore(conn, [face_id])
+
+
+def look_again(conn: sqlite3.Connection, file_id: int) -> int:
+    """Find the faces in one photo again (named and hand-drawn ones stay).
+    Returns how many were found; raises RuntimeError without the models."""
+    conn.execute("DELETE FROM face_scans WHERE file_id = ?", (file_id,))
+    conn.commit()
+    return scan_files(conn, [file_id])[1]
+
+
 def delete_face(conn: sqlite3.Connection, face_id: int) -> None:
     """Remove a hand-drawn box (found faces are ignored instead, so they don't come back)."""
     before = _files_of(conn, [face_id])

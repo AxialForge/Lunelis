@@ -365,6 +365,10 @@ def _stylesheet(t: Theme | None = None) -> str:
     QListWidget#TagCards::item:hover {{ background: {t.field_bg}; }}
     QListWidget#TagCards::item:selected {{ background: {_mix(t.accent, t.surface, 0.18)}; color: {t.text}; }}
     QPushButton#Segment {{ padding: 4px 12px; }}
+    /* A menu arrow beside a button (the photo view's Faces menu, 0.53). */
+    QToolButton#MenuArrow {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 8px; padding: 0; }}
+    QToolButton#MenuArrow:hover {{ background: {t.field_bg}; }}
+    QToolButton#MenuArrow::menu-indicator {{ image: none; width: 0; }}
     /* An album open from another page (0.53). */
     QWidget#ScopeBar {{ background: {t.surface}; border-bottom: 1px solid {t.border}; }}
     /* The photo view's tool rail (0.52). */

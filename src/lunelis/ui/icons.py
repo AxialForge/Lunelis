@@ -68,6 +68,7 @@ _PATHS = {
     "zones": '<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M7.7 5v14M11.9 5v14M16.1 5v14"/>',
     "histogram": '<path d="M3 20h18"/><path d="M5 20v-5M8 20v-9M11 20v-13M14 20v-8M17 20v-4M20 20v-2"/>',
     "guides": '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/>',
+    "chevron_down": '<path d="M5.5 9.5L12 16l6.5-6.5"/>',
     "close": '<path d="M6 6l12 12M18 6L6 18"/>',
     "rotate_left": '<path d="M4.5 9.5a8 8 0 1 1 1.4 7.6"/><path d="M4 4.5v5h5"/>',
     "rotate_right": '<path d="M19.5 9.5a8 8 0 1 0-1.4 7.6"/><path d="M20 4.5v5h-5"/>',
