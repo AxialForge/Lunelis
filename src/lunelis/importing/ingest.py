@@ -200,11 +200,48 @@ def discover(source: str, profile=None) -> list[tuple[str, int, float]]:
             dirs[:] = [d for d in dirs if not d.startswith(".")
                        and os.path.normcase(os.path.join(dirpath, d)) not in skip]
             for name in files:
-                if is_cataloged(name):
+                if is_cataloged(name) and not name.startswith("._"):     # ._X.JPG: a Mac's resource file, not a photo
                     full = os.path.join(dirpath, name)
                     st = os.stat(full)
                     out.append((os.path.relpath(full, source).replace("\\", "/"), st.st_size, st.st_mtime))
     return sorted(out)
+
+
+# Pictures, clips and sound a card can hold that Lunelis doesn't catalog (yet):
+# an import leaves them on the card, so it must not call the card safe to format (0.53).
+NOT_COPIED_EXTS = frozenset({
+    "avi", "mpg", "mpeg", "3gp", "m4v", "mkv", "wmv", "mxf", "braw", "r3d", "insv", "insp", "lrv", "gpr",
+    "wav", "mp3", "m4a", "avif", "jxl", "3fr", "iiq", "erf", "x3f", "crw", "rwl", "mos", "mrw", "kdc", "dcr",
+})
+
+
+def not_copied(source: str, profile=None) -> dict[str, int]:
+    """{EXT: files} of media on the card that this import does not copy. Empty
+    when the card can't be read any more (it was removed)."""
+    if not os.path.isdir(source):
+        return {}
+    profile = profile or _profile(source)
+    skip = {os.path.normcase(os.path.join(source, *d.split("/"))) for d in profile.skip_dirs}
+    out: dict[str, int] = {}
+    try:
+        for dirpath, dirs, files in os.walk(source):
+            dirs[:] = [d for d in dirs if not d.startswith(".")
+                       and os.path.normcase(os.path.join(dirpath, d)) not in skip]
+            for name in files:
+                ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+                if ext in NOT_COPIED_EXTS and not name.startswith("._"):
+                    out[ext.upper()] = out.get(ext.upper(), 0) + 1
+    except OSError:
+        return {}
+    return out
+
+
+def not_copied_text(left: dict[str, int]) -> str:
+    n = sum(left.values())
+    kinds = ", ".join(f"{k} x {v}" for k, v in sorted(left.items(), key=lambda kv: -kv[1])[:6])
+    return (f"{n:,} other file{'s' if n != 1 else ''} on the card {'were' if n != 1 else 'was'} NOT copied "
+            f"({kinds}) - Lunelis doesn't handle {'those types' if len(left) != 1 else 'that type'}. "
+            "Copy them yourself before you format the card.")
 
 
 def sidecars_of(source: str, media: list[tuple[str, int, float]], profile=None) -> dict[str, list[tuple[str, int, float]]]:
@@ -638,6 +675,15 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
         if on_progress:
             on_progress(n, len(todo), rel)
     s = summary(conn, import_id)
+    src = conn.execute("SELECT source FROM imports WHERE id = ?", (import_id,)).fetchone()
+    s["not_copied"] = not_copied(src[0]) if src and src[0] else {}
+    if s["safe_to_format"] and s["not_copied"]:
+        s["safe_to_format"] = False                       # its photos are safe; the card still holds other files
+        _set(conn, import_id, "done", "All photos and videos are in the library and verified. "
+             + not_copied_text(s["not_copied"]), finished=True)
+        if cfg is not None:
+            cleanup_staging(import_id, cfg)
+        return s
     if s["safe_to_format"]:
         _set(conn, import_id, "done", "All in the library and verified - safe to format the card", finished=True)
         if cfg is not None:

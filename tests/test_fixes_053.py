@@ -57,3 +57,22 @@ def test_one_missing_file_doesnt_stop_a_hash_or_check_job(tmp_path):
     conn.execute("UPDATE files SET content_hash = 'abc'")
     engine._integrity_folder(conn, rid, "", throttle=Throttle(None), should_cancel=None, workers=1)
     conn.close()
+
+
+def test_an_import_says_what_it_left_on_the_card(tmp_path):
+    # "Safe to format the card" was shown with AVI / WAV / GoPro files still only on it.
+    from lunelis.importing import ingest
+    card = tmp_path / "card" / "DCIM" / "100MSDCF"
+    card.mkdir(parents=True)
+    (card / "DSC0001.JPG").write_bytes(b"\xff\xd8\xff" + b"0" * 200)
+    (card / "._DSC0001.JPG").write_bytes(b"mac resource fork")
+    (card / "MOVIE.AVI").write_bytes(b"RIFF....AVI ")
+    (card / "SOUND.WAV").write_bytes(b"RIFF....WAVE")
+    (card / "SOUND2.WAV").write_bytes(b"RIFF....WAVE")
+    found = [rel.rsplit("/", 1)[-1] for rel, _s, _m in ingest.discover(str(tmp_path / "card"))]
+    assert found == ["DSC0001.JPG"]                               # not the Mac's ._ file
+    left = ingest.not_copied(str(tmp_path / "card"))
+    assert left == {"AVI": 1, "WAV": 2}
+    text = ingest.not_copied_text(left)
+    assert "3 other files" in text and "NOT copied" in text and "WAV x 2" in text
+    assert ingest.not_copied(str(tmp_path / "gone")) == {}        # the card was removed: nothing to say

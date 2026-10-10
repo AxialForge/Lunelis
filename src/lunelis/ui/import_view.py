@@ -501,7 +501,11 @@ class ImportView(QWidget):
         else:
             s = result
             lines = []
-            if s["safe_to_format"]:
+            if s.get("not_copied"):
+                from lunelis.importing.ingest import not_copied_text
+                lines.append("✔  All photos and videos are in the library and verified.")
+                lines.append("⚠  " + not_copied_text(s["not_copied"]))
+            elif s["safe_to_format"]:
                 lines.append("✔  All in the library and verified. It's safe to format the card.")
             elif s["card_removable"]:
                 lines.append("✔  Everything is copied and verified - you can remove the card.")
