@@ -144,6 +144,10 @@ class _FullSignals(QObject):
     loaded = Signal(int, QImage)
 
 
+class _AFSignals(QObject):
+    found = Signal(int, object)          # file id, (x, y) fractions or None
+
+
 class _FullLoad(QRunnable):
     """The photo at its own full resolution, for zooming past the preview
     (a RAW is decoded - ~2 s for 60 MP; a JPEG/HEIC read whole)."""
@@ -258,6 +262,12 @@ class PhotoCanvas(QWidget):
         self.faces: list[tuple[int, list[float], str, str]] = []
         self.show_faces = False
         self.turn_id: int | None = None   # the file shown, for its turn (turns.py); None in the editor
+        # View tools (0.52, view_tools.py): drawn over the picture, never into it.
+        self.view_tool: str | None = None     # peaking | clipping | false_colour | zones
+        self.show_histogram = False
+        self.guide: str | None = None         # thirds | golden | centre | level
+        self.af: tuple[float, float] | None = None   # the camera's AF point, while peaking
+        self._tool_cache: tuple | None = None # (pix key, tool) -> (overlay QImage, histogram)
         self._draw: tuple[QPointF, QPointF] | None = None
         self.setMinimumSize(200, 100)                 # short windows (the 900 x 350 minimum) still fit
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -386,6 +396,8 @@ class PhotoCanvas(QWidget):
             return
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         p.drawPixmap(self._fit_rect(), self.pix, QRectF(self.pix.rect()))
+        if self.view_tool or self.show_histogram or self.guide:
+            self._paint_tools(p)
         if self.scale is not None:
             dpr = max(self.devicePixelRatioF(), 1.0)
             text = f"{self.scale * dpr * 100:.0f} %"
@@ -397,6 +409,85 @@ class PhotoCanvas(QWidget):
                        self.message or "Loading full size…")
         if self.show_faces and not self._turned():
             self._paint_faces(p)
+
+    def _tool_images(self):
+        """(overlay QImage or None, histogram or None) for the picture shown -
+        worked out once per picture and tool."""
+        key = (self.pix.cacheKey(), self.view_tool, self.show_histogram)
+        if self._tool_cache and self._tool_cache[0] == key:
+            return self._tool_cache[1]
+        import numpy as np
+        from PySide6.QtGui import QImage
+        from lunelis import view_tools as vt
+        img = self.pix.toImage().convertToFormat(QImage.Format.Format_RGB888)
+        bpl = img.bytesPerLine()
+        a = np.frombuffer(img.constBits(), np.uint8, bpl * img.height()).reshape(img.height(), bpl)
+        rgb = vt.shrink(np.ascontiguousarray(a[:, :img.width() * 3].reshape(img.height(), img.width(), 3)))
+        over = None
+        if self.view_tool in vt.OVERLAYS:
+            o = np.ascontiguousarray(vt.OVERLAYS[self.view_tool](rgb))
+            over = QImage(o.data, o.shape[1], o.shape[0], o.shape[1] * 4, QImage.Format.Format_RGBA8888).copy()
+        hist = vt.histogram(rgb) if self.show_histogram else None
+        self._tool_cache = (key, (over, hist))
+        return over, hist
+
+    def _paint_tools(self, p: QPainter) -> None:
+        r = self._fit_rect()
+        over, hist = self._tool_images()
+        if over is not None:
+            p.drawImage(r, over, QRectF(over.rect()))
+        if self.view_tool == "peaking" and self.af is not None:
+            c = QPointF(r.x() + self.af[0] * r.width(), r.y() + self.af[1] * r.height())
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            for colour, w in ((QColor(0, 0, 0, 160), 4), (QColor(255, 220, 0), 2)):
+                p.setPen(QPen(colour, w))
+                p.drawRect(QRectF(c.x() - 18, c.y() - 18, 36, 36))
+        if self.guide:
+            self._paint_guide(p, r)
+        if hist is not None:
+            self._paint_histogram(p, hist)
+
+    def _paint_guide(self, p: QPainter, r: QRectF) -> None:
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        lines = []
+        if self.guide in ("thirds", "golden"):
+            k = 1 / 3 if self.guide == "thirds" else 0.382
+            for f in (k, 1 - k):
+                lines.append(((r.left() + f * r.width(), r.top()), (r.left() + f * r.width(), r.bottom())))
+                lines.append(((r.left(), r.top() + f * r.height()), (r.right(), r.top() + f * r.height())))
+        elif self.guide == "centre":
+            cx, cy = r.center().x(), r.center().y()
+            lines += [((cx - 24, cy), (cx + 24, cy)), ((cx, cy - 24), (cx, cy + 24))]
+            lines += [((r.left(), r.top()), (r.right(), r.bottom())), ((r.right(), r.top()), (r.left(), r.bottom()))]
+        elif self.guide == "level":
+            for f in (0.25, 0.5, 0.75):
+                lines.append(((r.left(), r.top() + f * r.height()), (r.right(), r.top() + f * r.height())))
+            for f in (0.25, 0.5, 0.75):
+                lines.append(((r.left() + f * r.width(), r.top()), (r.left() + f * r.width(), r.bottom())))
+        for colour, w in ((QColor(0, 0, 0, 110), 3), (QColor(255, 255, 255, 190), 1)):
+            p.setPen(QPen(colour, w))
+            for a, b in lines:
+                p.drawLine(QPointF(*a), QPointF(*b))
+
+    def _paint_histogram(self, p: QPainter, hist) -> None:
+        import numpy as np
+        from PySide6.QtGui import QPainterPath
+        w, h = 256, 110
+        box = QRectF(self.width() - w - 16, self.height() - h - 34, w, h)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(0, 0, 0, 170))
+        p.drawRoundedRect(box.adjusted(-6, -6, 6, 6), 6, 6)
+        top = float(np.percentile(hist[:3, 2:-2], 99.5)) or 1.0      # one spike mustn't flatten the rest
+        for row, colour in ((3, QColor(220, 220, 220, 90)), (0, QColor(255, 70, 70, 120)),
+                            (1, QColor(70, 230, 90, 120)), (2, QColor(80, 130, 255, 120))):
+            path = QPainterPath(QPointF(box.left(), box.bottom()))
+            for i, v in enumerate(hist[row]):
+                path.lineTo(box.left() + i * w / 255, box.bottom() - min(1.0, v / top) * h)
+            path.lineTo(box.right(), box.bottom())
+            p.setBrush(colour)
+            p.drawPath(path)
 
     def face_rect(self, box: list[float]) -> QRectF:
         r = self._fit_rect()
@@ -869,6 +960,84 @@ class DetailView(QWidget):
         for b, name in ((self.rotate_l, "rotate_left"), (self.rotate_r, "rotate_right"),
                         (self.prev_b, "chevron_left"), (self.next_b, "chevron_right")):
             b.setIcon(icons.icon(name, t.text, t.text, TOOL_ICON))
+        for name, b in getattr(self, "tool_b", {}).items():
+            b.setIcon(icons.icon(name, t.text_muted, t.accent_text, TOOL_ICON))
+
+    # --- view tools (0.52) ---------------------------------------------------------------------
+
+    TOOLS = (("peaking", "Focus peaking - the sharpest edges glow, and the camera's AF point when the file "
+                         "records it"),
+             ("clipping", "Exposure warnings - blown highlights red, crushed shadows blue"),
+             ("false_colour", "False colour - the picture painted by brightness: blue shadows, green middle grey, "
+                              "pink skin (a stop over), yellow to red at the top"),
+             ("zones", "Zones - Ansel Adams' eleven zones, black (0) to white (X)"),
+             ("histogram", "Histogram - red, green, blue and brightness"),
+             ("guides", "Guides - click again for the next: thirds, golden ratio, centre, level"))
+    GUIDES = ("thirds", "golden", "centre", "level")
+
+    def _tool_rail(self) -> QWidget:
+        from PySide6.QtWidgets import QToolButton
+        rail = QWidget(objectName="ToolRail")
+        rail.setFixedWidth(TOOL_BUTTON + 12)
+        v = QVBoxLayout(rail)
+        v.setContentsMargins(6, 10, 6, 10)
+        v.setSpacing(6)
+        self.tool_b: dict[str, QToolButton] = {}
+        for name, tip in self.TOOLS:
+            b = QToolButton(objectName="RailButton", checkable=True)
+            b.setFixedSize(TOOL_BUTTON, TOOL_BUTTON)
+            b.setIconSize(QSize(TOOL_ICON, TOOL_ICON))
+            b.setToolTip(tip)
+            b.clicked.connect(lambda _=False, n=name: self.toggle_tool(n))
+            self.tool_b[name] = b
+            v.addWidget(b)
+            if name == "zones":
+                v.addSpacing(8)
+        v.addStretch(1)
+        from lunelis.ui import icons, theme
+        t = theme.current()
+        for name, b in self.tool_b.items():
+            b.setIcon(icons.icon(name, t.text_muted, t.accent_text, TOOL_ICON))
+        return rail
+
+    def toggle_tool(self, name: str) -> None:
+        c = self.canvas
+        if name == "histogram":
+            c.show_histogram = not c.show_histogram
+        elif name == "guides":
+            i = self.GUIDES.index(c.guide) + 1 if c.guide in self.GUIDES else 0
+            c.guide = self.GUIDES[i] if i < len(self.GUIDES) else None
+            self.tool_b["guides"].setToolTip(f"Guides: {c.guide or 'off'} - click again for the next")
+        else:
+            c.view_tool = None if c.view_tool == name else name
+            if c.view_tool == "peaking":
+                self._load_af()
+        for n, b in self.tool_b.items():
+            b.setChecked(c.view_tool == n if n in ("peaking", "clipping", "false_colour", "zones")
+                         else c.show_histogram if n == "histogram" else c.guide is not None)
+        c.update()
+
+    def _load_af(self) -> None:
+        """The camera's AF point, read from the file on a worker (it isn't in the catalog)."""
+        c = self.canvas
+        c.af = None
+        i = self.info
+        self._af_for = i.file_id if i is not None else None
+        if i is None or i.is_video:
+            return
+        fid, path, orient = i.file_id, i.path, getattr(i, "orientation", None)
+
+        class Job(QRunnable):
+            def run(_):
+                from lunelis import view_tools
+                pt = view_tools.af_point(path, orient)
+                self._af_signals.found.emit(fid, pt)
+        QThreadPool.globalInstance().start(Job())
+
+    def _af_found(self, fid: int, pt) -> None:
+        if self.info is not None and self.info.file_id == fid and self.canvas.view_tool == "peaking":
+            self.canvas.af = pt
+            self.canvas.update()
 
     def __init__(self, conn, parent=None, workspace: bool = False) -> None:
         super().__init__(parent)
@@ -979,7 +1148,11 @@ class DetailView(QWidget):
         self.split.setSizes([800, h])
         self.split.splitterMoved.connect(lambda *_: Settings(self.conn).set("detail_strip_height",
                                                                            max(56, min(260, self.strip.height()))))
-        left.addWidget(self.split, 1)
+        row = QHBoxLayout()
+        row.setSpacing(0)
+        row.addWidget(self.split, 1)
+        row.addWidget(self._tool_rail())
+        left.addLayout(row, 1)
         left.setContentsMargins(0, 0, 0, 0)
         left_w = QWidget()
         left_w.setLayout(left)
@@ -991,6 +1164,8 @@ class DetailView(QWidget):
         body.addWidget(self.body_split, 1)
         self._full_signals = _FullSignals()
         self._full_signals.loaded.connect(self._full_ready)
+        self._af_signals = _AFSignals()
+        self._af_signals.found.connect(self._af_found)
         self._full_for: int | None = None
         self._full_pix: tuple[int, QPixmap] | None = None
         self.panel = InfoPanel()
@@ -1199,6 +1374,8 @@ class DetailView(QWidget):
         i = self.info
         if i is None:
             return
+        if self.canvas.view_tool == "peaking" and getattr(self, "_af_for", None) != i.file_id:
+            self._load_af()                        # the next photo's AF point
         self.canvas.turn_id = i.file_id
         if i.root in self.offline_paths:
             # Its drive or NAS isn't answering: the thumbnail, and why.

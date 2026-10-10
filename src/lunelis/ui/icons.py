@@ -60,6 +60,14 @@ _PATHS = {
     "takeout": '<path d="M4 7h16v12.5H4z"/><path d="M8 7V5h8v2M9 12h6"/>',
     "timelapse": '<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2.5M9.5 3h5M12 3v2.5"/>',
     # The photo view's toolbar (0.52: text arrows were a few pixels tall).
+    # The photo view's tool rail (0.52).
+    "peaking": '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>',
+    "clipping": '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17"/><path d="M12 6l6 6M12 10.5l5 5M12 15l3 3"/>',
+    "false_colour": '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 2-2s-.8-1.6-.8-2.6 .8-1.9 2-1.9h1.8a3.5 3.5 0 0 0 3.5-3.5c0-4-3.8-7-8.5-7z"/>'
+                    '<circle cx="7.5" cy="11" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/>',
+    "zones": '<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M7.7 5v14M11.9 5v14M16.1 5v14"/>',
+    "histogram": '<path d="M3 20h18"/><path d="M5 20v-5M8 20v-9M11 20v-13M14 20v-8M17 20v-4M20 20v-2"/>',
+    "guides": '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/>',
     "rotate_left": '<path d="M4.5 9.5a8 8 0 1 1 1.4 7.6"/><path d="M4 4.5v5h5"/>',
     "rotate_right": '<path d="M19.5 9.5a8 8 0 1 0-1.4 7.6"/><path d="M20 4.5v5h-5"/>',
     "chevron_left": '<path d="M14.5 5.5L8 12l6.5 6.5"/>',
