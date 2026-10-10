@@ -812,6 +812,8 @@ class MainWindow(QMainWindow):
         # Packaged builds: look for a new version once a day, quietly.
         self._later(8000, self._startup_update_check)
         self._later(20000, self._housekeeping)
+        from lunelis.ui import wheel_guard
+        wheel_guard.install()                        # the wheel scrolls panels, never changes a control
         self._later(15000, self._read_waiting)
         # darktable plugin: pick up its rating changes, hand it ours (cheap when idle).
         self._dt_state: dict = {}
