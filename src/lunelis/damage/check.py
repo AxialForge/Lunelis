@@ -138,7 +138,7 @@ def check(conn: sqlite3.Connection) -> CheckResult:
     # real edit, which is when they stop applying).
     for fid, detail in conn.execute(
             f"SELECT d.file_id, d.detail FROM damaged d JOIN files f ON f.id = d.file_id"
-            f" WHERE d.problem = 'changed_on_disk' AND {LIVE}"):
+            f" WHERE d.problem = 'changed_on_disk' AND {LIVE} AND f.content_hash IS NOT NULL"):
         found.setdefault(fid, ("changed_on_disk", detail))
 
     existing = {fid: (p, dis) for fid, p, dis in conn.execute("SELECT file_id, problem, dismissed FROM damaged")}

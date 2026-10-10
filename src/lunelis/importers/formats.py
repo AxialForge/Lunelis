@@ -44,6 +44,9 @@ _FTYP = {
 }
 
 
+QT_ATOMS = (b"moov", b"mdat", b"wide", b"free", b"skip", b"pnot")
+
+
 def sniff(head: bytes) -> str | None:
     """What a file actually is, from its first SNIFF_BYTES bytes.
 
@@ -52,12 +55,18 @@ def sniff(head: bytes) -> str | None:
     """
     if head.startswith(b"\xff\xd8\xff"):
         return "jpeg"
-    if head[:4] in (b"II*\x00", b"MM\x00*", b"IIRO", b"IIRS", b"MMOR", b"IIU\x00"):
-        return "tiff"              # TIFF container: ARW/NEF/CR2/DNG/PEF/SRW/ORF/RW2/TIFF
+    if head[:4] in (b"II*\x00", b"MM\x00*", b"IIRO", b"IIRS", b"MMOR", b"IIU\x00", b"II+\x00", b"MM\x00+"):
+        return "tiff"              # TIFF container: ARW/NEF/CR2/DNG/PEF/SRW/ORF/RW2/TIFF (and BigTIFF)
     if head.startswith(b"FUJIFILMCCD-RAW"):
         return "raf"
     if head[4:8] == b"ftyp":
         return _FTYP.get(head[8:12], "mp4")
+    if head[4:8] in QT_ATOMS:
+        # A QuickTime file with no "ftyp" first - older camera .MOV clips open
+        # with wide / mdat / moov. Unrecognised, they were "not a photo or
+        # video": no date, no thumbnail, and a migration filed them under
+        # Damaged (0.53).
+        return "mov"
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
         return "png"
     if head[:4] == b"RIFF" and head[8:12] == b"WEBP":

@@ -50,7 +50,10 @@ def _full_hash_folder(conn, root_id, folder, *, throttle, should_cancel, workers
         fid, root, rel = row
         if should_cancel and should_cancel():
             return fid, None, 0
-        digest, n = full_hash(detect._abs(root, rel), throttle, should_cancel)
+        try:
+            digest, n = full_hash(detect._abs(root, rel), throttle, should_cancel)
+        except (FileNotFoundError, PermissionError):
+            return fid, None, 0                    # gone or locked: skipped, the job goes on (0.53)
         return fid, digest, n
 
     with ThreadPoolExecutor(max_workers=max(1, min(workers, 4))) as pool:
@@ -101,14 +104,29 @@ def _integrity_folder(conn, root_id, folder, *, throttle, should_cancel, workers
     only = set((options or {}).get("only_ids") or ())
     result = detect.FolderResult()
     rows = [r for r in conn.execute(
-        "SELECT f.id, r.path, f.rel_path, f.content_hash FROM files f JOIN roots r ON r.id = f.root_id"
+        "SELECT f.id, r.path, f.rel_path, f.content_hash, f.size_bytes, f.mtime FROM files f"
+        " JOIN roots r ON r.id = f.root_id"
         f" WHERE f.root_id = ? AND {detect.LIVE}" + ("" if only else " AND f.content_hash IS NOT NULL"),
         (root_id,))
         if detect._dir_of(r[2]) == folder and (not only or r[0] in only)]
 
     def work(row):
-        fid, root, rel, baseline = row
-        digest, n = full_hash(detect._abs(root, rel), throttle, should_cancel)
+        import os
+        from lunelis.migrate.execute import _ts
+        fid, root, rel, baseline, size, mtime = row
+        path = detect._abs(root, rel)
+        try:
+            # Edited since the last scan (another size or date on disk): that's
+            # an edit, not silent corruption - the next scan takes it in. Without
+            # this the photo was flagged for good, and a migration filed it
+            # under Damaged (0.53).
+            st = os.stat(path)
+            was = _ts(mtime)
+            if baseline is not None and (st.st_size != size or (was is not None and abs(st.st_mtime - was) > 2)):
+                return fid, baseline, None, 0
+            digest, n = full_hash(path, throttle, should_cancel)
+        except (FileNotFoundError, PermissionError):
+            return fid, baseline, None, 0          # gone or locked: one file mustn't stop the job (0.53)
         return fid, baseline, digest, n
 
     changed, baselines, checked = [], [], []
