@@ -616,7 +616,13 @@ class PhotoCanvas(QWidget):
 # --- the filmstrip ------------------------------------------------------------------------------
 
 class Filmstrip(QWidget):
-    """The library's photos around the current one; click to jump."""
+    """The library's photos around the current one; click to jump.
+
+    0.53: each thumbnail fills its tile cropped (it was squeezed into the
+    square - squashed, hard to match with the photo above); the wheel scrolls
+    the strip without changing the photo (it used to step the photo, loading
+    every one on the way); the strip comes back to the current photo when that
+    changes; the current one has an accent frame."""
 
     picked = Signal(int)               # position in the index
     GAP = 8
@@ -627,6 +633,9 @@ class Filmstrip(QWidget):
         self.thumbs.ready.connect(lambda _: self.update())
         self.index = LibraryIndex()
         self.pos = 0
+        self.offset = 0                       # tiles the wheel moved the view from the current photo
+        self.setMouseTracking(True)
+        self._hover = -1
         self.setMinimumHeight(56)             # drag the divider above it: the thumbnails follow
         self.setMaximumHeight(260)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -637,12 +646,26 @@ class Filmstrip(QWidget):
 
     def set_position(self, index: LibraryIndex, pos: int) -> None:
         self.index, self.pos = index, pos
+        self.offset = 0                       # a new photo: back to it
         self.update()
 
     def _slots(self) -> tuple[int, int]:
         per = max(1, (self.width() - 16) // (self.THUMB + self.GAP))
-        first = max(0, min(self.pos - per // 2, len(self.index) - per))
+        first = max(0, min(self.pos + self.offset - per // 2, len(self.index) - per))
         return first, per
+
+    def _x0(self, per: int) -> int:
+        total_w = min(per, len(self.index)) * (self.THUMB + self.GAP) - self.GAP
+        return max(16, (self.width() - total_w) // 2)
+
+    def slot_at(self, x: int) -> int:
+        """The index position of the tile at x, or -1."""
+        first, per = self._slots()
+        x0 = self._x0(per)
+        k, rest = divmod(x - x0, self.THUMB + self.GAP)
+        if x < x0 or rest >= self.THUMB or not (0 <= k < per) or first + k >= len(self.index):
+            return -1
+        return first + k
 
     def paintEvent(self, e) -> None:
         t = themes.current()
@@ -653,8 +676,7 @@ class Filmstrip(QWidget):
             return
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         first, per = self._slots()
-        total_w = min(per, n) * (self.THUMB + self.GAP) - self.GAP
-        x0 = max(16, (self.width() - total_w) // 2)
+        x0 = self._x0(per)
         y = (self.height() - self.THUMB) // 2
         for k, i in enumerate(range(first, min(n, first + per))):
             r = QRect(x0 + k * (self.THUMB + self.GAP), y, self.THUMB, self.THUMB)
@@ -662,31 +684,53 @@ class Filmstrip(QWidget):
             path.addRoundedRect(QRectF(r), 6, 6)
             row = self.index.rows[i]
             pix = None if row[2] else self.thumbs.get(row[0], row[1] or cache_rel_path(row[0]))
-            if pix is not None:
+            if pix is not None and not pix.isNull():
+                # Cropped to fill the tile, never squeezed.
+                s = min(pix.width(), pix.height())
+                src = QRectF((pix.width() - s) / 2, (pix.height() - s) / 2, s, s)
                 p.save()
                 p.setClipPath(path)
-                p.drawPixmap(r, pix)
+                p.drawPixmap(QRectF(r), pix, src)
+                if i != self.pos:
+                    p.fillRect(r, QColor(0, 0, 0, 40 if i == self._hover else 90))   # the current one stands out
                 p.restore()
             else:
                 p.fillPath(path, qcolor(t.tile_unavailable))
             if i == self.pos:
-                p.setPen(QPen(qcolor(t.badge_text), 2))
+                p.setPen(QPen(qcolor(t.accent), 3))
                 p.setBrush(Qt.BrushStyle.NoBrush)
-                p.drawRoundedRect(QRectF(r).adjusted(1, 1, -1, -1), 6, 6)
+                p.drawRoundedRect(QRectF(r).adjusted(1.5, 1.5, -1.5, -1.5), 6, 6)
+        if self.offset:
+            p.setPen(qcolor(t.text_faint))
+            p.drawText(self.rect().adjusted(0, 0, -10, -4), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom,
+                       "click a photo to open it")
 
     def mousePressEvent(self, e) -> None:
-        first, per = self._slots()
-        n = len(self.index)
-        total_w = min(per, n) * (self.THUMB + self.GAP) - self.GAP
-        x0 = max(16, (self.width() - total_w) // 2)
-        k = (int(e.position().x()) - x0) // (self.THUMB + self.GAP)
-        if 0 <= k < per and first + k < n:
-            self.picked.emit(first + k)
+        i = self.slot_at(int(e.position().x()))
+        if i >= 0:
+            self.picked.emit(i)
+
+    def mouseMoveEvent(self, e) -> None:
+        i = self.slot_at(int(e.position().x()))
+        if i != self._hover:
+            self._hover = i
+            self.update()
+
+    def leaveEvent(self, e) -> None:
+        self._hover = -1
+        self.update()
 
     def wheelEvent(self, e) -> None:
+        """Scroll along the strip (a few tiles a notch); the photo stays."""
         dy = e.angleDelta().y() or e.angleDelta().x()
-        if dy and len(self.index):
-            self.picked.emit(max(0, min(len(self.index) - 1, self.pos + (-1 if dy > 0 else 1))))
+        n = len(self.index)
+        if not dy or not n:
+            return
+        _first, per = self._slots()
+        step = max(1, per // 3) * (-1 if dy > 0 else 1)
+        self.offset = max(-self.pos, min(n - 1 - self.pos, self.offset + step))
+        self._hover = self.slot_at(int(e.position().x()))
+        self.update()
 
 
 # --- the Info panel -----------------------------------------------------------------------------

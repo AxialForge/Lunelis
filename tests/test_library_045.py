@@ -161,3 +161,38 @@ def test_collapse_into_a_burst_selects_and_shows_the_new_tile(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_the_filmstrip_matches_the_photo_and_scrolls_on_its_own(tmp_path):
+    # 0.53: squeezed thumbnails, the wheel stepped the photo, a thin outline.
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+    from test_audit_navigation import _window
+    w, ids = _window(tmp_path, 40)
+    try:
+        w.open_page("Library")
+        w.resize(1200, 800)
+        w.open_detail(w.index.file_id(10))
+        d, s = w.detail, w.detail.strip
+        s.resize(900, 90)
+        first, per = s._slots()
+        assert first <= d.pos < first + per                       # the open photo is on the strip
+        x0 = s._x0(per)
+        for k in range(min(per, len(d.index) - first)):           # every tile opens the photo it stands for
+            x = x0 + k * (s.THUMB + s.GAP) + s.THUMB // 2
+            assert s.slot_at(x) == first + k
+        target = first + 2
+        x = x0 + 2 * (s.THUMB + s.GAP) + 5
+        s.picked.emit(s.slot_at(x))
+        assert d.pos == target and d.info.file_id == d.index.file_id(target) and s.pos == target
+        before = (d.pos, s._slots()[0])
+        ev = QWheelEvent(QPointF(450, 40), QPointF(450, 40), QPoint(), QPoint(0, -120), Qt.MouseButton.NoButton,
+                         Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+        QApplication.sendEvent(s, ev)
+        assert d.pos == before[0] and s._slots()[0] > before[1]   # the strip moved, the photo didn't
+        d.go(d.pos + 1)
+        assert s.offset == 0                                      # back to the current photo
+    finally:
+        w._quitting = True
+        w.close()
