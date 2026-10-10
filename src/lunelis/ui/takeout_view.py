@@ -100,6 +100,8 @@ class TakeoutView(QWidget):
         return [i for i in self.items if getattr(i, f)]
 
     def _fill(self) -> None:
+        if getattr(self, "_sync_due", False):
+            self._sync()                              # a tick not saved yet goes in first
         self._filling = True
         self.tree.clear()
         c = tr.counts(self.items)
@@ -157,13 +159,30 @@ class TakeoutView(QWidget):
         state = item.checkState(0)
         if state == Qt.CheckState.PartiallyChecked:
             return
-        on = state == Qt.CheckState.Checked
-        ids = [leaf.data(0, ID) for leaf in self._leaves(item)]
-        tr.set_included(self.conn, ids, on)
+        # Ticking a year makes Qt tick every photo in it, one signal each (0.52:
+        # 16,000 photos meant 16,000 catalog writes and recounts - the window
+        # froze for minutes). Every signal just asks for one sync, run once Qt
+        # is done: it reads the boxes and writes what changed in one go.
+        if not getattr(self, "_sync_due", False):
+            self._sync_due = True
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, self._sync)
+
+    def _sync(self) -> None:
+        self._sync_due = False
         by_id = {i.file_id: i for i in self.items}
-        for fid in ids:
-            if fid in by_id:
-                by_id[fid].included = on
+        changed: dict[bool, list[int]] = {True: [], False: []}
+        for k in range(self.tree.topLevelItemCount()):
+            for leaf in self._leaves(self.tree.topLevelItem(k)):
+                fid = leaf.data(0, ID)
+                on = leaf.checkState(0) == Qt.CheckState.Checked
+                it = by_id.get(fid)
+                if it is not None and it.included != on:
+                    it.included = on
+                    changed[on].append(fid)
+        for on, ids in changed.items():
+            if ids:
+                tr.set_included(self.conn, ids, on)
         c = tr.counts(self.items)
         self.summary.setText(f"{c['total']:,} photos and videos · {c['included']:,} ticked · "
                              f"{c['in_library']:,} already in your library")

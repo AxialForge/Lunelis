@@ -87,6 +87,7 @@ def test_the_page_lists_and_ticks(conn):
     rome = page.tree.topLevelItem(1).child(0)                 # 2018 > Trip to Rome
     assert rome.text(0) == "Trip to Rome"
     rome.setCheckState(0, Qt.CheckState.Unchecked)           # untick the whole album
+    QApplication.processEvents()                              # saved once Qt has ticked them all (0.52)
     assert tr.unticked(conn) == {2, 3, 4}
     page.filter.setCurrentIndex(page.filter.findData("unticked"))
     assert page.tree.topLevelItemCount() == 2                 # 2019 and 2018 have unticked items
@@ -151,3 +152,21 @@ def test_unpacker_layout_albums_come_from_the_json_folders(conn):
     its = {i.file_id: i for i in tr.items(conn)}
     assert its[7].album == "2024 Cleveland Airshow"
     assert its[8].album == "2024-09 (no album)"
+
+
+def test_unticking_a_big_album_is_one_write(conn, monkeypatch):
+    # 0.52: each photo inside used to be its own catalog write and recount -
+    # 16,000 of them froze the window for minutes.
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from lunelis.ui import takeout_view
+    writes = []
+    real = tr.set_included
+    monkeypatch.setattr(takeout_view.tr, "set_included", lambda c, ids, on: (writes.append(len(ids)), real(c, ids, on)))
+    page = takeout_view.TakeoutView(conn)
+    page.refresh()
+    page.tree.topLevelItem(1).setCheckState(0, Qt.CheckState.Unchecked)     # all of 2018
+    QApplication.processEvents()
+    assert len(writes) == 1
+    page.deleteLater()
