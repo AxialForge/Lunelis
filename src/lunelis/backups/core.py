@@ -29,6 +29,7 @@ Rules:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -48,6 +49,7 @@ META_DIR = "_Lunelis"
 FREE_MARGIN = 512 * 1024 * 1024      # never fill the backup drive to the last byte
 SNAPSHOTS_KEPT = 5
 LIVE = "f.missing_since IS NULL AND f.excluded = 0 AND f.quarantined_at IS NULL"
+_log = logging.getLogger(__name__)
 
 
 class BackupError(ValueError):
@@ -287,6 +289,9 @@ def backup_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
         try:
             if prev and prev[1] == size and prev[2] == mtime and not prev[3]:   # a flagged copy is redone
                 if prev[0] == target_rel:
+                    # The photo is as it was, but its sidecar may hold newer
+                    # ratings or edits: that goes to the backup too (0.53).
+                    _sync_sidecar(_abs(root, rel), _abs(dest, target_rel), sidecar)
                     continue
                 if _rename_in_backup(dest, prev[0], target_rel, sidecar):   # moved in the library: here too
                     conn.execute("UPDATE backup_files SET rel = ? WHERE set_id = ? AND file_id = ?",
@@ -310,9 +315,9 @@ def backup_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
             if _sha256(dst, throttle) != digest:
                 _unlink(dst)
                 result.errors.append(f"{src}: the backup copy didn't verify")
+                _log.warning("Backup: %s - the copy didn't verify", src)
                 continue
-            if sidecar and os.path.exists(os.path.join(os.path.dirname(src), sidecar)):
-                shutil.copy2(os.path.join(os.path.dirname(src), sidecar), os.path.join(os.path.dirname(dst), sidecar))
+            _sync_sidecar(src, dst, sidecar)
             conn.execute(
                 "INSERT INTO backup_files (set_id, file_id, rel, size, mtime, sha256, verified_at)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(set_id, file_id) DO UPDATE SET rel = excluded.rel,"
@@ -328,7 +333,40 @@ def backup_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
             if is_network_error(e) or not os.path.isdir(root) or resolve_dest(conn, set_id) is None:
                 raise SourceOffline(str(e)) from e
             result.errors.append(f"{rel}: {e}")
+            _log.warning("Backup: %s wasn't copied - %s", rel, e)
     return result
+
+
+def _sync_sidecar(src: str, dst: str, sidecar: str | None) -> None:
+    """Copy a photo's sidecar beside its backup copy when it's new or changed."""
+    if not sidecar:
+        return
+    s, d = os.path.join(os.path.dirname(src), sidecar), os.path.join(os.path.dirname(dst), sidecar)
+    try:
+        st = os.stat(s)
+    except OSError:
+        return
+    try:
+        have = os.stat(d)
+        if have.st_size == st.st_size and abs(have.st_mtime - st.st_mtime) < 2:
+            return
+    except OSError:
+        pass
+    os.makedirs(os.path.dirname(d), exist_ok=True)
+    tmp = d + ".lunelis-tmp"
+    shutil.copy2(s, tmp)
+    os.replace(tmp, d)
+
+
+def not_backed_up(conn: sqlite3.Connection, set_id: int, job_id: int) -> int:
+    """How many photos of this run's sources have no good, current copy in the
+    set - what "Up to date" has to be honest about (0.53)."""
+    return conn.execute(
+        f"SELECT COUNT(*) FROM files f WHERE {LIVE}"
+        " AND f.root_id IN (SELECT DISTINCT root_id FROM job_folders WHERE job_id = ?)"
+        " AND NOT EXISTS (SELECT 1 FROM backup_files b WHERE b.set_id = ? AND b.file_id = f.id"
+        "   AND b.size = f.size_bytes AND b.mtime = f.mtime AND b.problem IS NULL)",
+        (job_id, set_id)).fetchone()[0]
 
 
 def _rename_in_backup(dest: str, old_rel: str, new_rel: str, sidecar: str | None) -> bool:
@@ -431,7 +469,11 @@ def finish(conn: sqlite3.Connection, job_id: int) -> None:
     store = Settings(conn).get("sidecar_store_dir") or paths.SIDECAR_STORE
     _mirror_tree(Path(store), Path(dest) / META_DIR / "sidecars")
     _write_manifest(conn, set_id, dest)
-    conn.execute("UPDATE backup_sets SET last_run_at = ?, status = 'Up to date' WHERE id = ?", (_now(), set_id))
+    missing = not_backed_up(conn, set_id, job_id)
+    status = "Up to date" if not missing else (
+        f"Finished, but {missing:,} photo{'s' if missing != 1 else ''} couldn't be copied - "
+        "Help > Open the log folder says which; run the backup again")
+    conn.execute("UPDATE backup_sets SET last_run_at = ?, status = ? WHERE id = ?", (_now(), status, set_id))
     conn.commit()
 
 

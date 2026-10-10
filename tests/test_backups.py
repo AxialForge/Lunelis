@@ -156,3 +156,36 @@ def test_backups_page_lists_sets_and_their_state(lib):
     view.refresh()
     view.bg.wait()
     assert view.table.item(0, 2).text() == "Up to date" and view.table.item(0, 4).text() == "Nothing"
+
+
+def test_a_backup_isnt_up_to_date_when_a_file_wasnt_copied(lib, monkeypatch):
+    # 0.53: per-file errors were collected and never read - the set said "Up to date".
+    conn, tmp, photos, usb, rid = lib
+    sid = core.create_set(conn, "USB stick", str(usb), [rid])
+    real = core._copy_hashed
+
+    def copy(src, dst, *a, **k):
+        if src.endswith("b.jpg"):
+            raise PermissionError(13, "in use by another program", src)
+        return real(src, dst, *a, **k)
+    monkeypatch.setattr(core, "_copy_hashed", copy)
+    assert run(conn, sid).state == "done"
+    status = core.get_set(conn, sid).status
+    assert "1 photo couldn't be copied" in status and status != "Up to date"
+    monkeypatch.setattr(core, "_copy_hashed", real)
+    run(conn, sid)                                            # run it again: now it is
+    assert core.get_set(conn, sid).status == "Up to date"
+
+
+def test_a_sidecar_changed_after_the_backup_goes_to_the_backup(lib):
+    # 0.53: ratings and edits saved into an .xmp later never reached the backup.
+    import os
+    conn, tmp, photos, usb, rid = lib
+    sid = core.create_set(conn, "USB stick", str(usb), [rid])
+    run(conn, sid)
+    side = photos / "2026/6-19-2026/a.jpg.xmp"
+    side.write_text("<xmp rating='5'/>", encoding="utf-8")
+    os.utime(side, (2_000_000_000, 2_000_000_000))
+    run(conn, sid)
+    copy = usb / root_key(rid, str(photos)) / "2026/6-19-2026/a.jpg.xmp"
+    assert copy.read_text(encoding="utf-8") == "<xmp rating='5'/>"
