@@ -23,7 +23,7 @@ import os
 import time
 from collections import OrderedDict
 
-from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, QRunnable, Qt, QThreadPool, QUrl, Signal
+from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QRectF, QRunnable, QSize, Qt, QThreadPool, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
@@ -845,6 +845,10 @@ class InfoPanel(QScrollArea):
 
 # --- the page ------------------------------------------------------------------------------------
 
+TOOL_BUTTON = 36        # the photo view's icon buttons, square
+TOOL_ICON = 20
+
+
 class DetailView(QWidget):
     back = Signal()
     rate = Signal(dict)
@@ -857,6 +861,14 @@ class DetailView(QWidget):
     faces_changed = Signal()           # a face was named or corrected here (People tags changed)
     show_person = Signal(int)          # "All photos of Ann" from a face's menu
     thumb_made = Signal(int)           # a thumbnail was made on opening the photo
+
+    def retheme(self) -> None:
+        """The toolbar icons in the theme's text colour (again after a theme switch)."""
+        from lunelis.ui import icons, theme
+        t = theme.current()
+        for b, name in ((self.rotate_l, "rotate_left"), (self.rotate_r, "rotate_right"),
+                        (self.prev_b, "chevron_left"), (self.next_b, "chevron_right")):
+            b.setIcon(icons.icon(name, t.text, t.text, TOOL_ICON))
 
     def __init__(self, conn, parent=None, workspace: bool = False) -> None:
         super().__init__(parent)
@@ -911,18 +923,22 @@ class DetailView(QWidget):
                                 "correct it; Ctrl+drag draws one Lunelis missed.")
         self.faces_b.toggled.connect(self.set_faces_overlay)
         h.addWidget(self.faces_b)
-        for text, step, tip in (("⟲", -1, "Rotate left (Ctrl+[) - how it's shown; the file isn't changed"),
-                                ("⟳", 1, "Rotate right (Ctrl+]) - how it's shown; the file isn't changed")):
-            b = QPushButton(text, clicked=lambda _=False, s=step: self.rotate_requested.emit(s))
-            b.setToolTip(tip)
-            b.setFixedWidth(36)
-            h.addWidget(b)
-        self.prev_b = QPushButton("‹", clicked=lambda: self.go(self.pos - 1))
+        self.rotate_l = QPushButton(clicked=lambda: self.rotate_requested.emit(-1))
+        self.rotate_l.setToolTip("Rotate left (Ctrl+[) - how it's shown; the file isn't changed")
+        self.rotate_r = QPushButton(clicked=lambda: self.rotate_requested.emit(1))
+        self.rotate_r.setToolTip("Rotate right (Ctrl+]) - how it's shown; the file isn't changed")
+        self.prev_b = QPushButton(clicked=lambda: self.go(self.pos - 1))
         self.prev_b.setToolTip("Previous (Left)")
         self.counter = QLabel(objectName="ToolLabel")
-        self.next_b = QPushButton("›", clicked=lambda: self.go(self.pos + 1))
+        self.next_b = QPushButton(clicked=lambda: self.go(self.pos + 1))
         self.next_b.setToolTip("Next (Right)")
-        for w in (self.prev_b, self.counter, self.next_b):
+        # Drawn icons on buttons as tall as Edit / Faces (0.52: the text arrows
+        # were a few pixels tall and hard to hit).
+        for b in (self.rotate_l, self.rotate_r, self.prev_b, self.next_b):
+            b.setFixedSize(TOOL_BUTTON, TOOL_BUTTON)
+            b.setIconSize(QSize(TOOL_ICON, TOOL_ICON))
+        self.retheme()
+        for w in (self.rotate_l, self.rotate_r, self.prev_b, self.counter, self.next_b):
             h.addWidget(w)
         outer.addWidget(bar)
 

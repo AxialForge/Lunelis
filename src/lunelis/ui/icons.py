@@ -59,6 +59,11 @@ _PATHS = {
     "status": '<path d="M3 12h4.2l2.6-6.5 4.4 13 2.6-6.5H21"/>',
     "takeout": '<path d="M4 7h16v12.5H4z"/><path d="M8 7V5h8v2M9 12h6"/>',
     "timelapse": '<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2.5M9.5 3h5M12 3v2.5"/>',
+    # The photo view's toolbar (0.52: text arrows were a few pixels tall).
+    "rotate_left": '<path d="M4.5 9.5a8 8 0 1 1 1.4 7.6"/><path d="M4 4.5v5h5"/>',
+    "rotate_right": '<path d="M19.5 9.5a8 8 0 1 0-1.4 7.6"/><path d="M20 4.5v5h-5"/>',
+    "chevron_left": '<path d="M14.5 5.5L8 12l6.5 6.5"/>',
+    "chevron_right": '<path d="M9.5 5.5L16 12l-6.5 6.5"/>',
     "collapse": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/><path d="M15.5 9.5l-2.5 2.5 2.5 2.5"/>',
     "expand": '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/><path d="M13 9.5l2.5 2.5-2.5 2.5"/>',
 }

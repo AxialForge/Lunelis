@@ -1225,6 +1225,8 @@ class MainWindow(QMainWindow):
             lab.retheme()
         if hasattr(self, "create_page"):
             self.create_page.retheme()
+        if hasattr(self, "detail"):
+            self.detail.retheme()
 
     def _windows_scheme_changed(self, *_):
         from lunelis.settings import Settings
