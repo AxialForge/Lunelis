@@ -91,3 +91,26 @@ def test_thumbnails_bring_their_fingerprint_with_them(tmp_path):
     assert ph and len(ph) == 16
     assert similar.compute_missing(conn, tmp_path / "thumbs") == 0      # nothing left to read back
     conn.close()
+
+
+def test_dragging_from_an_unselected_photo_draws_a_box(tmp_path):
+    # 0.52: a full grid has no empty space to start a box in.
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+    from test_audit_navigation import _window
+    w, ids = _window(tmp_path, 6)
+    try:
+        w.open_page("Library")
+        w.resize(1200, 800)
+        g = w.grid
+        g.clear_selection()
+        a, b = g._tile_rect(0).center(), g._tile_rect(2).center()
+        vp = g.viewport()
+        QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, a)
+        for k in range(1, 11):                                   # a real drag, in steps
+            QTest.mouseMove(vp, a + (b - a) * (k / 10))
+        QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, b)
+        assert {g.index.file_id(i) for i in range(3)} <= g.selected and len(g.selected) >= 3
+    finally:
+        w._quitting = True
+        w.close()

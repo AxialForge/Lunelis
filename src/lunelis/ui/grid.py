@@ -576,6 +576,13 @@ class PhotoGrid(QAbstractScrollArea):
             i = self.position_at(e.position().toPoint())
             self._press = (e.position().toPoint(), i)
             self._pending_select = None
+            # Dragging from a photo that isn't selected draws a box (0.52: a full
+            # grid has no empty space to start one in); dragging a selected photo
+            # takes the selection out to Explorer or an album, as before.
+            self._box_from = None
+            if i >= 0 and self.index.file_id(i) not in self.selected:
+                ctrl = bool(e.modifiers() & Qt.KeyboardModifier.ControlModifier)
+                self._box_from = set(self.selected) if ctrl else set()
             if i < 0 or e.modifiers() & Qt.KeyboardModifier.AltModifier:
                 # On empty space (or with Alt anywhere): drag a box to select (0.45).
                 if not e.modifiers() & Qt.KeyboardModifier.ControlModifier:
@@ -656,6 +663,13 @@ class PhotoGrid(QAbstractScrollArea):
             return False
         self._press = None
         self._pending_select = None
+        base = getattr(self, "_box_from", None)
+        if base is not None:
+            self._box_from = None
+            self._band_start(press[0])
+            self._band_base = base
+            self._band_move(e.position().toPoint())
+            return True
         self.start_drag(press[1])
         return True
 
