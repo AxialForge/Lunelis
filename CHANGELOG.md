@@ -6,6 +6,65 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-10-10
+
+The rest of the issues from the 10 October review: 80 fixes, each with a
+test. Nine findings that change behaviour or are features in themselves were
+left for a decision (RAW auto-brightness, time zones of videos, 16-bit
+export, export metadata, more formats and others).
+
+### Changed
+
+- **The window stays responsive:** making thumbnails after an import,
+  removing a source, setting one duplicate group aside, counting smart
+  albums and reading a folder for import (which can now be stopped) run in
+  the background.
+- **A photo opens from any page** - People, On this day, a frame in the
+  stack tray - even when the Library is filtered; Back says where it goes.
+- **Tags, face names and edits reach their sidecars** a moment after you
+  make them, as ratings do, not at the next restart.
+- **Faces and folder jobs are faster:** known faces are read once per pass,
+  and each folder's files are found through the index instead of listing
+  the whole source.
+- **The family gallery** prefers your home network over a VPN adapter, opens
+  the catalog once per request, and never keeps PIN or error pages in the
+  browser.
+- **Thumbnail memory is capped by size** (about 400 MB for the grid), not by
+  count.
+- **Catalog:** indexes that make removing files quick after a migration;
+  the newest five pre-upgrade backups are kept instead of all of them.
+
+### Fixed
+
+- **Sidecars:** one with no rating cleared the photo's stars; keywords
+  added in another program could be overwritten. Sidecars are flushed to
+  disk before they replace the old one.
+- **Import:** a full library drive pauses the import with a message instead
+  of failing every remaining file; evening imports were filed under
+  tomorrow's date.
+- **A passing read problem** (a file open elsewhere, memory short for a
+  moment) made a photo "preview unavailable" or "no metadata" for good; it
+  is tried again on the next passes.
+- **Exports:** above ISO 65,535 failed with metadata on; a cancelled or
+  crashed export left a half-written file under its final name.
+- **Duplicates:** a copy is not set aside unless the one being kept is
+  still on disk; verifying several groups in a row skipped the middle ones;
+  emptying the quarantine could remove another file's sidecar.
+- **Selection and keys:** Ctrl+A in the photo view selected the hidden
+  grid; S, rating keys and Copy edit settings acted on a different photo
+  from the one on screen in several cases.
+- **Migration:** a damage flag you dismissed still counted.
+- **The same folder** could be added twice, as a drive letter and as a
+  network path.
+- **16-bit greyscale scans** came out white; smart-album shutter rules
+  misread some speeds, and one malformed rule broke the Albums page.
+- **Start-up:** a bad backup zip chosen for restore crashed the next start.
+- **Updates:** a newer test version was not offered over an older one.
+- Plus smaller fixes: messages that vanished before they could be read,
+  icons that kept the old theme's colour, the Takeout tree collapsing on a
+  filter change, People lists jumping to the top, the tray icon always
+  switching to the Library, "No" to "Quit anyway?" not being respected.
+
 ## [0.53.0] - 2026-10-10
 
 Safety fixes from the 10 October review, and a week of interface work.
