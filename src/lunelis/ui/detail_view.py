@@ -266,7 +266,7 @@ class PhotoCanvas(QWidget):
         self.view_tool: str | None = None     # peaking | clipping | false_colour | zones
         self.show_histogram = False
         self.guide: str | None = None         # thirds | golden | centre | level
-        self.af: tuple[float, float] | None = None   # the camera's AF point, while peaking
+        self.af: tuple | None = None          # the camera's focus area while peaking: (x, y[, w, h]) fractions
         self._tool_cache: tuple | None = None # (pix key, tool) -> (overlay QImage, histogram)
         self._draw: tuple[QPointF, QPointF] | None = None
         self.setMinimumSize(200, 100)                 # short windows (the 900 x 350 minimum) still fit
@@ -438,11 +438,21 @@ class PhotoCanvas(QWidget):
             p.drawImage(r, over, QRectF(over.rect()))
         if self.view_tool == "peaking" and self.af is not None:
             c = QPointF(r.x() + self.af[0] * r.width(), r.y() + self.af[1] * r.height())
+            # The camera's own focus frame at its real size when the file has it
+            # (0.53: a Sony a7R V); else a marker where it focused.
+            fw = fh = None
+            if len(self.af) >= 4 and self.af[2] and self.af[3]:
+                fw, fh = self.af[2] * r.width(), self.af[3] * r.height()
+            box = (QRectF(c.x() - fw / 2, c.y() - fh / 2, fw, fh) if fw
+                   else QRectF(c.x() - 18, c.y() - 18, 36, 36))
             p.setRenderHint(QPainter.RenderHint.Antialiasing)
             p.setBrush(Qt.BrushStyle.NoBrush)
             for colour, w in ((QColor(0, 0, 0, 160), 4), (QColor(255, 220, 0), 2)):
-                p.setPen(QPen(colour, w))
-                p.drawRect(QRectF(c.x() - 18, c.y() - 18, 36, 36))
+                pen = QPen(colour, w)
+                if not fw:
+                    pen.setStyle(Qt.PenStyle.DashLine)        # a point only: the size isn't the camera's
+                p.setPen(pen)
+                p.drawRect(box)
         if self.guide:
             self._paint_guide(p, r)
         if hist is not None:
@@ -1121,7 +1131,7 @@ class DetailView(QWidget):
         class Job(QRunnable):
             def run(_):
                 from lunelis import view_tools
-                pt = view_tools.af_point(path, orient)
+                pt = view_tools.af_area(path, orient)
                 self._af_signals.found.emit(fid, pt)
         QThreadPool.globalInstance().start(Job())
 

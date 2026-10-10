@@ -133,28 +133,55 @@ def _numbers(v) -> list[float]:
 
 
 def af_point(path: str, orientation: int | None = None) -> tuple[float, float] | None:
-    """Where the camera focused, as fractions of the upright picture - or None.
-    Sony writes [width, height, x, y] in its maker note (0x204A, else 0x2027);
-    other cameras may fill the standard SubjectArea / SubjectLocation."""
+    """Where the camera focused (its centre), as fractions of the upright picture - or None."""
+    a = af_area(path, orientation)
+    return (a[0], a[1]) if a else None
+
+
+def af_area(path: str, orientation: int | None = None) -> tuple[float, float, float | None, float | None] | None:
+    """The camera's focus area: (centre x, centre y, width, height) as fractions
+    of the upright picture; width and height are None when the file records
+    only a point. None when there's nothing to show.
+
+    Sony writes [width, height, x, y] in its maker note (FocusLocation, 0x204A
+    else 0x2027) and, on newer bodies (the a7R V; not the a7R III), the focus
+    frame's size in 0x2037 as two little-endian 16-bit numbers. A manual-focus
+    shot records the centre of the frame, which means nothing: no area then.
+    Other cameras may fill the standard SubjectArea / SubjectLocation."""
     import exifread
     try:
         with open(path, "rb") as fh:
             tags = exifread.process_file(fh, details=True, extract_thumbnail=False)
     except Exception:                             # noqa: BLE001 - no point to show, nothing else
         return None
-    x = y = None
+    x = y = w = h = None
+    manual = str(tags.get("MakerNote FocusMode", "")).strip().lower().startswith("manual")
     for key in ("MakerNote Tag 0x204A", "MakerNote Tag 0x2027"):
         n = _numbers(tags.get(key)) if key in tags else []
-        if len(n) == 4 and n[0] > 0 and n[1] > 0 and (n[2] or n[3]):
+        if len(n) == 4 and n[0] > 0 and n[1] > 0 and (n[2] or n[3]) and not manual:
             x, y = n[2] / n[0], n[3] / n[1]
+            size = _numbers(tags.get("MakerNote Tag 0x2037")) if "MakerNote Tag 0x2037" in tags else []
+            if len(size) >= 4:
+                fw, fh = size[0] + 256 * size[1], size[2] + 256 * size[3]
+                if 0 < fw < n[0] and 0 < fh < n[1]:
+                    w, h = fw / n[0], fh / n[1]
             break
     if x is None:
-        w = _numbers(tags.get("EXIF ExifImageWidth")) or _numbers(tags.get("Image ImageWidth"))
-        h = _numbers(tags.get("EXIF ExifImageLength")) or _numbers(tags.get("Image ImageLength"))
         s = _numbers(tags.get("EXIF SubjectArea")) or _numbers(tags.get("EXIF SubjectLocation"))
-        if w and h and len(s) >= 2 and w[0] and h[0]:
-            x, y = s[0] / w[0], s[1] / h[0]
+        iw = _numbers(tags.get("EXIF ExifImageWidth")) or _numbers(tags.get("Image ImageWidth"))
+        ih = _numbers(tags.get("EXIF ExifImageLength")) or _numbers(tags.get("Image ImageLength"))
+        if iw and ih and len(s) >= 2 and iw[0] and ih[0]:
+            x, y = s[0] / iw[0], s[1] / ih[0]
+            if len(s) == 4:                                  # SubjectArea as x, y, width, height
+                w, h = s[2] / iw[0], s[3] / ih[0]
     if x is None or not (0 <= x <= 1 and 0 <= y <= 1):
         return None
-    # The point is in the sensor's own frame: turn it with the picture.
-    return {6: (1 - y, x), 8: (y, 1 - x), 3: (1 - x, 1 - y)}.get(orientation or 1, (x, y))
+    # The area is in the sensor's own frame: turn it with the picture.
+    o = orientation or 1
+    if o == 6:
+        return 1 - y, x, h, w
+    if o == 8:
+        return y, 1 - x, h, w
+    if o == 3:
+        return 1 - x, 1 - y, w, h
+    return x, y, w, h

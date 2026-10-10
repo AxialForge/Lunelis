@@ -53,6 +53,26 @@ def test_the_af_point_comes_from_the_file_and_turns_with_it(tmp_path):
     assert vt.af_point(str(q)) is None
 
 
+def test_a_sony_focus_frame_has_its_real_size_and_manual_focus_has_none(monkeypatch):
+    # 0.53: the a7R V writes the frame's size (0x2037: 564 x 502 on 9504 x 6336).
+    import exifread
+
+    class T:
+        def __init__(self, v): self.values = v
+        def __str__(self): return str(self.values)
+    tags = {"MakerNote Tag 0x204A": T([9504, 6336, 2376, 3168]), "MakerNote Tag 0x2037": T([52, 2, 246, 1, 1, 1]),
+            "MakerNote FocusMode": "AF-C"}
+    monkeypatch.setattr(exifread, "process_file", lambda *a, **k: tags)
+    monkeypatch.setattr("builtins.open", lambda *a, **k: __import__("io").BytesIO(b""))
+    x, y, w, h = vt.af_area("x.arw", 1)
+    assert (x, y) == (0.25, 0.5) and abs(w - 564 / 9504) < 1e-9 and abs(h - 502 / 6336) < 1e-9
+    assert vt.af_area("x.arw", 6)[2:] == (h, w)                   # turned: width and height swap
+    del tags["MakerNote Tag 0x2037"]                              # an a7R III: a point only
+    assert vt.af_area("x.arw", 1) == (0.25, 0.5, None, None)
+    tags["MakerNote FocusMode"] = "Manual"                        # the centre means nothing
+    assert vt.af_area("x.arw", 1) is None
+
+
 def test_the_rail_turns_tools_on_and_off(tmp_path):
     from PySide6.QtWidgets import QApplication
     QApplication.instance() or QApplication([])
