@@ -6,6 +6,58 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-10-10
+
+Safety fixes from the 10 October review, and a week of interface work.
+
+### Added
+
+- **Faces menu** (the arrow beside Faces): add a person or a pet by dragging
+  a box, look for faces in the photo again, and for each face rename, mark
+  as animal or person, redraw its box, or remove it.
+- **Kelvin on the Temperature slider:** from the camera's own white balance
+  for a RAW; an approximate figure (from 5,500 K) for other files.
+- **The camera's focus frame** at its real size with focus peaking (Sony
+  a7R V); a marker for cameras that record only a point; none for manual
+  focus.
+- **An album opens with a Back header** (name, count, Back / Backspace); the
+  sidebar stays on Albums, and Library always shows the whole library.
+
+### Changed
+
+- **One Lunelis per data folder:** a second start shows the running one
+  instead of opening the same catalog.
+- **The wheel scrolls a panel** and never changes a slider, number box or
+  drop-down it passes over.
+- **A scan asked for while one is running** is run next, not dropped.
+- **Backups** copy a sidecar that changed after its photo was backed up.
+
+### Fixed
+
+- **Import:** "safe to format the card" was shown while files Lunelis
+  doesn't handle (AVI, MXF, WAV, GoPro, some RAW types) were still only on
+  the card. It now says which were not copied. A Mac's "._" files are no
+  longer imported as photos.
+- **Backups:** a set said "Up to date" when files had failed to copy; it
+  now says how many, and they are in the log.
+- **Selection:** photos hidden by a search or filter stayed selected, so a
+  rating key, Tag or Export changed photos you couldn't see. The focus
+  photo is kept through a reload.
+- **File checks:** a photo edited since the last scan was flagged as silent
+  corruption for good. A missing or locked file no longer stops a hash or
+  check job.
+- **Old QuickTime .MOV clips** (and BigTIFF) were "not a photo or video",
+  and a migration filed them under Damaged.
+- **Start-up:** a failed catalog upgrade (its backup folder offline, a full
+  disk) was reported as a damaged catalog; recovery looked for backups only
+  in the default folder.
+- **Faces:** looking at a photo again forgot "not a face", stranger and
+  animal answers, and froze the window.
+- **Library:** a selection box was sluggish deep in a large library.
+- **Tags:** typing in Find reloaded every card picture; Pets tags can no
+  longer be renamed or deleted from the Tags page.
+- The stack tray's close button was blank.
+
 ## [0.52.2] - 2026-10-10
 
 0.52.1 was tagged but never published (its tests failed on the build server);
