@@ -365,6 +365,8 @@ def _stylesheet(t: Theme | None = None) -> str:
     QListWidget#TagCards::item:hover {{ background: {t.field_bg}; }}
     QListWidget#TagCards::item:selected {{ background: {_mix(t.accent, t.surface, 0.18)}; color: {t.text}; }}
     QPushButton#Segment {{ padding: 4px 12px; }}
+    /* An album open from another page (0.53). */
+    QWidget#ScopeBar {{ background: {t.surface}; border-bottom: 1px solid {t.border}; }}
     /* The photo view's tool rail (0.52). */
     QScrollArea#ToolRail {{ background: {t.viewer_bg}; border: none; border-left: 1px solid {t.border}; }}
     QWidget#ToolRailInner {{ background: {t.viewer_bg}; }}

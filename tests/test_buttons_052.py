@@ -45,3 +45,32 @@ def test_the_stack_trays_close_button_shows_its_icon(tmp_path):
     tray.close_b.click()
     assert tray.isHidden()
     tray.deleteLater()
+
+
+def test_an_album_opens_with_a_way_back_and_library_means_all_of_it(tmp_path):
+    # 0.53: an album looked like the Library with a chip - no Back, and it stayed on.
+    from types import SimpleNamespace
+    from test_audit_navigation import _window
+    from lunelis.albums import model as albums
+    w, ids = _window(tmp_path, 8)
+    try:
+        aid = albums.create(w.conn, "Trip", ids[:3])
+        w.open_page("Library")
+        everything = len(w.index)                                 # (the test catalog may hold other tests' photos)
+        w.open_page("Albums")
+        w.show_album(SimpleNamespace(kind="album", key=str(aid), name="Trip"))
+        assert w.pages.currentWidget() is w.grid and len(w.index) == 3
+        assert not w.scope_bar.isHidden() and w.scope_title.text() == "Trip" and "3 photos" in w.scope_count.text()
+        assert w._nav["Albums"].isChecked()                       # the sidebar stays on Albums
+        w.scope_back_b.click()                                    # Back: the Albums page again
+        assert w.pages.currentWidget() is w.albums_page and w.scope_bar.isHidden()
+        w._nav["Library"].click()                                 # Library is the whole library
+        assert len(w.index) == everything and w.scope_bar.isHidden() and w.filter.album_id is None
+        # Straight from an album to the Library in the sidebar: also everything.
+        w.open_page("Albums")
+        w.show_album(SimpleNamespace(kind="album", key=str(aid), name="Trip"))
+        w._nav["Library"].click()
+        assert len(w.index) == everything and w._nav["Library"].isChecked() and w.scope_bar.isHidden()
+    finally:
+        w._quitting = True
+        w.close()

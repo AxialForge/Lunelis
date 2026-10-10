@@ -562,6 +562,8 @@ class MainWindow(QMainWindow):
         col = QVBoxLayout(main)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(0)
+        self.scope_bar = self._build_scope_bar()
+        col.addWidget(self.scope_bar)
         self.toolbar = self._build_toolbar()
         col.addWidget(self.toolbar)
         self.filter_bar = self._build_filter_bar()
@@ -1060,7 +1062,7 @@ class MainWindow(QMainWindow):
                 b.setCursor(Qt.CursorShape.PointingHandCursor)
                 b.setIconSize(QSize(20, 20))
                 b.setChecked(label == "Library")
-                b.clicked.connect(lambda _=False, name=label: self.show_page(name))
+                b.clicked.connect(lambda _=False, name=label: self._nav_clicked(name))
                 if label in ("Albums", "Map"):
                     # Photos held over the entry open the page, to drop on an album / on the map.
                     setattr(self, f"_spring_{label.lower()}", SpringLoad(b, lambda n=label: self.open_page(n)))
@@ -2031,6 +2033,7 @@ class MainWindow(QMainWindow):
             self._detail_from = getattr(self, "_page_name", "Library")    # Back returns here
         self.toolbar.hide()
         self.filter_bar.hide()
+        self.scope_bar.hide()
         self.pages.setCurrentWidget(self.detail)
         self.detail.open(self.index, pos)
 
@@ -2259,6 +2262,8 @@ class MainWindow(QMainWindow):
 
     def show_tag(self, name: str) -> None:
         from dataclasses import replace as _replace
+        self._enter_scope(name.replace("|", " › "))
+        self._scope_stale = False
         self.show_page("Library")
         b = self._nav.get("Library")
         if b is not None:
@@ -2472,6 +2477,97 @@ class MainWindow(QMainWindow):
         self.show_page("Map")
         self.map_page.canvas.centre_on(lat, lon)
 
+    # --- an album (tag, event, set of photos) opened from another page (0.53) ------------------
+    #
+    # It used to look like the Library with a small chip: the sidebar said
+    # Library, there was no way back, and the album stayed on the Library until
+    # its chip was found and removed. Now the sidebar keeps the page it came
+    # from, a bar above the grid names it with a Back button, and Library in
+    # the sidebar always shows the whole library.
+
+    SCOPE_FIELDS = dict(album_id=None, auto=None, smart=None, ids=None, ranked=False, event_id=None,
+                        event_name=None, tag=None, folder=None, scope_name=None)
+
+    def _build_scope_bar(self) -> QWidget:
+        bar = QWidget(objectName="ScopeBar")
+        h = QHBoxLayout(bar)
+        h.setContentsMargins(16, 8, 16, 8)
+        h.setSpacing(12)
+        self.scope_back_b = QPushButton(clicked=lambda: self._scope_back())
+        self.scope_back_b.setToolTip("Back (Backspace)")
+        h.addWidget(self.scope_back_b)
+        self.scope_title = QLabel(objectName="SectionTitle", textFormat=Qt.TextFormat.PlainText)
+        h.addWidget(self.scope_title)
+        self.scope_count = QLabel(objectName="Count")
+        h.addWidget(self.scope_count)
+        h.addStretch(1)
+        whole = QPushButton("Show the whole library", clicked=lambda: self._nav_clicked("Library"))
+        h.addWidget(whole)
+        bar.hide()
+        self._scope_from: str | None = None
+        self._scope_title_text = ""
+        return bar
+
+    def _scoped(self, f=None) -> bool:
+        f = f or self.filter
+        return any(getattr(f, k) not in (None, False) for k in self.SCOPE_FIELDS if k not in ("scope_name", "event_name"))
+
+    def _enter_scope(self, title: str) -> None:
+        """Call before opening the Library on an album / tag / event: remembers where from."""
+        prev = getattr(self, "_page_name", None)
+        if prev and prev != "Library" and prev in getattr(self, "_nav", {}):
+            self._scope_from = prev
+        elif not getattr(self, "_scope_from", None):
+            self._scope_from = None                        # opened from the Library itself: just the chip
+        self._scope_title_text = title
+        self._scope_entering = True                        # its filter is set a moment later
+
+    def _update_scope_bar(self) -> None:
+        if not hasattr(self, "scope_bar"):
+            return
+        origin = getattr(self, "_scope_from", None)
+        if origin and not self._scoped() and not getattr(self, "_scope_entering", False):
+            origin = self._scope_from = None               # its chip was removed: it's the Library again
+        on = bool(origin) and getattr(self, "_page_name", "Library") == "Library"
+        self.scope_bar.setVisible(on)
+        if on:
+            n = len(self.index)
+            self.scope_back_b.setText(f"‹  {origin}")
+            self.scope_title.setText(self._scope_title_text)
+            self.scope_count.setText(f"{n:,} photo{'s' if n != 1 else ''}")
+            b = self._nav.get(origin)
+            if b is not None and not b.isChecked():
+                b.setChecked(True)                         # the sidebar stays on where you came from
+
+    def _drop_scope(self) -> None:
+        """Out of the album: the whole library again (your rating / flag filters stay)."""
+        from dataclasses import replace as _replace
+        self._scope_from = None
+        if self._scoped():
+            self.set_filter(_replace(self.filter, **self.SCOPE_FIELDS))
+        self._update_scope_bar()
+
+    def _scope_back(self) -> None:
+        origin = getattr(self, "_scope_from", None)
+        if not origin:
+            return
+        self._scope_from = None
+        self._scope_stale = True                           # cleared when the Library is next shown
+        self.scope_bar.hide()
+        self.open_page(origin)
+
+    def _nav_clicked(self, name: str) -> None:
+        """A sidebar entry. Library always means all of it."""
+        if name == "Library" and getattr(self, "_scope_from", None):
+            self._drop_scope()
+            self.show_page("Library")
+            self._nav["Library"].setChecked(True)
+            return
+        if name != "Library" and getattr(self, "_scope_from", None):
+            self._scope_from = None
+            self._scope_stale = True
+        self.show_page(name)
+
     def show_page(self, name: str) -> None:
         if name != "Library" and hasattr(self, "stack_tray"):
             self.stack_tray.show_stack(None)
@@ -2499,9 +2595,17 @@ class MainWindow(QMainWindow):
         library = name == "Library"
         self.toolbar.setVisible(library)
         self.filter_bar.setVisible(library)
+        if not library and hasattr(self, "scope_bar"):
+            self.scope_bar.hide()
         if library:
             self.pages.setCurrentWidget(self.grid)
+            if getattr(self, "_scope_stale", False):       # an album left by Back or the sidebar
+                self._scope_stale = False
+                if not getattr(self, "_scope_from", None) and self._scoped():
+                    from dataclasses import replace as _replace
+                    self.set_filter(_replace(self.filter, **self.SCOPE_FIELDS))
             self.reload_later(only_if_changed=True)      # back from another page: only if something changed
+            self._update_scope_bar()
         elif name == "Import":
             self.pages.setCurrentWidget(self.importer)
             self.importer.refresh()
@@ -2579,6 +2683,8 @@ class MainWindow(QMainWindow):
         if album.kind == "event":
             self.show_event(int(album.key), album.name)
             return
+        self._enter_scope(album.name)
+        self._scope_stale = False
         self.open_page("Library")
         if album.kind == "smart":
             import json
@@ -2847,6 +2953,8 @@ class MainWindow(QMainWindow):
         self.reload()
 
     def show_event(self, event_id: int, name: str) -> None:
+        self._enter_scope(name)
+        self._scope_stale = False
         self.open_page("Library")
         self.set_filter(Filter(event_id=event_id, event_name=name))
 
@@ -3156,6 +3264,8 @@ class MainWindow(QMainWindow):
             self.search.blockSignals(False)
         self.reload()
         self.grid.verticalScrollBar().setValue(0)
+        self._scope_entering = False
+        self._update_scope_bar()
         while self.chips.count():
             self.chips.takeAt(0).widget().deleteLater()
         parts = []
@@ -3610,6 +3720,8 @@ class MainWindow(QMainWindow):
 
     def show_photos(self, ids: list, name: str = "Lunelis noticed") -> None:
         """The library showing just these photos, all selected."""
+        self._enter_scope(name)
+        self._scope_stale = False
         self.open_page("Library")
         self.set_filter(Filter(ids=tuple(ids), scope_name=name))
         self.grid.selected = {f for f in ids if self.index.position(f) >= 0}
