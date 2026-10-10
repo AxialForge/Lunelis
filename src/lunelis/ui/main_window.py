@@ -811,6 +811,7 @@ class MainWindow(QMainWindow):
         # Packaged builds: look for a new version once a day, quietly.
         self._later(8000, self._startup_update_check)
         self._later(20000, self._housekeeping)
+        self._later(15000, self._read_waiting)
         # darktable plugin: pick up its rating changes, hand it ours (cheap when idle).
         self._dt_state: dict = {}
         self._dt_timer = QTimer(self, interval=20_000, timeout=self._darktable_tick)
@@ -3450,6 +3451,17 @@ class MainWindow(QMainWindow):
         self.status.setText(f"Removed {path} from Lunelis ({removed:,} photos and videos; nothing on disk changed)")
         self.settings_page.refresh()
         self.reload()
+
+    def _read_waiting(self) -> None:
+        """Files whose metadata hasn't been read - a new reader in this version
+        (0.51: Canon CR3) clears the old "no reader" marks - are read now, not
+        at the next library pass, which may be days away (0.52)."""
+        from lunelis.importers.metadata import PENDING_SQL
+        ids = [r[0] for r in self.conn.execute(
+            "SELECT DISTINCT f.root_id FROM files f WHERE f.id IN (SELECT id FROM (" + PENDING_SQL + "))")]
+        ids = [i for i in ids if i not in self.offline_roots]
+        if ids:
+            self.start(ids)
 
     def rescan_all(self) -> None:
         ids = [r["id"] for r in self.conn.execute("SELECT id FROM roots WHERE enabled = 1")]

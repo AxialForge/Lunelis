@@ -54,3 +54,26 @@ def test_cr3_rows_marked_no_reader_are_read_again_after_the_upgrade(tmp_path):
                                                      (2, None), (3, "ValueError: bad")])
     c.executescript(sql)
     assert [r[0] for r in c.execute("SELECT file_id FROM exif ORDER BY 1")] == [2, 3]
+
+
+def test_files_waiting_to_be_read_are_read_at_startup_not_at_the_next_scan(tmp_path):
+    # 0.52: after the 0.51 upgrade cleared the CR3 "no reader" marks, nothing
+    # read them until the next library pass.
+    from types import SimpleNamespace
+    from lunelis.catalog.schema import open_catalog
+    from lunelis.importers.scan import add_root, scan_root
+    from lunelis.ui.main_window import MainWindow
+    (tmp_path / "Card").mkdir()
+    (tmp_path / "Card" / "IMG_1.CR3").write_bytes(b"\0" * 64)
+    conn = open_catalog(tmp_path / "c.db")
+    rid = add_root(conn, tmp_path / "Card")
+    scan_root(conn, rid)                              # cataloged, metadata not read yet
+    started = []
+    fake = SimpleNamespace(conn=conn, offline_roots={}, start=started.append)
+    MainWindow._read_waiting(fake)
+    assert started == [[rid]]
+    fake.offline_roots = {rid: "asleep"}              # a source that isn't answering waits
+    started.clear()
+    MainWindow._read_waiting(fake)
+    assert started == []
+    conn.close()
