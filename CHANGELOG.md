@@ -6,6 +6,46 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-10-09
+
+Pets, view tools and a round of interface fixes.
+
+### Added
+
+- **View tools** in the photo view: a rail beside the picture with focus
+  peaking (and the camera's AF point when the file records it), exposure
+  warnings, false colour, zones, a live histogram and composition guides
+  (thirds, golden ratio, centre, level). Drawn on screen only, also while
+  editing.
+- **Pets:** right-click a face > An animal..., name pets (tagged Pets|name),
+  and a Pets tab on the People page. Animal faces stay out of the people
+  suggestions; with the scene model installed, new ones are sorted out by
+  themselves, and "Find animals among the faces" checks the ones you have.
+- **Collapse into a timelapse** (right-click): the selection becomes one
+  tile, like a burst. Timelapses > Stack all does every found timelapse.
+- **Tags page:** tags as picture cards, grouped into People, Pets, Scene,
+  Places and your own; the tree is still there under List.
+
+### Changed
+
+- **Library:** dragging from a photo that isn't selected draws a selection
+  box (dragging a selected one still drags the photos out).
+- **Faces are found about four times faster from a NAS:** the next photos
+  are read in parallel while one is analysed.
+- **Photo view:** rotate and previous / next are full-size icon buttons;
+  slider handles are true circles.
+
+### Fixed
+
+- **Google Takeout page:** ticking a year or album froze the window for
+  minutes on a big export (one catalog write per photo); now it is one.
+- **Migration wizard...**, the wizard's Takeout button and "Open the stack"
+  failed with an error when clicked.
+- **Editing:** the photo zoomed out while a slider was dragged, and back on
+  release, when its pixel size wasn't on record.
+- **Files whose metadata was waiting to be read** (the CR3 files 0.51 reads)
+  are read at startup, not at the next library scan.
+
 ## [0.51.0] - 2026-10-09
 
 Canon CR3, and the migration engine audit.
