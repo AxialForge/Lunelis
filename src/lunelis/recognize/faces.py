@@ -192,15 +192,26 @@ def _vec(blob: bytes | None) -> np.ndarray | None:
     return None if blob is None else np.frombuffer(blob, dtype=np.float32)
 
 
-def _image(conn: sqlite3.Connection, file_id: int):
-    """The photo upright, at most DETECT_EDGE px (a RAW's own embedded preview)."""
-    from lunelis.raw.thumbnails import render
+def _source(conn: sqlite3.Connection, file_id: int) -> tuple[str, int | None]:
     row = conn.execute(
         "SELECT r.path, f.rel_path, e.orientation FROM files f JOIN roots r ON r.id = f.root_id"
         " LEFT JOIN exif e ON e.file_id = f.id WHERE f.id = ?", (file_id,)).fetchone()
     if row is None:
         raise FileNotFoundError(file_id)
-    return render(os.path.join(row[0], *row[1].split("/")), row[2], DETECT_EDGE, log_preview="off")
+    return os.path.join(row[0], *row[1].split("/")), row[2]
+
+
+def _load(path: str, orientation: int | None):
+    from lunelis.raw.thumbnails import render
+    return render(path, orientation, DETECT_EDGE, log_preview="off")
+
+
+def _image(conn: sqlite3.Connection, file_id: int):
+    """The photo upright, at most DETECT_EDGE px (a RAW's own embedded preview)."""
+    return _load(*_source(conn, file_id))
+
+
+READ_AHEAD = 6     # photos read and decoded in parallel while one is analysed (0.52)
 
 
 def crop_path(face_id: int) -> Path:
@@ -228,11 +239,28 @@ def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None
         raise RuntimeError("the face models aren't installed (Settings > Library > Faces)")
     looked = found = 0
     new_ids: list[int] = []
+    # Reading the photo was most of the time on a NAS (one file at a time, the
+    # network idle while a face was analysed): the next few are read and
+    # decoded on threads meanwhile (0.52). The catalog is only used here.
+    from concurrent.futures import ThreadPoolExecutor
+    sources = {}
     for fid in file_ids:
+        try:
+            sources[fid] = _source(conn, fid)
+        except FileNotFoundError:
+            continue
+    order = [fid for fid in file_ids if fid in sources]
+    pool = ThreadPoolExecutor(max_workers=READ_AHEAD)
+    pending = {fid: pool.submit(_load, *sources[fid]) for fid in order[:READ_AHEAD]}
+    nxt = READ_AHEAD
+    for fid in order:
         if should_cancel and should_cancel():
             break
+        if nxt < len(order):
+            pending[order[nxt]] = pool.submit(_load, *sources[order[nxt]])
+            nxt += 1
         try:
-            img = _image(conn, fid)
+            img = pending.pop(fid).result()
         except Exception:                            # unreadable or offline: the next run tries again
             continue
         if conn.in_transaction:
@@ -260,6 +288,9 @@ def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None
         # Saved per photo: the next photo is read and analysed with the catalog
         # free, so a click that saves (a tag, an edit, a pin) never waits on it.
         conn.commit()
+    for f in pending.values():
+        f.cancel()
+    pool.shutdown(wait=False, cancel_futures=True)
     conn.commit()
     if new_ids:
         from lunelis.recognize import animals
