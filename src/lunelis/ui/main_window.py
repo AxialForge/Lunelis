@@ -589,6 +589,12 @@ class MainWindow(QMainWindow):
         self.grid.paths_provider = self._paths_of
         self.grid.customContextMenuRequested.connect(
             lambda pos: self.photo_menu.exec(self.grid.mapToGlobal(pos)))
+        # Backspace in the grid goes back out of an album, as the Back button's
+        # tooltip says (0.53: it did nothing there). Only while the grid has the keys.
+        from PySide6.QtGui import QKeySequence, QShortcut
+        self._scope_back_key = QShortcut(QKeySequence(Qt.Key.Key_Backspace), self.grid)
+        self._scope_back_key.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self._scope_back_key.activated.connect(lambda: self._scope_back())
         self.pages = PageStack()
         self.pages.addWidget(self.grid, scroll=False)               # scrolls itself
         self.dupes = DuplicatesView(self.conn)
@@ -3616,6 +3622,11 @@ class MainWindow(QMainWindow):
 
     def start(self, root_ids: list[int]) -> None:
         if self._thread is not None:
+            # A scan asked for while one is running is kept and run next (0.53:
+            # it was dropped - a finished import, a folder just added or a
+            # Takeout folder didn't show up until F5).
+            queue = getattr(self, "_scan_queue", None) or []
+            self._scan_queue = queue + [r for r in root_ids if r not in queue]
             return
         self._thread = QThread(self)
         self._worker = LibraryWorker(root_ids)
@@ -3820,8 +3831,12 @@ class MainWindow(QMainWindow):
         self._thread.wait()
         self._thread.deleteLater()
         self._worker.deleteLater()
+        stopped = bool(self._worker and self._worker._cancel)
         self._thread = self._worker = None
         self._set_busy(False)
+        queued, self._scan_queue = getattr(self, "_scan_queue", None), None
+        if queued and not stopped:                     # asked for while this one ran (Stop drops them)
+            QTimer.singleShot(0, lambda: self.start(queued))
         failed, self._steps_failed = getattr(self, "_steps_failed", None), None
         pending = getattr(self, "_pending_setup_roots", None)
         if pending:                                    # folders from the first-run setup, added mid-scan

@@ -74,3 +74,24 @@ def test_an_album_opens_with_a_way_back_and_library_means_all_of_it(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_backspace_in_the_grid_leaves_an_album_and_pet_tags_are_protected(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from PySide6.QtWidgets import QMessageBox
+    from test_audit_navigation import _window
+    from lunelis.albums import model as albums
+    w, ids = _window(tmp_path, 4)
+    try:
+        aid = albums.create(w.conn, "Trip", ids[:2])
+        w.open_page("Albums")
+        w.show_album(SimpleNamespace(kind="album", key=str(aid), name="Trip"))
+        w._scope_back_key.activated.emit()                         # Backspace with the grid focused
+        assert w.pages.currentWidget() is w.albums_page
+        said = []
+        monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: said.append(a[2])))
+        assert w.tags_page._managed("Pets|Rex") and "Pets tab" in said[-1]      # as People tags are
+        assert not w.tags_page._managed("Holidays")
+    finally:
+        w._quitting = True
+        w.close()

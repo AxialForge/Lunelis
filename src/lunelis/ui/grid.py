@@ -672,14 +672,23 @@ class PhotoGrid(QAbstractScrollArea):
         top = min(self._band_y0, p.y() + self.verticalScrollBar().value())
         bottom = max(self._band_y0, p.y() + self.verticalScrollBar().value())
         left, right = rect.left(), rect.right()
+        # Straight from the geometry: only the rows and columns the box covers
+        # (0.53: every tile from the first photo down was tested on each mouse
+        # move - a quarter of a second per move near the end of 160,000 photos).
+        import math
+        n, row_h, step = len(self.index), self._row_h(), self.tile + GAP
+        r0 = max(0, math.ceil((top - PAD_Y - self.tile) / row_h))
+        r1 = (bottom - PAD_Y) // row_h
+        c0 = max(0, math.ceil((left - PAD_X - self.tile) / step))
+        c1 = min(self.cols - 1, (right - PAD_X) // step)
         hit = set()
-        for i in range(len(self.index)):
-            r = self._tile_rect(i)
-            ry = r.top() + self.verticalScrollBar().value()
-            if ry > bottom:
+        for r in range(r0, r1 + 1):
+            base = r * self.cols
+            if base >= n:
                 break
-            if ry + r.height() >= top and r.right() >= left and r.left() <= right:
-                hit.add(self.index.file_id(i))
+            for c in range(c0, c1 + 1):
+                if base + c < n:
+                    hit.add(self.index.file_id(base + c))
         self.selected = self._band_base | hit
         self.viewport().update()
         self.selection_changed.emit(len(self.selected))

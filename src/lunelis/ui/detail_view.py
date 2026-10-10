@@ -146,6 +146,7 @@ class _FullSignals(QObject):
 
 class _AFSignals(QObject):
     found = Signal(int, object)          # file id, (x, y) fractions or None
+    looked = Signal(int, object)         # file id, faces found (int) or the error text
 
 
 class _FullLoad(QRunnable):
@@ -1280,6 +1281,7 @@ class DetailView(QWidget):
         self._full_signals.loaded.connect(self._full_ready)
         self._af_signals = _AFSignals()
         self._af_signals.found.connect(self._af_found)
+        self._af_signals.looked.connect(self._faces_looked)
         self._full_for: int | None = None
         self._full_pix: tuple[int, QPixmap] | None = None
         self.panel = InfoPanel()
@@ -1809,11 +1811,41 @@ class DetailView(QWidget):
         from lunelis.recognize import faces
         if self.info is None:
             return
-        try:
-            n = faces.look_again(self.conn, self.info.file_id)
-        except RuntimeError as e:
+        # On a worker with its own catalog connection (0.53: loading the models
+        # and reading the photo in the click froze the window).
+        import threading
+        fid = self.info.file_id
+        db = self.conn.execute("PRAGMA database_list").fetchone()[2]
+        self.canvas.message = "Looking for faces…"
+        self.canvas.update()
+
+        def work() -> None:
+            try:
+                from lunelis.catalog.schema import open_catalog
+                conn = open_catalog(db) if db else self.conn
+                try:
+                    n = faces.look_again(conn, fid)
+                finally:
+                    if db:
+                        conn.close()
+            except Exception as e:                      # noqa: BLE001 - said in the window, not a crash
+                n = str(e)
+            try:
+                self._af_signals.looked.emit(fid, n)
+            except RuntimeError:
+                pass
+        if getattr(self, "_look_inline", False) or not db:
+            work()
+        else:
+            threading.Thread(target=work, daemon=True).start()
+
+    def _faces_looked(self, fid: int, n) -> None:
+        if self.info is None or self.info.file_id != fid:
+            return
+        if isinstance(n, str):
+            self.canvas.message = ""
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Faces", str(e).capitalize() + ".")
+            QMessageBox.information(self, "Faces", n[:1].upper() + n[1:] + ("" if n.endswith(".") else "."))
             return
         if not self.faces_b.isChecked():
             self.set_faces_overlay(True)

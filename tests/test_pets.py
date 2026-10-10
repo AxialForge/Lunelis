@@ -209,3 +209,17 @@ def test_the_faces_menu_adds_redraws_and_removes_by_hand(tmp_path, monkeypatch):
                     faces.delete_person(w.conn, p.id)
         w._quitting = True
         w.close()
+
+
+def test_looking_again_keeps_what_you_said_wasnt_a_face(lib):
+    # 0.53: a re-scan deleted "not a face" / stranger / animal answers, and they came back as new faces.
+    conn, ids, rid = lib
+    scan(conn)
+    both = faces.faces_of(conn, ids["both.jpg"])
+    faces.ignore(conn, [both[0].id])                       # not a face
+    faces.mark_animal(conn, [both[1].id])                  # an animal
+    conn.execute("DELETE FROM face_scans WHERE file_id = ?", (ids["both.jpg"],))
+    faces.scan_files(conn, [ids["both.jpg"]], FakeBackend())
+    after = faces.faces_of(conn, ids["both.jpg"], with_ignored=True)
+    assert sorted(f.id for f in after) == sorted(f.id for f in both)      # the same two, nothing new
+    assert faces.faces_of(conn, ids["both.jpg"]) == []                     # and still set aside

@@ -149,3 +149,38 @@ def test_startup_recovery_finds_snapshots_in_the_folder_settings_names(tmp_path)
     assert backup.all_snapshots(cat, tmp_path / "data") == [snap]
     (tmp_path / "junk.db").write_bytes(b"not a database at all")
     assert backup.all_snapshots(tmp_path / "junk.db", tmp_path / "data") == []     # unreadable: just the default folder
+
+
+def test_a_selection_box_selects_exactly_the_tiles_it_touches(tmp_path):
+    # The fast version must pick what the slow one did.
+    from PySide6.QtCore import QPoint
+    from test_audit_navigation import _window
+    w, ids = _window(tmp_path, 30)
+    try:
+        w.open_page("Library")
+        w.resize(1100, 700)
+        g = w.grid
+        g.set_target_tile(160)
+        g.clear_selection()
+        a, b = g._tile_rect(g.cols + 1), g._tile_rect(2 * g.cols + 2)      # row 1 col 1 .. row 2 col 2
+        g._band_start(a.center())
+        g._band_move(b.center())
+        want = {g.index.file_id(r * g.cols + c) for r in (1, 2) for c in (1, 2)}
+        assert g.selected == want
+        g._band_move(QPoint(a.center().x() + 2, a.center().y() + 2))        # shrunk back to one tile
+        assert g.selected == {g.index.file_id(g.cols + 1)}
+        g._band.hide()
+        g._band_timer.stop()
+    finally:
+        w._quitting = True
+        w.close()
+
+
+def test_a_scan_asked_for_during_a_scan_runs_afterwards():
+    # It was silently dropped: imported photos and new folders didn't appear until F5.
+    from types import SimpleNamespace
+    from lunelis.ui.main_window import MainWindow
+    busy = SimpleNamespace(_thread=object(), _scan_queue=None)
+    MainWindow.start(busy, [3])
+    MainWindow.start(busy, [3, 5])
+    assert busy._scan_queue == [3, 5]

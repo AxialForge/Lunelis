@@ -267,7 +267,10 @@ def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None
             conn.commit()                            # never hold the write lock while analysing
         hits = be.detect(np.asarray(img.convert("RGB")))
         # A re-scan with a new model replaces the faces it found itself; named and hand-drawn ones stay.
-        conn.execute("DELETE FROM faces WHERE file_id = ? AND source = 'auto' AND confirmed = 0", (fid,))
+        # ...and so do the ones you answered: "not a face", a stranger, an animal
+        # (0.53: looking again deleted them and they came back as new faces).
+        conn.execute("DELETE FROM faces WHERE file_id = ? AND source = 'auto' AND confirmed = 0 AND ignored = 0",
+                     (fid,))
         for box, score, vec in hits:
             if _overlaps_kept(conn, fid, box):
                 continue

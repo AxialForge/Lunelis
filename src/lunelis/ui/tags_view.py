@@ -160,6 +160,7 @@ class TagsView(QWidget):
     def _show(self, counted) -> None:
         rows, totals, n_photos, *rest = counted
         self._rows, self._totals, self._covers = rows, totals, (rest[0] if rest else {})
+        self._icons = {}                               # card pictures, kept until the tags are counted again
         self._fill_groups()
         direct = dict(rows)
         self.tree.clear()
@@ -242,7 +243,10 @@ class TagsView(QWidget):
         for name in self._card_names():
             shown = name.split(tags.SEP, 1)[1] if key not in (self.ALL, self.YOURS) and tags.SEP in name else name
             n = self._totals.get(name, 0)
-            card = QListWidgetItem(_square(self._covers.get(name), CARD),
+            icons = self.__dict__.setdefault("_icons", {})
+            if name not in icons:                      # one decode per tag, not one per keystroke in Find (0.53)
+                icons[name] = _square(self._covers.get(name), CARD)
+            card = QListWidgetItem(icons[name],
                                    f"{shown.replace(tags.SEP, ' › ')}\n{n:,} photo{'s' if n != 1 else ''}")
             card.setData(Qt.ItemDataRole.UserRole, name)
             card.setToolTip(name.replace(tags.SEP, " > "))
@@ -276,6 +280,7 @@ class TagsView(QWidget):
         the photos' locations: changing them here would put the two out of step."""
         root = name.split(tags.SEP, 1)[0]
         where = {"People": "Rename, merge or forget the person on the People page - the tags follow.",
+                 "Pets": "Rename or forget the pet on the People page's Pets tab - the tags follow.",
                  "Places": "Place tags follow each photo's location - change a pin on the Map instead."}.get(root)
         if where:
             QMessageBox.information(self, "Tags", f"'{name.replace(tags.SEP, ' > ')}' is kept by Lunelis. {where}")
