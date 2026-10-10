@@ -16,6 +16,7 @@ without ever needing a whole-library pass first.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 from collections import defaultdict
@@ -29,6 +30,7 @@ WORKERS = 8
 CancelFn = Callable[[], bool]
 
 LIVE = "f.missing_since IS NULL AND f.excluded = 0 AND f.quarantined_at IS NULL AND r.enabled = 1"
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -46,6 +48,21 @@ def _abs(root: str, rel_path: str) -> str:
 
 def _dir_of(rel_path: str) -> str:
     return rel_path.rsplit("/", 1)[0] if "/" in rel_path else ""
+
+
+def folder_sql(folder: str, col: str = "f.rel_path") -> tuple[str, list]:
+    """(SQL, parameters) for "this file sits directly in `folder`".
+
+    Every folder-by-folder job used to list the whole source for each folder
+    and pick the folder's files out in Python: minutes of overhead per job on
+    160k files. A folder's files are one run of rel_path ('2019/Trip/' up to
+    '2019/Trip0' - '0' is the character after '/'), which the catalog's own
+    (root_id, rel_path) index finds directly; the instr() drops the files of
+    sub-folders. Put `f.root_id = ?` beside it so that index is used (0.54)."""
+    if not folder:
+        return f"instr({col}, '/') = 0", []
+    return (f"{col} >= ? AND {col} < ? AND instr(substr({col}, ?), '/') = 0",
+            [folder + "/", folder + "0", len(folder) + 2])
 
 
 # --- planning ----------------------------------------------------------------
@@ -94,6 +111,9 @@ def _hash_rows(rows, throttle, should_cancel, workers, result: FolderResult):
         for fid, digest, n, err in pool.map(work, rows):
             if err:
                 result.errors.append(err)
+                # Nothing reads result.errors: without this a file that couldn't
+                # be compared was dropped without a word (0.54).
+                _log.warning("Duplicates: %s - not compared", err)
             if digest:
                 out.append((digest, fid))
                 result.hashed += 1
@@ -147,11 +167,10 @@ def process_folder(conn: sqlite3.Connection, root_id: int, folder: str, *,
                    workers: int = WORKERS) -> FolderResult:
     """Find every byte-identical candidate of this folder's files, anywhere."""
     result = FolderResult()
-    like = (folder.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%") if folder else None
-    in_folder = ("f.root_id = ? AND " +
-                 ("f.rel_path LIKE ? ESCAPE '\\' AND f.rel_path NOT LIKE ? ESCAPE '\\'" if folder
-                  else "f.rel_path NOT LIKE '%/%'"))
-    params = [root_id] + ([like, like + "/%"] if folder else [])
+    # Just this folder's rows, found through the index (0.54) - see folder_sql.
+    where, args = folder_sql(folder)
+    in_folder = "f.root_id = ? AND " + where
+    params = [root_id, *args]
 
     # Sizes in this folder that also occur on some other live file.
     sizes = [s for (s,) in conn.execute(
@@ -217,7 +236,14 @@ def verify_group(conn: sqlite3.Connection, group_id: int, *, throttle: Throttle 
         fid, root, rel, known = row
         if known:
             return fid, known
-        digest, _ = full_hash(_abs(root, rel), throttle, should_cancel)
+        try:
+            digest, _ = full_hash(_abs(root, rel), throttle, should_cancel)
+        except (FileNotFoundError, PermissionError) as e:
+            # Gone or locked since the scan: this one stays unverified and the
+            # job goes on - it used to end "Stopped by an error" at the same
+            # folder on every retry (0.54).
+            _log.warning("Duplicates: %s - not verified (%s)", rel, e.strerror or e)
+            return fid, None
         return fid, digest
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:

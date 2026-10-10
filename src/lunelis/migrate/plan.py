@@ -170,7 +170,10 @@ def plan(conn: sqlite3.Connection, target: str, template: str, options: Options,
     rows = conn.execute(
         "SELECT f.id, f.root_id, r.path, f.rel_path, f.filename, f.size_bytes, f.format,"
         "       e.captured_at, e.camera_model, ev.name, ev.start_at,"
-        "       EXISTS (SELECT 1 FROM damaged d WHERE d.file_id = f.id), f.sample_hash, f.mtime,"
+        # A flag you dismissed ("this file is fine") isn't damage: it used to
+        # send the photo to the Damaged folder all the same (0.54).
+        "       EXISTS (SELECT 1 FROM damaged d WHERE d.file_id = f.id AND d.dismissed = 0),"
+        "       f.sample_hash, f.mtime,"
         "       f.archived_at IS NOT NULL"
         " FROM files f JOIN roots r ON r.id = f.root_id LEFT JOIN exif e ON e.file_id = f.id"
         " LEFT JOIN event_files ef ON ef.file_id = f.id LEFT JOIN events ev ON ev.id = ef.event_id"

@@ -208,10 +208,11 @@ def auto_accept(conn: sqlite3.Connection) -> int:
 
 def pending_in_folder(conn: sqlite3.Connection, root_id: int, folder: str, model: str) -> list[int]:
     from lunelis.dupes import detect
+    where, args = detect.folder_sql(folder)        # this folder's rows only, not the whole source (0.54)
     return [fid for fid, rel in conn.execute(
         f"SELECT f.id, f.rel_path FROM files f LEFT JOIN embeddings em ON em.file_id = f.id AND em.model = ?"
-        f" WHERE f.root_id = ? AND {LIVE} AND em.file_id IS NULL AND f.thumbnail_path IS NOT NULL"
-        f" AND COALESCE(f.format, '') NOT IN ('mp4', 'mov', 'mpeg-ts')", (model, root_id))
+        f" WHERE f.root_id = ? AND {where} AND {LIVE} AND em.file_id IS NULL AND f.thumbnail_path IS NOT NULL"
+        f" AND COALESCE(f.format, '') NOT IN ('mp4', 'mov', 'mpeg-ts')", (model, root_id, *args))
             if detect._dir_of(rel) == folder]
 
 

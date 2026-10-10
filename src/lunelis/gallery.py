@@ -26,6 +26,11 @@ answers on this PC's home-network address, and:
 - **Resized copies:** photos are served as 1600 px JPEGs with their edits
   (cached in the data folder); the original file only when you allowed it for
   that album. Ids are checked against the album, so nothing outside it leaks.
+  The cached copies are kept per catalog and per version of the file (0.54),
+  so a restored or replaced catalog can't show another photo's copy.
+- **Pages aren't kept by the browser** (no-store, 0.54): the PIN page, error
+  pages and album pages are asked for again each time, so a link stops
+  working as soon as sharing stops. Pictures may be kept for five minutes.
 - **No metadata out:** resized copies carry no EXIF (so no GPS).
 - Pages send a strict Content-Security-Policy, nosniff and no-referrer.
 """
@@ -78,21 +83,63 @@ def is_home(addr: str) -> bool:
 
 
 CHUNK = 1 << 20                  # originals stream in 1 MB pieces
+IMAGE_CACHE = "private, max-age=300"     # pictures only; pages are never kept (0.54)
+CACHE_KEEP_DAYS = 30             # a resized copy not made again for this long is removed
 COOKIE_HOURS = 12                # a right PIN is remembered this long
 
 
-def lan_address() -> str:
-    """This PC's address on the home network (the one a phone would use)."""
+# Home routers hand out 192.168.x (nearly all of them) or 172.16-31.x; 10.x is
+# what a VPN's adapter usually has (NordVPN's is 10.5.0.2), though some home
+# networks use it too - so it's the last choice, not left out.
+_LAN_ORDER = [ipaddress.ip_network(n) for n in ("192.168.0.0/16", "172.16.0.0/12", "10.0.0.0/8")]
+
+
+def pick_lan_address(candidates: list[str], routed: str | None = None) -> str:
+    """The home-network address among this PC's addresses.
+
+    `routed` is the one Windows would send ordinary traffic from. With a VPN
+    on, that is the VPN's adapter (10.x) and phones at home can't reach it:
+    a 192.168.x or 172.16-31.x address on another adapter wins over it. Among
+    addresses of the same kind the routed one is preferred. 127.0.0.1 when
+    there's no home-network address at all (0.54)."""
+    seen: list[str] = []
+    for a in ([routed] if routed else []) + list(candidates):
+        if a and a not in seen:
+            seen.append(a)
+    for net in _LAN_ORDER:
+        for a in seen:
+            try:
+                if ipaddress.ip_address(a) in net:
+                    return a
+            except ValueError:
+                continue
+    return "127.0.0.1"
+
+
+def _routed_address() -> str | None:
     import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("10.255.255.255", 1))           # no packet is sent: this only picks the route
-        addr = s.getsockname()[0]
+        return s.getsockname()[0]
     except OSError:
-        addr = "127.0.0.1"
+        return None
     finally:
         s.close()
-    return addr if is_home(addr) else "127.0.0.1"
+
+
+def _own_addresses() -> list[str]:
+    """Every IPv4 address of this PC's adapters."""
+    import socket
+    try:
+        return list(socket.gethostbyname_ex(socket.gethostname())[2])
+    except OSError:
+        return []
+
+
+def lan_address() -> str:
+    """This PC's address on the home network (the one a phone would use)."""
+    return pick_lan_address(_own_addresses(), _routed_address())
 
 
 # --- shares ------------------------------------------------------------------------------------
@@ -233,13 +280,19 @@ def _handler(app: "Gallery"):
         def log_message(self, *a):                          # the app log, not stderr
             pass
 
-        def _send(self, code: int, body: bytes, ctype: str = "text/html; charset=utf-8", extra: dict | None = None):
+        conn = None                                           # this request's one catalog connection
+
+        def _send(self, code: int, body: bytes, ctype: str = "text/html; charset=utf-8",
+                  extra: dict | None = None, cache: bool = False):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header("Cache-Control", "private, max-age=300")
+            # Only pictures may be kept. A page (the PIN form, an error, the
+            # album) kept for five minutes still opened after sharing was
+            # stopped or the PIN changed (0.54).
+            self.send_header("Cache-Control", IMAGE_CACHE if cache else "no-store")
             self.send_header("Content-Security-Policy",
                              "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; "
                              "script-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
@@ -257,7 +310,7 @@ def _handler(app: "Gallery"):
             self.send_header("Content-Length", str(size))
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header("Cache-Control", "private, max-age=300")
+            self.send_header("Cache-Control", IMAGE_CACHE)
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
@@ -285,7 +338,11 @@ def _handler(app: "Gallery"):
             if len(parts) < 2 or parts[0] != "s":
                 self._deny(404, "Nothing here.")
                 return None
-            sh = app.share_for(parts[1])
+            # One connection for the whole request: the share, the album
+            # check and the picture each opened (and upgrade-checked) the
+            # catalog again (0.54). Closed in do_GET / do_POST.
+            self.conn = app._conn()
+            sh = app.share_for(parts[1], self.conn)
             if sh is None:
                 self._deny(404, "This link isn't shared any more.")
                 return None
@@ -303,10 +360,27 @@ def _handler(app: "Gallery"):
                 return False                               # expired: the PIN again (0.50)
             return hmac.compare_digest(sig, app.sign(sh["token"] + sh["pin_hash"] + exp))
 
+        def _done(self):
+            if self.conn is not None:
+                self.conn.close()
+                self.conn = None
+
         def do_HEAD(self):
             self.do_GET()
 
         def do_GET(self):
+            try:
+                self._get()
+            finally:
+                self._done()
+
+        def do_POST(self):
+            try:
+                self._post()
+            finally:
+                self._done()
+
+        def _get(self):
             g = self._gate()
             if g is None:
                 return
@@ -319,23 +393,23 @@ def _handler(app: "Gallery"):
                 return self._tv(sh)
             if rest[0] in ("img", "thumb", "original") and len(rest) == 2 and rest[1].split(".")[0].isdigit():
                 fid = int(rest[1].split(".")[0])
-                if fid not in app.ids(sh["album_id"]):
+                if not app.in_album(sh["album_id"], fid, self.conn):   # one row, not the album's list (0.54)
                     return self._deny(404, "Not in this album.")
                 if rest[0] == "original":
                     if not sh["originals"]:
                         return self._deny(403, "Originals aren't shared for this album.")
-                    path = app.original(fid)
+                    path = app.original(fid, self.conn)
                     from urllib.parse import quote
                     name = os.path.basename(path)
                     ascii_name = name.encode("ascii", "replace").decode().replace("?", "_").replace('"', "_")
                     return self._send_file(path, "application/octet-stream",
                                            {"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; "
                                                                    f"filename*=UTF-8''{quote(name)}"})
-                data = app.resized(fid, THUMB if rest[0] == "thumb" else SIZE)
-                return self._send(200, data, "image/jpeg")
+                data = app.resized(fid, THUMB if rest[0] == "thumb" else SIZE, self.conn)
+                return self._send(200, data, "image/jpeg", cache=True)
             self._deny(404, "Nothing here.")
 
-        def do_POST(self):
+        def _post(self):
             g = self._gate()
             if g is None:
                 return
@@ -370,7 +444,7 @@ def _handler(app: "Gallery"):
             self._send(401 if wrong else 200, PAGE.format(title=html.escape(sh["name"]), body=body).encode())
 
         def _album(self, sh):
-            ids = app.ids(sh["album_id"])
+            ids = app.ids(sh["album_id"], self.conn)
             t = sh["token"]
             tiles = "".join(f"<a href='/s/{t}/img/{f}.jpg'><img loading='lazy' src='/s/{t}/thumb/{f}.jpg' alt=''></a>"
                             for f in ids)
@@ -379,7 +453,7 @@ def _handler(app: "Gallery"):
             self._send(200, PAGE.format(title=html.escape(sh["name"]), body=body).encode())
 
         def _tv(self, sh):
-            ids = app.ids(sh["album_id"])
+            ids = app.ids(sh["album_id"], self.conn)
             urls = json.dumps([f"/s/{sh['token']}/img/{f}.jpg" for f in ids])
             body = ("<div class='tv'><img id='p' alt=''></div><script>"
                     f"var u={urls},i=0,p=document.getElementById('p');"
@@ -426,67 +500,131 @@ class Gallery:
         self.render_slots = threading.Semaphore(2)         # big RAWs: at most two being made at once
         self.httpd: ThreadingHTTPServer | None = None
         self.thread: threading.Thread | None = None
+        self._catalog_id: str | None = None                # which catalog the cached copies belong to
+        self._tidy_lock = threading.Lock()                 # ...asked once, and the old copies cleared then
 
     def _conn(self):
         from lunelis.catalog.schema import open_catalog
         return open_catalog(self.db_path)
 
+    def _with(self, conn, fn):
+        """Run fn(connection): the request's own, or one opened just for this."""
+        if conn is not None:
+            return fn(conn)
+        conn = self._conn()
+        try:
+            return fn(conn)
+        finally:
+            conn.close()
+
     def sign(self, token: str) -> str:
         return hmac.new(self.secret, token.encode(), hashlib.sha256).hexdigest()
 
-    def share_for(self, token: str) -> dict | None:
+    def share_for(self, token: str, conn=None) -> dict | None:
         if not token or len(token) > 64:
             return None
-        conn = self._conn()
-        try:
-            row = conn.execute("SELECT s.id, s.album_id, s.token, s.pin_hash, s.originals, a.name FROM shares s"
-                               " JOIN albums a ON a.id = s.album_id WHERE s.token = ? AND s.revoked_at IS NULL",
-                               (token,)).fetchone()
-        finally:
-            conn.close()
+        row = self._with(conn, lambda c: c.execute(
+            "SELECT s.id, s.album_id, s.token, s.pin_hash, s.originals, a.name FROM shares s"
+            " JOIN albums a ON a.id = s.album_id WHERE s.token = ? AND s.revoked_at IS NULL",
+            (token,)).fetchone())
         if row is None or not hmac.compare_digest(row[2], token):
             return None
         return {"id": row[0], "album_id": row[1], "token": row[2], "pin_hash": row[3], "originals": bool(row[4]),
                 "name": row[5]}
 
-    def ids(self, album_id: int) -> list[int]:
-        conn = self._conn()
-        try:
-            return [r[0] for r in conn.execute(
-                "SELECT f.id FROM album_files af JOIN files f ON f.id = af.file_id WHERE af.album_id = ?"
-                " AND f.missing_since IS NULL AND f.quarantined_at IS NULL"
-                f" AND COALESCE(f.format, '') NOT IN ({','.join('?' * len(VIDEO))}) ORDER BY af.position",
-                (album_id, *VIDEO))]
-        finally:
-            conn.close()
+    _SHOWN = ("FROM album_files af JOIN files f ON f.id = af.file_id WHERE af.album_id = ?"
+              " AND f.missing_since IS NULL AND f.quarantined_at IS NULL"
+              f" AND COALESCE(f.format, '') NOT IN ({','.join('?' * len(VIDEO))})")
 
-    def original(self, fid: int) -> str:
-        conn = self._conn()
-        try:
-            root, rel = conn.execute("SELECT r.path, f.rel_path FROM files f JOIN roots r ON r.id = f.root_id"
-                                     " WHERE f.id = ?", (fid,)).fetchone()
-        finally:
-            conn.close()
+    def ids(self, album_id: int, conn=None) -> list[int]:
+        return self._with(conn, lambda c: [r[0] for r in c.execute(
+            f"SELECT f.id {self._SHOWN} ORDER BY af.position", (album_id, *VIDEO))])
+
+    def in_album(self, album_id: int, fid: int, conn=None) -> bool:
+        """Is this photo one the album's page shows? (The same rule as ids().)"""
+        return self._with(conn, lambda c: c.execute(
+            f"SELECT 1 {self._SHOWN} AND af.file_id = ? LIMIT 1", (album_id, *VIDEO, fid)).fetchone() is not None)
+
+    def original(self, fid: int, conn=None) -> str:
+        root, rel = self._with(conn, lambda c: c.execute(
+            "SELECT r.path, f.rel_path FROM files f JOIN roots r ON r.id = f.root_id WHERE f.id = ?",
+            (fid,)).fetchone())
         return os.path.join(root, *rel.split("/"))
 
-    def resized(self, fid: int, edge: int) -> bytes:
-        conn = self._conn()
+    def cache_path(self, conn, fid: int, edge: int) -> Path:
+        """Where this photo's resized copy is kept.
+
+        By photo number alone (as it was) a restored or replaced catalog -
+        which numbers its photos from 1 again - was served another photo's
+        copy. The folder is now this catalog's own id, and the name carries
+        the edit's revision and the file's size and date, so a replaced file
+        gets a new copy too (0.54)."""
+        with self._tidy_lock:
+            if self._catalog_id is None:
+                from lunelis.catalog.cachecheck import catalog_id
+                self._catalog_id = catalog_id(conn)
+                self.tidy_cache(self._catalog_id)           # once per start of the gallery
+        size, mtime, rev = conn.execute(
+            "SELECT f.size_bytes, f.mtime, COALESCE((SELECT rev FROM edits WHERE file_id = f.id), 0)"
+            " FROM files f WHERE f.id = ?", (fid,)).fetchone()
+        sig = hashlib.sha256(f"{size}:{mtime}".encode()).hexdigest()[:10]
+        return self.cache / self._catalog_id / f"{fid}_{edge}_{rev}_{sig}.jpg"
+
+    def tidy_cache(self, keep: str) -> None:
+        """Remove resized copies that can't be used again: other catalogs'
+        folders, the loose files of before 0.54, and copies older than
+        CACHE_KEEP_DAYS. Lunelis's own cache, never your photos. Best effort."""
+        import re
+        import shutil
+        old = time.time() - CACHE_KEEP_DAYS * 86400
         try:
-            rev = conn.execute("SELECT COALESCE((SELECT rev FROM edits WHERE file_id = ?), 0)", (fid,)).fetchone()[0]
-            p = self.cache / f"{fid}_{edge}_{rev}.jpg"
-            if not p.exists():
-                from lunelis.edit.export import rendered
-                with self.render_slots:
-                    if p.exists():
-                        return p.read_bytes()
-                    img = rendered(conn, fid, edge)
-                self.cache.mkdir(parents=True, exist_ok=True)
-                tmp = p.with_suffix(".tmp")
-                img.save(tmp, "JPEG", quality=85)             # no exif: nothing (GPS) leaves with the picture
-                os.replace(tmp, p)
+            entries = list(os.scandir(self.cache))
+        except OSError:
+            return
+        for e in entries:
+            try:
+                if e.is_dir(follow_symlinks=False):
+                    # Only folders named like a catalog id and files named like
+                    # a resized copy are ever touched, whatever folder this is.
+                    if not re.fullmatch(r"[0-9a-f]{32}", e.name):
+                        continue
+                    if e.name != keep:
+                        shutil.rmtree(e.path, ignore_errors=True)
+                        continue
+                    for f in os.scandir(e.path):
+                        if (f.is_file(follow_symlinks=False) and f.stat().st_mtime < old
+                                and re.fullmatch(r"\d+_\d+_\d+_[0-9a-f]+\.jpg", f.name)):
+                            os.remove(f.path)
+                elif re.fullmatch(r"\d+_\d+_\d+\.(jpg|tmp)", e.name):
+                    os.remove(e.path)
+            except OSError:
+                pass
+
+    def resized(self, fid: int, edge: int, conn=None) -> bytes:
+        return self._with(conn, lambda c: self._resized(c, fid, edge))
+
+    def _resized(self, conn, fid: int, edge: int) -> bytes:
+        p = self.cache_path(conn, fid, edge)
+        try:
             return p.read_bytes()
-        finally:
-            conn.close()
+        except FileNotFoundError:
+            pass
+        from lunelis.edit.export import rendered
+        from lunelis.raw.thumbnails import save_jpeg_atomic
+        with self.render_slots:
+            if p.exists():
+                return p.read_bytes()
+            img = rendered(conn, fid, edge)
+        # Its own temporary name: two requests for one picture shared a
+        # single .tmp (0.54). No exif: nothing (GPS) leaves with the picture.
+        save_jpeg_atomic(img, p, 85)
+        for stale in p.parent.glob(f"{fid}_{edge}_*.jpg"):      # this photo's copies of earlier edits
+            if stale != p:
+                try:
+                    stale.unlink()
+                except OSError:
+                    pass
+        return p.read_bytes()
 
     def start(self) -> None:
         if self.httpd is not None:

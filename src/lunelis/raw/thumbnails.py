@@ -15,7 +15,9 @@ Source, by what the bytes are (files.format / sniff, never the extension):
 
 The cache is disposable: delete the folder and every thumbnail is regenerated
 on the next pass. A file that can't be thumbnailed gets `thumb_error`
-("preview unavailable") and isn't retried until it changes.
+("preview unavailable") and isn't retried until it changes - unless the
+failure was a passing one (the file was open in another program, memory ran
+out): that one stays pending for the next pass, up to TRANSIENT_TRIES times.
 """
 from __future__ import annotations
 
@@ -47,9 +49,17 @@ BIG_PIXELS = 60_000_000
 _BIG = threading.Lock()
 
 THUMB_EDGE = 512
+REPLACE_TRIES = 12                          # about a second and a half in all
 JPEG_QUALITY = 80
 WORKERS = 8
 BATCH_SIZE = 200
+
+# A passing failure is retried by later passes this many times before the
+# file is marked "preview unavailable" after all; counted per run of Lunelis,
+# in memory (the catalog has no column for it) - 0.54.
+TRANSIENT_TRIES = 3
+_tries: dict[int, int] = {}
+_tries_lock = threading.Lock()
 
 VIDEO_FORMATS = {"mp4", "mov", "mpeg-ts"}
 ProgressFn = Callable[[int, int, str], None]
@@ -85,7 +95,33 @@ def _orient(img: Image.Image, orientation: int | None) -> Image.Image:
     return img
 
 
+def _deep_grey_to_8bit(img: Image.Image) -> Image.Image:
+    """A 16-bit (or 32-bit / float) greyscale scan as ordinary 8-bit grey.
+    Pillow's own convert() doesn't scale these, it clips: everything above
+    255 of 65,535 became white, so such scans came out as a white rectangle
+    in thumbnails, edits and exports (0.54)."""
+    import numpy as np
+    a = np.asarray(img)
+    if img.mode.startswith("I;16"):
+        out = a.astype(np.uint16) >> 8
+    else:                                          # "I" (a 16-bit PNG in older Pillow, 32-bit TIFF) or "F"
+        a = np.nan_to_num(a.astype(np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+        top = float(a.max()) if a.size else 0.0
+        if img.mode == "F" and top <= 1.0:
+            scale = 255.0                          # float 0-1
+        elif top <= 255.0:
+            scale = 1.0                            # already 8-bit values
+        elif top <= 65535.0:
+            scale = 255.0 / 65535.0                # 16-bit values
+        else:
+            scale = 255.0 / top
+        out = np.clip(a * scale, 0, 255)
+    return Image.fromarray(out.astype(np.uint8), "L")
+
+
 def _to_srgb(img: Image.Image) -> Image.Image:
+    if img.mode in ("I", "F") or img.mode.startswith("I;16"):
+        img = _deep_grey_to_8bit(img)
     icc = img.info.get("icc_profile")
     if icc and img.mode in ("RGB", "CMYK"):
         try:
@@ -216,13 +252,36 @@ def cache_rel_path(file_id: int) -> str:
     return f"{file_id // 1000:04d}/{file_id}.jpg"
 
 
+def save_jpeg_atomic(img: Image.Image, dest: Path, quality: int) -> None:
+    """Write a JPEG under a temporary name, then rename it into place: never
+    a half-written picture. The temporary name is this writer's own (process
+    and thread) - two threads making the same picture used to share one
+    `.tmp` and could rename each other's half-written file (0.54)."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(f"{dest.stem}.{os.getpid()}-{threading.get_ident()}.tmp")
+    try:
+        img.save(tmp, "JPEG", quality=quality)
+        for attempt in range(REPLACE_TRIES):
+            try:
+                os.replace(tmp, dest)
+                break
+            except PermissionError:
+                # Windows refuses the rename while another thread is putting
+                # its copy of the same picture there: a moment later it's free.
+                if attempt == REPLACE_TRIES - 1:
+                    raise
+                time.sleep(0.02 * (attempt + 1))
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def write_thumbnail(cache_dir: Path, file_id: int, img: Image.Image) -> str:
     rel = cache_rel_path(file_id)
-    dest = cache_dir / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(".tmp")
-    img.save(tmp, "JPEG", quality=JPEG_QUALITY)
-    os.replace(tmp, dest)                         # never leave a half-written thumbnail
+    save_jpeg_atomic(img, cache_dir / rel, JPEG_QUALITY)
     return rel
 
 
@@ -279,11 +338,21 @@ def _make_one(cache_dir: Path, file_id: int, root: str, rel_path: str,
             ph = dhash(img)
         except Exception:
             ph = None
+        with _tries_lock:
+            _tries.pop(file_id, None)
         return rel, None, ph
     except Exception as e:
-        from lunelis.dupes.hashing import OFFLINE, offline_error
+        from lunelis.dupes.hashing import OFFLINE, offline_error, transient_error
         if offline_error(e, root):
             return None, OFFLINE + str(e), None
+        if transient_error(e):
+            # Open in another program, or memory ran out on a huge picture:
+            # that used to be stored as "preview unavailable" for good. It's
+            # left pending like an offline file, a few times (0.54).
+            with _tries_lock:
+                n = _tries[file_id] = _tries.get(file_id, 0) + 1
+            if n < TRANSIENT_TRIES:
+                return None, OFFLINE + f"{type(e).__name__}: {e}"[:300], None
         return None, f"{type(e).__name__}: {e}"[:300], None
 
 

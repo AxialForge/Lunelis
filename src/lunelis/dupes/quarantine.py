@@ -10,6 +10,8 @@ quarantine is the user's decision, made on the Quarantine page (dupes/manage.py)
 Safety rules, enforced here rather than trusted to callers:
 - only members of a VERIFIED ('exact') group can be quarantined;
 - never the last live copy in the group;
+- a copy that stays must really be on disk, at the size the catalog has for
+  it, at this moment (the comparison may be months old) - 0.54;
 - the catalog is snapshotted before the first move of a batch.
 """
 from __future__ import annotations
@@ -37,26 +39,41 @@ def quarantine(conn: sqlite3.Connection, group_id: int, file_ids: list[int], *,
     g = conn.execute("SELECT method, verified FROM duplicate_groups WHERE id = ?", (group_id,)).fetchone()
     if not g or g[0] != "exact" or not g[1]:
         raise QuarantineRefused("only verified byte-identical groups can be quarantined")
-    members = {fid: (root, rel, sidecar) for fid, root, rel, sidecar in conn.execute(
-        "SELECT f.id, r.path, f.rel_path, f.sidecar FROM duplicate_group_files m"
+    sizes: dict[int, int] = {}
+    members = {}
+    for fid, root, rel, sidecar, size in conn.execute(
+        "SELECT f.id, r.path, f.rel_path, f.sidecar, f.size_bytes FROM duplicate_group_files m"
         " JOIN files f ON f.id = m.file_id JOIN roots r ON r.id = f.root_id"
         " WHERE m.group_id = ? AND f.quarantined_at IS NULL AND f.missing_since IS NULL AND f.excluded = 0",
-        (group_id,))}
+        (group_id,)):
+        members[fid] = (root, rel, sidecar)
+        sizes[fid] = size
     targets = [fid for fid in file_ids if fid in members]
     if len(targets) != len(set(file_ids)):
         raise QuarantineRefused("a file isn't a live member of this group")
     if len(members) - len(targets) < 1:
         raise QuarantineRefused("that would leave no copy - keep at least one")
+    # The fingerprints may be months old. If the copy to keep was deleted or
+    # changed since, the one about to be set aside is the only good one: look
+    # at the disk first, and refuse before anything moves (0.54).
+    keep = [fid for fid in members if fid not in targets]
+    there = [fid for fid in keep if _still_there(os.path.join(members[fid][0], *members[fid][1].split("/")),
+                                                 sizes[fid])]
+    if not there:
+        root, rel, _ = members[keep[0]]
+        raise QuarantineRefused(
+            f"the copy to keep ({os.path.join(root, *rel.split('/'))}) is no longer there, or has changed"
+            " since the photos were compared - nothing was set aside. Scan the library, then find duplicates again")
 
     if backup_dir is not None:
         from lunelis.catalog.backup import snapshot
         snapshot(conn, backup_dir, "before-quarantine")
 
     from lunelis.migrate.execute import carry_sidecar, merge_user_data
-    keep = [fid for fid in members if fid not in targets]
     marked = {r[0] for r in conn.execute("SELECT file_id FROM duplicate_group_files WHERE group_id = ?"
                                          " AND is_keeper = 1", (group_id,))}
-    keeper = next((fid for fid in keep if fid in marked), min(keep))
+    # The stars, albums and tags go to a copy that is really there.
+    keeper = next((fid for fid in there if fid in marked), min(there))
     moved = []
     for fid in targets:
         root, rel, sidecar = members[fid]
@@ -70,6 +87,14 @@ def quarantine(conn: sqlite3.Connection, group_id: int, file_ids: list[int], *,
         moved.append(dst)
     # The group now holds one live copy (or more): keep it, it records what happened.
     return moved
+
+
+def _still_there(path: str, size: int) -> bool:
+    """The file is on disk and is the size the catalog has for it."""
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) == size
+    except OSError:
+        return False
 
 
 def quarantine_paths(root: str, rel: str, sidecar: str | None, fid: int) -> tuple[str, str, str | None, str | None]:

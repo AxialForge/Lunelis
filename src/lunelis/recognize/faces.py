@@ -231,14 +231,17 @@ def save_crop(img, face_id: int, box: list[float]) -> None:
 
 
 def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None = None,
-               should_cancel=None) -> tuple[int, int]:
+               should_cancel=None, memo: "Memo | None" = None) -> tuple[int, int]:
     """Find faces in these photos (once per model), then suggest and group.
-    Returns (photos looked at, faces found)."""
+    Returns (photos looked at, faces found). `memo`: the Faces job's, so the
+    known people and groups aren't read again for every folder (see Memo)."""
     be = be or backend()
     if be is None:
         raise RuntimeError("the face models aren't installed (Settings > Library > Faces)")
     looked = found = 0
     new_ids: list[int] = []
+    if memo is not None:
+        memo.begin(conn)
     # Reading the photo was most of the time on a NAS (one file at a time, the
     # network idle while a face was analysed): the next few are read and
     # decoded on threads meanwhile (0.52). The catalog is only used here.
@@ -269,8 +272,10 @@ def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None
         # A re-scan with a new model replaces the faces it found itself; named and hand-drawn ones stay.
         # ...and so do the ones you answered: "not a face", a stranger, an animal
         # (0.53: looking again deleted them and they came back as new faces).
-        conn.execute("DELETE FROM faces WHERE file_id = ? AND source = 'auto' AND confirmed = 0 AND ignored = 0",
-                     (fid,))
+        gone = conn.execute("DELETE FROM faces WHERE file_id = ? AND source = 'auto' AND confirmed = 0"
+                            " AND ignored = 0", (fid,)).rowcount
+        if gone and memo is not None:
+            memo.groups = None                       # faces that were in groups just went: read them again
         for box, score, vec in hits:
             if _overlaps_kept(conn, fid, box):
                 continue
@@ -298,8 +303,10 @@ def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None
     if new_ids:
         from lunelis.recognize import animals
         animals.sort_out(conn, new_ids)              # dogs and cats aren't people (0.52)
-        suggest(conn, new_ids)
-        group(conn, new_ids)
+        suggest(conn, new_ids, memo)
+        group(conn, new_ids, memo)
+    if memo is not None:
+        memo.end(conn)
     return looked, found
 
 
@@ -338,11 +345,13 @@ def job_folder(conn, root_id, folder, *, throttle=None, should_cancel=None, work
     if be is None:
         result.cancelled = True                       # nothing to run with: pause, don't fail
         return result
+    where, args = detect.folder_sql(folder)       # this folder's rows only, not the whole source (0.54)
     todo = [fid for fid, rel in conn.execute(
         f"SELECT f.id, f.rel_path FROM files f LEFT JOIN face_scans s ON s.file_id = f.id AND s.model = ?"
-        f" WHERE f.root_id = ? AND s.file_id IS NULL AND {LIVE} AND {VIDEO} AND f.thumbnail_path IS NOT NULL",
-        (be.model_id, root_id)) if detect._dir_of(rel) == folder]
-    done, _ = scan_files(conn, todo, be, should_cancel)
+        f" WHERE f.root_id = ? AND {where} AND s.file_id IS NULL AND {LIVE} AND {VIDEO}"
+        f" AND f.thumbnail_path IS NOT NULL",
+        (be.model_id, root_id, *args)) if detect._dir_of(rel) == folder]
+    done, _ = scan_files(conn, todo, be, should_cancel, memo=_JOB_MEMO)
     if done < len(todo) and should_cancel and should_cancel():
         result.cancelled = True
     return result
@@ -403,11 +412,106 @@ def _centroids(conn: sqlite3.Connection) -> tuple[list[int], np.ndarray, dict[in
     return ids, means, {p: np.stack(v) for p, v in by.items()}
 
 
-def suggest(conn: sqlite3.Connection, face_ids: list[int] | None = None) -> int:
+class _Cents:
+    """The groups' mean fingerprints as one table that grows in place.
+
+    Each group keeps its sum and count, so adding a face is one addition
+    (it was the mean of every member again), and the table doubles its room
+    when full (it was copied whole for every new group: np.vstack per face,
+    hours on a few hundred thousand faces) - 0.54."""
+
+    def __init__(self) -> None:
+        self.keys: list[int] = []
+        self.sums = np.zeros((64, 128), np.float32)
+        self.counts = np.zeros(64, np.int64)
+        self.cents = np.zeros((64, 128), np.float32)
+
+    def __len__(self) -> int:
+        return len(self.keys)
+
+    def _set(self, i: int) -> None:
+        c = self.sums[i] / max(1, int(self.counts[i]))
+        self.cents[i] = c / max(1e-6, float(np.linalg.norm(c)))
+
+    def add(self, i: int, v: np.ndarray) -> None:
+        """One more face in the group at row i."""
+        self.sums[i] += v
+        self.counts[i] += 1
+        self._set(i)
+
+    def new(self, key: int, v: np.ndarray) -> None:
+        n = len(self.keys)
+        if n == len(self.sums):
+            for name in ("sums", "counts", "cents"):
+                old = getattr(self, name)
+                big = np.zeros((2 * n, *old.shape[1:]), old.dtype)
+                big[:n] = old
+                setattr(self, name, big)
+        self.keys.append(key)
+        self.sums[n], self.counts[n] = v, 1
+        self._set(n)
+
+    def nearest(self, v: np.ndarray) -> tuple[int, float]:
+        """(row, likeness) of the most alike group; (-1, -1.0) with no groups."""
+        if not self.keys:
+            return -1, -1.0
+        sims = self.cents[:len(self.keys)] @ v
+        i = int(np.argmax(sims))
+        return i, float(sims[i])
+
+
+class Memo:
+    """What the Faces job remembers from one folder to the next.
+
+    After every folder the job read every named face (to suggest) and every
+    unnamed one (to group) again, although only that folder's faces were
+    new: with a few hundred thousand faces, hours of the job. The known
+    people and the groups are now read once and kept, and read again only
+    when something else changed the catalog since the last folder: another
+    connection (SQLite's data_version moves when one saves - naming a face in
+    the People page, say), or this connection doing other work in between
+    (its total_changes moved - another job that ran meanwhile). What the scan
+    itself changes it accounts for as it goes (0.54)."""
+
+    def __init__(self) -> None:
+        self.conn = None                    # the connection it was read through (the job runner's one)
+        self.stamp = None                   # (data_version, total_changes) when the last scan ended
+        self.people = None                  # what _centroids() returned
+        self.groups: _Cents | None = None
+
+    @staticmethod
+    def _version(conn: sqlite3.Connection) -> int:
+        return conn.execute("PRAGMA data_version").fetchone()[0]
+
+    def begin(self, conn: sqlite3.Connection) -> None:
+        """Before a scan writes anything: forget everything if the catalog
+        changed since the last scan ended."""
+        if self.conn is not conn or self.stamp != (self._version(conn), conn.total_changes):
+            self.people = self.groups = None
+        self.conn = conn
+        self.stamp = (self._version(conn), None)
+
+    def end(self, conn: sqlite3.Connection) -> None:
+        """A scan is done and saved: from here on any change is someone else's."""
+        version = self._version(conn)
+        if self.stamp is None or self.stamp[0] != version:
+            self.people = self.groups = None             # another connection saved while it ran
+        self.stamp = (version, conn.total_changes)
+
+
+_JOB_MEMO = Memo()
+
+
+def suggest(conn: sqlite3.Connection, face_ids: list[int] | None = None, memo: Memo | None = None) -> int:
     """Suggest a known person for unnamed faces (all of them when face_ids is None).
     Returns how many got a suggestion; confirms the surest ones when that's turned on."""
     from lunelis.settings import Settings
-    ids, means, samples = _centroids(conn)
+    if memo is not None:
+        if memo.people is None:
+            memo.people = _centroids(conn)
+        ids, means, samples = memo.people
+    else:
+        ids, means, samples = _centroids(conn)
     if not ids:
         return 0
     s = Settings(conn)
@@ -444,6 +548,8 @@ def suggest(conn: sqlite3.Connection, face_ids: list[int] | None = None) -> int:
     conn.commit()
     for pid, fids in confirm_now.items():
         confirm(conn, fids, pid)
+    if confirm_now and memo is not None:
+        memo.people = None                           # those people have more known faces now
     return made
 
 
@@ -452,49 +558,67 @@ def _chunks(items: list[int], n: int = 500):
         yield items[i:i + n]
 
 
-def group(conn: sqlite3.Connection, face_ids: list[int] | None = None) -> int:
+_UNGROUPED = ("FROM faces WHERE confirmed = 0 AND ignored = 0 AND suggested_person_id IS NULL"
+              " AND embedding IS NOT NULL")
+
+
+def _groups(conn: sqlite3.Connection, leave_out: set[int] | None = None) -> _Cents:
+    """The groups as they stand, from the faces already in one (without `leave_out`)."""
+    cents = _Cents()
+    row_of: dict[int, int] = {}
+    for fid, blob, cl in conn.execute(f"SELECT id, embedding, cluster {_UNGROUPED} AND cluster IS NOT NULL"
+                                      " ORDER BY id"):
+        if leave_out and fid in leave_out:
+            continue
+        if cl in row_of:
+            cents.add(row_of[cl], _vec(blob))
+        else:
+            row_of[cl] = len(cents)
+            cents.new(cl, _vec(blob))
+    return cents
+
+
+def group(conn: sqlite3.Connection, face_ids: list[int] | None = None, memo: Memo | None = None) -> int:
     """Put unnamed, unsuggested faces into groups of alike faces (each joins
-    the nearest group within GROUP, or starts its own). Returns faces grouped."""
-    rows = conn.execute(
-        "SELECT id, embedding, cluster FROM faces WHERE confirmed = 0 AND ignored = 0"
-        " AND suggested_person_id IS NULL AND embedding IS NOT NULL ORDER BY id").fetchall()
-    if not rows:
+    the nearest group within GROUP, or starts its own). Returns faces grouped.
+    With face_ids only those faces are read and placed (0.54: every unnamed
+    face in the library was read each time)."""
+    if face_ids is None:
+        todo = conn.execute(f"SELECT id, embedding {_UNGROUPED} AND cluster IS NULL ORDER BY id").fetchall()
+        cents = _groups(conn)
+    else:
+        todo = sorted((tuple(r) for chunk in _chunks(sorted(set(face_ids))) for r in conn.execute(
+            f"SELECT id, embedding {_UNGROUPED} AND id IN ({','.join('?' * len(chunk))})", chunk)),
+            key=lambda r: r[0])
+        if memo is not None and memo.groups is not None:
+            cents = memo.groups
+        elif todo:
+            cents = _groups(conn, set(face_ids))
+        else:
+            cents = None
+        if memo is not None and cents is not None:
+            memo.groups = cents
+    if not todo:
         return 0
-    want = None if face_ids is None else set(face_ids)
-    members: dict[int, list[np.ndarray]] = {}
-    for fid, blob, cl in rows:
-        if cl is not None and (want is None or fid not in want):
-            members.setdefault(cl, []).append(_vec(blob))
-    keys = list(members)
-    cents = (np.stack([np.mean(members[k], axis=0) for k in keys]).astype(np.float32)
-             if keys else np.zeros((0, 128), np.float32))
-    if len(keys):
-        cents /= np.maximum(1e-6, np.linalg.norm(cents, axis=1, keepdims=True))
     nxt = (conn.execute("SELECT COALESCE(MAX(cluster), 0) FROM faces").fetchone()[0] or 0) + 1
     n = 0
-    for fid, blob, cl in rows:
-        if want is not None and fid not in want:
-            continue
-        if want is None and cl is not None:
-            continue
-        v = _vec(blob)
-        if len(keys):
-            sims = cents @ v
-            i = int(np.argmax(sims))
-            if sims[i] >= GROUP:
-                conn.execute("UPDATE faces SET cluster = ? WHERE id = ?", (keys[i], fid))
-                members[keys[i]].append(v)
-                c = np.mean(members[keys[i]], axis=0)
-                cents[i] = c / max(1e-6, float(np.linalg.norm(c)))
-                n += 1
-                continue
-        conn.execute("UPDATE faces SET cluster = ? WHERE id = ?", (nxt, fid))
-        members[nxt] = [v]
-        keys.append(nxt)
-        cents = np.vstack([cents, v[None, :]])
-        nxt += 1
-        n += 1
-    conn.commit()
+    try:
+        for fid, blob in todo:
+            v = _vec(blob)
+            i, sim = cents.nearest(v)
+            if i >= 0 and sim >= GROUP:
+                conn.execute("UPDATE faces SET cluster = ? WHERE id = ?", (cents.keys[i], fid))
+                cents.add(i, v)
+            else:
+                conn.execute("UPDATE faces SET cluster = ? WHERE id = ?", (nxt, fid))
+                cents.new(nxt, v)
+                nxt += 1
+            n += 1
+        conn.commit()
+    except BaseException:
+        if memo is not None:
+            memo.groups = None                       # not saved: what's remembered would be ahead of the catalog
+        raise
     return n
 
 

@@ -21,7 +21,17 @@ SLICE = 64 * 1024
 CHUNK = 1024 * 1024
 
 # WinError codes that mean "the network share went away", not "this file is bad".
-NETWORK_ERRORS = {53, 59, 64, 67, 121, 1231, 1232, 2250}
+NETWORK_ERRORS = {53, 59, 64, 67, 121, 1231, 1232, 2250,
+                  # More ways Windows says the same thing (0.54): the remote PC isn't
+                  # available, the network is busy, the resource is no longer there,
+                  # an adapter error, no more connections, no network / no route,
+                  # the connection was refused or dropped.
+                  51, 54, 55, 57, 58, 71, 1203, 1222, 1225, 1236}
+
+# WinError codes for "not right now": access denied, another program has the
+# file open or locked, the PC is out of memory or resources. Nothing about
+# the file itself, so it's tried again rather than written off (0.54).
+TRANSIENT_ERRORS = {5, 8, 14, 32, 33, 170, 1450, 1455}
 
 
 class SourceOffline(OSError):
@@ -41,6 +51,17 @@ def offline_error(e: BaseException, root: str) -> bool:
     if not isinstance(e, OSError):
         return False
     return is_network_error(e) or not os.path.isdir(root)
+
+
+def transient_error(e: BaseException) -> bool:
+    """A passing problem (the file is open in another program, memory ran
+    out on a huge picture): worth another try on the next pass, where an
+    unreadable file is not. Callers cap the tries - see raw/thumbnails.py (0.54)."""
+    if isinstance(e, MemoryError):
+        return True
+    if not isinstance(e, OSError):
+        return False
+    return isinstance(e, PermissionError) or getattr(e, "winerror", None) in TRANSIENT_ERRORS
 
 
 class Throttle:

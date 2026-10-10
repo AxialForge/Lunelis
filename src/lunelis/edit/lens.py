@@ -22,6 +22,7 @@ frame so corrected edges never show empty corners.
 """
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -47,11 +48,27 @@ def info_for(conn: sqlite3.Connection, file_id: int) -> LensInfo | None:
     return LensInfo(*row) if row else None
 
 
+def catalog_uri(path) -> str:
+    """A read-only SQLite address (file: URI) for a catalog file. Not
+    Path.as_uri(): for a network path that gives file://server/share/...,
+    which SQLite refuses (it allows no server name there)."""
+    from urllib.parse import quote
+    p = os.path.abspath(str(path)).replace("\\", "/")
+    if p.startswith("//"):
+        p = "//" + p                               # a network share: an empty server part, then the path
+    elif not p.startswith("/"):
+        p = "/" + p                                # C:/... -> /C:/...
+    return "file:" + quote(p, safe="/:") + "?mode=ro"
+
+
 def info_for_id(file_id: int) -> LensInfo | None:
     """From the catalog on disk (for workers that have no connection)."""
     from lunelis import paths
     try:
-        conn = sqlite3.connect(f"file:{paths.DEFAULT_CATALOG_PATH}?mode=ro", uri=True, timeout=5)
+        # The path is escaped: a data folder with # ? or % in its name made a
+        # different address, the catalog didn't open and the saved preview
+        # lost its lens corrections (0.54).
+        conn = sqlite3.connect(catalog_uri(paths.DEFAULT_CATALOG_PATH), uri=True, timeout=5)
     except sqlite3.Error:
         return None
     try:

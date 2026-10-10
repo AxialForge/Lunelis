@@ -17,7 +17,6 @@ the sidecar is): safe to delete, made again from the stack.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import numpy as np
@@ -79,11 +78,8 @@ def render_outputs(path: str, is_raw: bool, file_id: int, stack: Stack, filter_p
     from lunelis.edit import ai, lens
     info = lens.info_for_id(file_id) if stack.lens else None
     img = pipeline.to_image(pipeline.apply(base, stack, filter_params, ai.maps_for(file_id, stack, base), info))
-    dest = proxy_path(edit_cache, file_id)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_suffix(".tmp")
-    img.save(tmp, "JPEG", quality=PROXY_QUALITY)
-    os.replace(tmp, dest)
+    from lunelis.raw.thumbnails import save_jpeg_atomic
+    save_jpeg_atomic(img, proxy_path(edit_cache, file_id), PROXY_QUALITY)   # its own temp name (0.54)
     thumb = img.copy()
     thumb.thumbnail((THUMB_EDGE, THUMB_EDGE), Image.Resampling.LANCZOS)
     return write_thumbnail(thumb_cache, file_id, thumb)

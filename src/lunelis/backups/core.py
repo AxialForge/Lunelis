@@ -38,7 +38,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from lunelis.dupes.detect import FolderResult, plan_folders
+from lunelis.dupes.detect import FolderResult, folder_sql, plan_folders
 from lunelis.dupes.hashing import SourceOffline, Throttle, is_network_error
 from lunelis.dupes.quarantine import QUARANTINE_DIR
 from lunelis.importing.ingest import volume_info
@@ -49,6 +49,7 @@ META_DIR = "_Lunelis"
 FREE_MARGIN = 512 * 1024 * 1024      # never fill the backup drive to the last byte
 SNAPSHOTS_KEPT = 5
 LIVE = "f.missing_since IS NULL AND f.excluded = 0 AND f.quarantined_at IS NULL"
+IN_CHUNK = 500                         # ids per IN (...) list, well under SQLite's limit of values
 _log = logging.getLogger(__name__)
 
 
@@ -273,13 +274,19 @@ def backup_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
     if not os.path.isdir(root):
         raise SourceOffline(root)
     rkey = root_key(root_id, root)
+    where, args = folder_sql(folder)               # this folder's rows only, not the whole source (0.54)
     rows = [r for r in conn.execute(
         f"SELECT f.id, f.rel_path, f.size_bytes, f.mtime, f.sidecar, f.content_hash FROM files f"
-        f" WHERE f.root_id = ? AND {LIVE}", (root_id,))
+        f" WHERE f.root_id = ? AND {where} AND {LIVE}", (root_id, *args))
         if (r[1].rsplit("/", 1)[0] if "/" in r[1] else "") == folder]
-    have = {r[0]: r[1:] for r in conn.execute(
-        f"SELECT file_id, rel, size, mtime, problem FROM backup_files WHERE set_id = ? AND file_id IN "
-        f"({','.join('?' * len(rows)) or 'NULL'})", [set_id, *[r[0] for r in rows]])}
+    # In pieces: one IN (...) list of a folder's every file passed SQLite's
+    # limit of 32,766 values at about that many files in a folder (0.54).
+    have = {}
+    for start in range(0, len(rows), IN_CHUNK):
+        chunk = [r[0] for r in rows[start:start + IN_CHUNK]]
+        have.update({r[0]: r[1:] for r in conn.execute(
+            f"SELECT file_id, rel, size, mtime, problem FROM backup_files WHERE set_id = ? AND file_id IN "
+            f"({','.join('?' * len(chunk))})", [set_id, *chunk])})
     for fid, rel, size, mtime, sidecar, content_hash in rows:
         if should_cancel and should_cancel():
             result.cancelled = True
@@ -400,9 +407,10 @@ def verify_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, thrott
     set_id = options["set_id"]
     result = FolderResult()
     dest = _dest_or_wait(conn, set_id)
+    where, args = folder_sql(folder)               # this folder's rows only, not the whole source (0.54)
     rows = [r for r in conn.execute(
         "SELECT b.file_id, b.rel, b.sha256, f.rel_path FROM backup_files b JOIN files f ON f.id = b.file_id"
-        " WHERE b.set_id = ? AND f.root_id = ?", (set_id, root_id))
+        f" WHERE b.set_id = ? AND f.root_id = ? AND {where}", (set_id, root_id, *args))
         if (r[3].rsplit("/", 1)[0] if "/" in r[3] else "") == folder]
     for fid, rel, sha, _ in rows:
         if should_cancel and should_cancel():
@@ -557,8 +565,17 @@ def restore_files(conn: sqlite3.Connection, set_id: int, file_ids: list[int] | N
                 raise OSError("the backup copy doesn't match its recorded hash")
             if to_folder is None:
                 st = os.stat(target)
-                conn.execute("UPDATE files SET missing_since = NULL, size_bytes = ?, content_hash = ? WHERE id = ?",
-                             (st.st_size, sha, fid))
+                # It's a good file again, so what the catalog remembers of the
+                # broken or missing one goes too: "preview unavailable", the
+                # file date (the restored copy has its own), and for a damaged
+                # one its thumbnail and a failed details read. The next pass
+                # makes them afresh; it used to look broken until a scan (0.54).
+                from lunelis.importers.scan import _iso_utc
+                conn.execute("UPDATE files SET missing_since = NULL, size_bytes = ?, mtime = ?, content_hash = ?,"
+                             " thumb_error = NULL, thumbnail_path = CASE WHEN ? THEN NULL ELSE thumbnail_path END"
+                             " WHERE id = ?", (st.st_size, _iso_utc(st.st_mtime), sha, int(bool(damaged)), fid))
+                conn.execute("UPDATE exif SET extracted_mtime = NULL WHERE file_id = ? AND read_error IS NOT NULL",
+                             (fid,))
                 conn.execute("DELETE FROM damaged WHERE file_id = ?", (fid,))
                 conn.commit()
             res.restored += 1

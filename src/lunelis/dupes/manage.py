@@ -310,7 +310,18 @@ def _sidecars_near(e: Entry) -> list[str]:
     folder, name = os.path.split(e.now)
     stem = os.path.splitext(name)[0]
     out, seen = [], set()
-    for cand in (name + ".xmp", stem + ".xmp"):
+    cands = [name + ".xmp"]
+    # "name.xmp" is only this file's when no other file here has the same
+    # name before the dot: with IMG_1.JPG and IMG_1.ARW both in quarantine,
+    # removing the JPEG took the RAW's sidecar with it (0.54).
+    try:
+        shared = any(os.path.splitext(n)[0].lower() == stem.lower() and n.lower() != name.lower()
+                     and not n.lower().endswith(".xmp") for n in os.listdir(folder))
+    except OSError:
+        shared = True                                  # can't tell: leave it
+    if not shared:
+        cands.append(stem + ".xmp")
+    for cand in cands:
         p = os.path.join(folder, cand)
         key = os.path.normcase(p)                     # x.xmp and x.XMP are one file on Windows and SMB
         if key not in seen and os.path.exists(p):

@@ -29,6 +29,7 @@ from PIL import Image, ImageCms
 from lunelis.edit import pipeline, render, store
 
 FORMATS = {"jpeg": ".jpg", "tiff": ".tif", "png": ".png"}
+ISO_FIELD_MAX = 65535                    # what EXIF's ISO field can hold
 METADATA = ("all", "no_location", "none")
 
 
@@ -170,8 +171,16 @@ def exif_bytes(conn: sqlite3.Connection, file_id: int, metadata: str, size: tupl
                 ex[piexif.ExifIFD.ExposureTime] = _rational(float(Fraction(shutter.rstrip("s"))))
             except (ValueError, ZeroDivisionError):
                 pass
-        if iso:
-            ex[piexif.ExifIFD.ISOSpeedRatings] = int(iso)
+        if iso and int(iso) > 0:
+            # The ISO field is 16 bits: ISO 102,400 and up made the whole
+            # export fail. The standard way (EXIF 2.3) is 65535 there, with
+            # the real figure in the 32-bit Recommended Exposure Index, which
+            # is what the cameras themselves write (0.54).
+            iso = int(iso)
+            ex[piexif.ExifIFD.ISOSpeedRatings] = min(iso, ISO_FIELD_MAX)
+            if iso > ISO_FIELD_MAX:
+                ex[piexif.ExifIFD.SensitivityType] = 2          # 2 = Recommended Exposure Index
+                ex[piexif.ExifIFD.RecommendedExposureIndex] = min(iso, 0xFFFFFFFF)
         if comp is not None:
             f = Fraction(comp).limit_denominator(100)
             ex[piexif.ExifIFD.ExposureBiasValue] = (f.numerator, f.denominator)
@@ -241,6 +250,27 @@ def export_one(conn: sqlite3.Connection, file_id: int, opts: ExportOptions, n: i
     exif = exif_bytes(conn, file_id, opts.metadata, img.size)
     if exif:
         kwargs["exif"] = exif
+    # Written under a temporary name and renamed when it's whole: a cancelled
+    # or crashed export left a half-written file under its final name, which
+    # looked like a finished photo (0.54).
+    tmp = f"{dest}.{os.getpid()}.part"
+    try:
+        _save(img, tmp, opts, kwargs, exif)
+        try:
+            os.rename(tmp, dest)
+        except FileExistsError:                   # the name was taken meanwhile: never overwrite
+            dest = free_path(opts.folder, os.path.basename(dest))
+            os.rename(tmp, dest)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+    return dest
+
+
+def _save(img: Image.Image, dest: str, opts: ExportOptions, kwargs: dict, exif: bytes | None) -> None:
     if opts.format == "jpeg":
         kwargs.update(quality=opts.quality, subsampling=0 if opts.quality >= 90 else 2, optimize=True)
         img.save(dest, "JPEG", **kwargs)
@@ -258,4 +288,3 @@ def export_one(conn: sqlite3.Connection, file_id: int, opts: ExportOptions, n: i
         img.save(dest, "TIFF", compression="tiff_lzw", **kwargs)
     else:
         img.save(dest, "PNG", **kwargs)
-    return dest

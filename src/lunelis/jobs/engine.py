@@ -41,9 +41,10 @@ def _full_hash_folder(conn, root_id, folder, *, throttle, should_cancel, workers
     from concurrent.futures import ThreadPoolExecutor
 
     result = detect.FolderResult()
+    where, args = detect.folder_sql(folder)        # this folder's rows only, not the whole source (0.54)
     rows = [r for r in conn.execute(
         "SELECT f.id, r.path, f.rel_path FROM files f JOIN roots r ON r.id = f.root_id"
-        f" WHERE f.root_id = ? AND {detect.LIVE} AND f.content_hash IS NULL", (root_id,))
+        f" WHERE f.root_id = ? AND {where} AND {detect.LIVE} AND f.content_hash IS NULL", (root_id, *args))
         if detect._dir_of(r[2]) == folder]
 
     def work(row):
@@ -73,10 +74,12 @@ def _verify_folder(conn, root_id, folder, *, throttle, should_cancel, workers):
     """Full-hash every 'likely' group that has a member in this folder, turning
     them into verified 'exact' groups (or dissolving a sample collision)."""
     result = detect.FolderResult()
+    where, args = detect.folder_sql(folder)        # this folder's rows only, not the whole source (0.54)
     groups = [gid for gid, rel in conn.execute(
         "SELECT DISTINCT g.id, f.rel_path FROM duplicate_groups g"
         " JOIN duplicate_group_files m ON m.group_id = g.id JOIN files f ON f.id = m.file_id"
-        " WHERE g.method = 'sampled' AND f.root_id = ?", (root_id,)) if detect._dir_of(rel) == folder]
+        f" WHERE g.method = 'sampled' AND f.root_id = ? AND {where}", (root_id, *args))
+        if detect._dir_of(rel) == folder]
     for gid in dict.fromkeys(groups):
         if should_cancel and should_cancel():
             result.cancelled = True
@@ -103,11 +106,12 @@ def _integrity_folder(conn, root_id, folder, *, throttle, should_cancel, workers
 
     only = set((options or {}).get("only_ids") or ())
     result = detect.FolderResult()
+    where, args = detect.folder_sql(folder)        # this folder's rows only, not the whole source (0.54)
     rows = [r for r in conn.execute(
         "SELECT f.id, r.path, f.rel_path, f.content_hash, f.size_bytes, f.mtime FROM files f"
         " JOIN roots r ON r.id = f.root_id"
-        f" WHERE f.root_id = ? AND {detect.LIVE}" + ("" if only else " AND f.content_hash IS NOT NULL"),
-        (root_id,))
+        f" WHERE f.root_id = ? AND {where} AND {detect.LIVE}" + ("" if only else " AND f.content_hash IS NOT NULL"),
+        (root_id, *args))
         if detect._dir_of(r[2]) == folder and (not only or r[0] in only)]
 
     def work(row):
@@ -343,6 +347,13 @@ def run_job(conn: sqlite3.Connection, job_id: int, *, should_stop: Callable[[], 
                 msg = f"Waiting for {root_path} to come back online"
             set_state(conn, job_id, "waiting", msg)
             return RunOutcome("waiting", msg)
+        if getattr(res, "errors", None):
+            # A kind's per-file errors were collected and never read: the log
+            # now says how many files of the folder a job couldn't handle (0.54).
+            import logging
+            logging.getLogger("lunelis.jobs").warning(
+                "job %s (%s): %d file(s) in %s had a problem, e.g. %s", job_id, kind, len(res.errors),
+                f"{root_path}\\{folder}" if folder else root_path, res.errors[0])
         if res.cancelled:
             set_state(conn, job_id, "paused", "Paused")
             return RunOutcome("paused", "Paused")
