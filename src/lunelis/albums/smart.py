@@ -43,8 +43,13 @@ FIELDS: dict[str, Field] = {
     "iso": Field("ISO", "num", "e.iso"),
     "aperture": Field("Aperture (f/)", "num", "e.aperture"),
     "focal": Field("Focal length (mm)", "num", "e.focal_length_mm"),
+    # Any "a/b" is a divided by b, not only "1/b": 0.6 s stored as "3/5" was
+    # read as 3 seconds. Plain and decimal seconds ("2", "0.6", "2.5s") as
+    # before; "x/0" is no value rather than an error (0.54).
     "shutter_s": Field("Shutter (seconds)", "num",
-                       "(CASE WHEN e.shutter_speed LIKE '1/%' THEN 1.0 / CAST(SUBSTR(e.shutter_speed, 3) AS REAL)"
+                       "(CASE WHEN INSTR(e.shutter_speed, '/') > 0 THEN"
+                       " CAST(SUBSTR(e.shutter_speed, 1, INSTR(e.shutter_speed, '/') - 1) AS REAL)"
+                       " / NULLIF(CAST(SUBSTR(e.shutter_speed, INSTR(e.shutter_speed, '/') + 1) AS REAL), 0)"
                        " ELSE CAST(REPLACE(e.shutter_speed, 's', '') AS REAL) END)"),
     "date": Field("Date taken", "date", "SUBSTR(e.captured_at, 1, 10)"),
     "kind": Field("Kind", "enum", "", tuple(KINDS)),
@@ -67,12 +72,18 @@ class RuleError(ValueError):
 
 
 def check(smart: dict) -> None:
+    # The wrong shape altogether is a RuleError like any other bad rule, not
+    # an AttributeError or TypeError from deep inside (0.54).
+    if not isinstance(smart, dict):
+        raise RuleError("the rules aren't in a form Lunelis can read")
     if smart.get("match", "all") not in ("all", "any"):
         raise RuleError("match must be all or any")
     rules = smart.get("rules") or []
-    if not rules:
+    if not isinstance(rules, list) or not rules:
         raise RuleError("a smart album needs at least one rule")
     for r in rules:
+        if not isinstance(r, dict) or not isinstance(r.get("field"), str):
+            raise RuleError("a rule isn't in a form Lunelis can read")
         f = FIELDS.get(r.get("field"))
         if f is None:
             raise RuleError(f"unknown field {r.get('field')!r}")
@@ -138,13 +149,24 @@ def condition(smart: dict) -> tuple[str, list]:
 def describe(smart: dict) -> str:
     """'ISO >= 3200 and Stars = 5' - for the tile and the filter chip."""
     words = []
+    if not isinstance(smart, dict) or not isinstance(smart.get("rules", []), list):
+        return ""
     for r in smart.get("rules", []):
-        f = FIELDS.get(r.get("field"))
+        # A rule that isn't one (hand-edited, from a newer version, a number
+        # that isn't a number) is left out of the words - it used to raise
+        # here and take the whole Albums list with it (0.54).
+        if not isinstance(r, dict):
+            continue
+        f = FIELDS.get(r.get("field")) if isinstance(r.get("field"), str) else None
         if f is None:
             continue
         v = r.get("value")
-        if f.kind == "num" and float(v).is_integer():
-            v = int(float(v))
+        if f.kind == "num":
+            try:
+                if float(v).is_integer():
+                    v = int(float(v))
+            except (TypeError, ValueError, OverflowError):
+                pass
         words.append(f"{f.title} {r.get('op')} {v}")
     return (" and " if smart.get("match", "all") == "all" else " or ").join(words)
 
@@ -183,13 +205,17 @@ def smart_albums(conn: sqlite3.Connection) -> list[Album]:
             f" LEFT JOIN ratings rt ON rt.file_id = f.id WHERE {LIVE} AND r.enabled = 1 AND f.archived_at IS NULL")
     for aid, name, rule in conn.execute(
             "SELECT id, name, smart_rule_json FROM albums WHERE is_smart = 1 ORDER BY name COLLATE NOCASE"):
-        smart = json.loads(rule or "{}")
+        # One album whose stored rules can't be used shows as empty, with a
+        # word about why; every other album is still listed (0.54).
+        n, cover, blurb = 0, None, "Its rules can't be read - edit the album to fix them"
         try:
+            smart = json.loads(rule or "{}")
+            blurb = describe(smart) or blurb
             cond, params = condition(smart)
             n, cover = conn.execute(
                 f"SELECT COUNT(*), MAX(CASE WHEN f.thumbnail_path IS NOT NULL THEN f.id END) {base} AND {cond}",
                 params).fetchone()
-        except (RuleError, sqlite3.Error):
-            n, cover = 0, None
-        out.append(Album("smart", str(aid), name, n, cover, blurb=describe(smart)))
+        except (ValueError, TypeError, AttributeError, KeyError, OverflowError, sqlite3.Error):
+            n, cover = 0, None          # RuleError and a JSON error are both ValueErrors
+        out.append(Album("smart", str(aid), name, n, cover, blurb=blurb))
     return out

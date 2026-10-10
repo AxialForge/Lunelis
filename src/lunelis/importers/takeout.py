@@ -40,6 +40,7 @@ class TakeoutResult:
     dated: int = 0
     located: int = 0
     unmatched: list[str] = field(default_factory=list)
+    json_read: int = 0              # how many of them had to be opened this time (new or changed)
 
 
 def is_takeout_json(name: str) -> bool:
@@ -48,6 +49,12 @@ def is_takeout_json(name: str) -> bool:
 
 
 def find_jsons(root: str) -> list[str]:
+    return [path for path, _, _ in _find_jsons(root)]
+
+
+def _find_jsons(root: str) -> list[tuple[str, int, int]]:
+    """[(path, size, mtime in ns)] - the size and time come with the folder
+    listing on Windows, so knowing a JSON is unchanged costs no extra read."""
     out = []
     stack = [root]
     while stack:
@@ -58,10 +65,50 @@ def find_jsons(root: str) -> list[str]:
                     if e.is_dir(follow_symlinks=False):
                         stack.append(e.path)
                     elif is_takeout_json(e.name):
-                        out.append(e.path)
+                        try:
+                            st = e.stat(follow_symlinks=False)
+                        except OSError:
+                            continue
+                        out.append((e.path, st.st_size, st.st_mtime_ns))
         except OSError:
             continue
     return out
+
+
+def _read_jsons(conn: sqlite3.Connection, root_id: int, root: str,
+                found: list[tuple[str, int, int]]) -> tuple[list[tuple[str, dict | None]], int]:
+    """What every JSON says, opening only those that are new or changed since
+    they were last read (same size and time = same answer, remembered in
+    takeout_jsons). Every scan used to open all of them again - 24,000 small
+    reads over the network. Matching still sees every JSON, so photos added
+    later are matched exactly as before. Returns ([(path, data)], files opened) (0.54)."""
+    known = {rel: (size, mtime, data) for rel, size, mtime, data in conn.execute(
+        "SELECT rel_path, size, mtime_ns, data FROM takeout_jsons WHERE root_id = ?", (root_id,))}
+    out: list[tuple[str, dict | None]] = []
+    fresh: list[tuple] = []
+    seen: set[str] = set()
+    for path, size, mtime in found:
+        rel = os.path.relpath(path, root).replace("\\", "/")
+        seen.add(rel)
+        old = known.get(rel)
+        if old is not None and (old[0], old[1]) == (size, mtime):
+            data = None
+            if old[2] is not None:
+                try:
+                    data = json.loads(old[2])
+                except ValueError:
+                    old = None                         # a damaged row: read the file again
+            if old is not None:
+                out.append((path, data))
+                continue
+        data = _parse(path)
+        fresh.append((root_id, rel, size, mtime, json.dumps(data) if data else None))
+        out.append((path, data))
+    conn.executemany("INSERT OR REPLACE INTO takeout_jsons (root_id, rel_path, size, mtime_ns, data)"
+                     " VALUES (?, ?, ?, ?, ?)", fresh)
+    conn.executemany("DELETE FROM takeout_jsons WHERE root_id = ? AND rel_path = ?",
+                     [(root_id, rel) for rel in known if rel not in seen])
+    return out, len(fresh)
 
 
 def target_name(json_path: str, title: str) -> str:
@@ -130,10 +177,11 @@ def _local(ts: int) -> tuple[str, str]:
 def import_root(conn: sqlite3.Connection, root_id: int) -> TakeoutResult:
     root = conn.execute("SELECT path FROM roots WHERE id = ?", (root_id,)).fetchone()[0]
     result = TakeoutResult()
-    jsons = find_jsons(root)
-    result.json_files = len(jsons)
-    if not jsons:
+    found = _find_jsons(root)
+    result.json_files = len(found)
+    if not found:
         return result
+    jsons, result.json_read = _read_jsons(conn, root_id, root, found)
 
     files_by_name: dict[str, list[tuple[int, str]]] = defaultdict(list)
     for fid, rel, name in conn.execute(
@@ -160,8 +208,7 @@ def import_root(conn: sqlite3.Connection, root_id: int) -> TakeoutResult:
         hit = [c for c in cands if (m := _YEAR_MONTH.search(c[1])) and (int(m[1]), int(m[2])) in near]
         return hit or cands
 
-    for path in jsons:
-        data = _parse(path)
+    for path, data in jsons:
         if not data:
             continue
         name = target_name(path, data["title"]).lower()

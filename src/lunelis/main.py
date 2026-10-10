@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
+import zipfile
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox, QProgressDialog
@@ -139,7 +141,10 @@ def main() -> int:
     from lunelis.catalog import backup
     try:
         backup.finish_pending_restore(paths.DATA_DIR, paths.DEFAULT_CATALOG_PATH)
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, zipfile.BadZipFile, sqlite3.Error) as e:
+        # restore() reports a bad zip as a ValueError; the other two are named
+        # too so that no kind of bad backup can end the start-up (0.54).
+        log.LOG.error("Couldn't restore the catalog backup: %s", e)
         QMessageBox.warning(None, "Lunelis", f"Couldn't restore the catalog backup:\n{e}\n\n"
                             "The current catalog is unchanged.")
 

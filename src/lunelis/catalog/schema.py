@@ -949,6 +949,35 @@ MIGRATIONS.append((
 ))
 
 
+MIGRATIONS.append((
+    47,
+    "indexes for the file columns that deleting a file has to look up; Takeout JSON files already read (0.54)",
+    """
+    -- Deleting a files row makes SQLite find every row pointing at it. These
+    -- four columns had no index, so each deleted file read the whole table:
+    -- 20,000 files with 20,000 migration records took 29 s. IF NOT EXISTS
+    -- makes this safe to run again.
+    CREATE INDEX IF NOT EXISTS idx_migration_items_file ON migration_items(file_id);
+    CREATE INDEX IF NOT EXISTS idx_dupgroup_files_file ON duplicate_group_files(file_id);
+    CREATE INDEX IF NOT EXISTS idx_stacks_cover ON stacks(cover_file_id);
+    CREATE INDEX IF NOT EXISTS idx_albums_cover ON albums(cover_file_id);
+
+    -- What each Google Takeout JSON said, with the size and time it had when
+    -- read: a scan opens only the ones that are new or changed, not all
+    -- 24,000 every time (importers/takeout.py). data is NULL for a file that
+    -- isn't a usable Takeout JSON, so that isn't opened again either.
+    CREATE TABLE IF NOT EXISTS takeout_jsons (
+        root_id INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,
+        rel_path TEXT NOT NULL,               -- '/'-separated, relative to the root
+        size INTEGER NOT NULL,
+        mtime_ns INTEGER NOT NULL,
+        data TEXT,                            -- JSON: title, taken, lat, lon, description, people
+        PRIMARY KEY (root_id, rel_path)
+    ) WITHOUT ROWID;
+    """,
+))
+
+
 VACUUM_AFTER = {8}
 
 
@@ -978,7 +1007,19 @@ def _snapshot_before_upgrade(conn: sqlite3.Connection, db_path: Path, version: i
         row = conn.execute("SELECT value FROM settings WHERE key = 'catalog_backup_dir'").fetchone()
         if row and json.loads(row[0]):
             folder = Path(json.loads(row[0]))
-    backup.snapshot(conn, folder, reason=f"before-upgrade-v{version}", keep=1_000_000)   # prune nothing
+    backup.snapshot(conn, folder, reason=f"before-upgrade-v{version}", keep=1_000_000)   # prune nothing here
+    # These were never pruned, so every upgrade left another full copy of the
+    # catalog for good. Keep the newest few; only before-upgrade snapshots are
+    # ever removed here - daily and manual ones are left to their own rule (0.54).
+    old = [p for p in backup.list_snapshots(folder) if "-before-upgrade-v" in p.name]
+    for p in old[PRE_UPGRADE_KEEP:]:
+        try:
+            p.unlink()
+        except OSError:
+            pass                         # a locked or read-only old backup must not stop the upgrade
+
+
+PRE_UPGRADE_KEEP = 5
 
 
 class NewerCatalog(RuntimeError):

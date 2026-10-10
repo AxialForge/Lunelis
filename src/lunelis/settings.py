@@ -132,6 +132,26 @@ DEFAULTS: dict[str, Any] = {
 
 JOB_WHEN = ("now", "idle", "window")
 
+# Numbers that only make sense inside a range. Checked when set, and again
+# when read: see Settings.get.
+RANGES: dict[str, tuple[float, float]] = {
+    "import_local_reserve_gb": (0, 100_000), "catalog_backups_keep": (1, 1000),
+    "catalog_backup_every_hours": (1, 24 * 365), "job_idle_minutes": (1, 24 * 60),
+    "job_window_start_hour": (0, 23), "job_window_end_hour": (0, 23), "job_mb_per_s": (0, 100_000),
+    "event_gap_hours": (1, 24 * 14), "event_min_photos": (2, 100_000),
+    "burst_gap_seconds": (0.1, 5), "burst_min_frames": (2, 50), "burst_max_frames": (3, 50),
+    "timelapse_min_frames": (10, 10000), "timelapse_max_pause_minutes": (1, 240),
+    "timelapse_auto_stack_frames": (50, 100000),
+    # These had no check at all (0.54). The limits are the widest the screens
+    # that set them ever write, or wider.
+    "gallery_port": (1024, 65535),           # below 1024 needs administrator rights
+    "integrity_gb": (1, 100_000),
+    "trash_keep_days": (0, 3650),            # 0 = keep for good
+    "grid_default_size": (100, 400),         # ui/grid.py MIN_TILE..MAX_TILE
+    "detail_strip_height": (40, 600),
+    "side_panel_width": (200, 2000),
+}
+
 
 def validate(key: str, value: Any) -> None:
     """Refuse values that would break something later, with a message a
@@ -150,17 +170,8 @@ def validate(key: str, value: Any) -> None:
     if key == "import_template":
         from lunelis.importing.templates import validate as check_template
         check_template(value)
-    ranges = {
-        "import_local_reserve_gb": (0, 100_000), "catalog_backups_keep": (1, 1000),
-        "catalog_backup_every_hours": (1, 24 * 365), "job_idle_minutes": (1, 24 * 60),
-        "job_window_start_hour": (0, 23), "job_window_end_hour": (0, 23), "job_mb_per_s": (0, 100_000),
-        "event_gap_hours": (1, 24 * 14), "event_min_photos": (2, 100_000),
-        "burst_gap_seconds": (0.1, 5), "burst_min_frames": (2, 50), "burst_max_frames": (3, 50),
-        "timelapse_min_frames": (10, 10000), "timelapse_max_pause_minutes": (1, 240),
-        "timelapse_auto_stack_frames": (50, 100000),
-    }
-    if key in ranges:
-        lo, hi = ranges[key]
+    if key in RANGES:
+        lo, hi = RANGES[key]
         if not isinstance(value, (int, float)) or isinstance(value, bool) or not lo <= value <= hi:
             raise ValueError(f"{key} must be a number from {lo} to {hi}")
     if key in ("import_destination",) and not (value or "").strip():
@@ -179,7 +190,21 @@ class Settings:
         if key not in DEFAULTS:
             raise KeyError(f"unknown setting {key!r}")
         row = self.conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
-        return json.loads(row[0]) if row else DEFAULTS[key]
+        if not row:
+            return DEFAULTS[key]
+        # A stored value that is damaged (not JSON) or a number outside its
+        # range - a hand-edited catalog, a value from before the range existed
+        # - means "default". It used to raise, or be handed on to code that
+        # then failed, on every read (0.54).
+        try:
+            value = json.loads(row[0])
+        except (ValueError, TypeError):
+            return DEFAULTS[key]
+        if key in RANGES:
+            lo, hi = RANGES[key]
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or not lo <= value <= hi:
+                return DEFAULTS[key]
+        return value
 
     def set(self, key: str, value: Any) -> None:
         if key not in DEFAULTS:
@@ -196,5 +221,5 @@ class Settings:
         self.conn.commit()
 
     def all(self) -> dict[str, Any]:
-        stored = {k: json.loads(v) for k, v in self.conn.execute("SELECT key, value FROM settings")}
-        return {k: stored.get(k, d) for k, d in DEFAULTS.items()}
+        stored = {k for k, in self.conn.execute("SELECT key FROM settings")}
+        return {k: (self.get(k) if k in stored else d) for k, d in DEFAULTS.items()}       # damaged = default (0.54)

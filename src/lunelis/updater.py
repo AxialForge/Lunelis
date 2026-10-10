@@ -56,12 +56,23 @@ class Release:
     sha_url: str | None
 
 
+_PRE_RANK = {"dev": 0, "alpha": 1, "a": 1, "beta": 2, "b": 2, "pre": 2, "preview": 2, "rc": 3}
+
+
 def parse_version(v: str) -> tuple[int, ...]:
-    """'0.50.0' -> (0, 50, 0, 1); '0.50.0-beta.2' -> (0, 50, 0, 0): a pre-release
-    is older than its final release (0.50 - the suffix used to be dropped)."""
+    """'0.50.0' -> (0, 50, 0, 1); '0.50.0-beta.2' -> (0, 50, 0, 0, 2, 2): a
+    pre-release is older than its final release (0.50 - the suffix used to be
+    dropped), and pre-releases are in order among themselves: alpha < beta <
+    rc, then their numbers. beta.1 and beta.2 used to compare as equal, so a
+    newer test version was never offered over an older one (0.54)."""
     core, _, pre = (v or "").partition("-")
     nums = re.findall(r"\d+", core)
-    return tuple(int(n) for n in nums[:3]) + (0,) * (3 - min(3, len(nums))) + (0 if pre else 1,)
+    base = tuple(int(n) for n in nums[:3]) + (0,) * (3 - min(3, len(nums)))
+    if not pre:
+        return base + (1,)
+    word = re.match(r"[a-z]+", pre.lower())
+    rank = _PRE_RANK.get(word.group(0), 2) if word else 2
+    return base + (0, rank) + tuple(int(n) for n in re.findall(r"\d+", pre))
 
 
 def is_newer(candidate: str, current: str) -> bool:

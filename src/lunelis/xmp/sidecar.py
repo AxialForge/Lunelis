@@ -32,7 +32,7 @@ import os
 import re
 import tempfile
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from lunelis.importers.formats import RAW_EXTS, ext_of
 
@@ -64,6 +64,10 @@ class XmpFields:
     label: str | None = None        # one of LABELS
     edit: str | None = None         # lunelis:EditStack, None = unedited
     keywords: tuple = ()            # tag paths, "Places|Ohio"; darktable's own tags excluded
+    # False only for a sidecar that was READ and has no xmp:Rating at all: it
+    # has no opinion about stars, which is not the same as "0 stars". Left out
+    # of comparisons, so two sets of fields are equal when what they'd write is (0.54).
+    has_rating: bool = field(default=True, compare=False)
 
 
 # --- which sidecar ----------------------------------------------------------
@@ -148,7 +152,8 @@ def parse_fields(text: str) -> XmpFields:
             if idx and int(idx[0]) < len(LABELS):
                 label = LABELS[int(idx[0])]
     edit = value("lunelis:EditStack")
-    return XmpFields(stars, rejected, label, _unescape(edit) if edit else None, _keywords(text))
+    return XmpFields(stars, rejected, label, _unescape(edit) if edit else None, _keywords(text),
+                     has_rating=raw is not None)
 
 
 def _bag_items(text: str, name: str) -> list[str] | None:
@@ -376,6 +381,11 @@ def write_sidecar(path: str, fields: XmpFields) -> None:
     try:
         with os.fdopen(fd, "wb") as fh:
             fh.write(new.encode("utf-8"))
+            # On the disk before it takes the old file's place: without this a
+            # power cut just after the rename could leave an empty .xmp where
+            # a full one had been (0.54).
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp, path)
     except BaseException:
         try:

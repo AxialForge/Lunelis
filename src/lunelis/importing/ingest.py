@@ -29,7 +29,7 @@ import shutil
 import sqlite3
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -57,6 +57,46 @@ class NoStagingSpace(Exception):
 
 class WaitingForSource(Exception):
     """The card (for staging) or a share (for placing) isn't there right now."""
+
+
+class DestinationFull(Exception):
+    """The library drive has no room for the next file. The import stops here
+    with everything not yet filed still safe in staging (0.54)."""
+
+
+# Windows "There is not enough space on the disk" (112) and "The disk is full"
+# (39); errno ENOSPC everywhere else.
+_FULL_WINERRORS = {112, 39}
+
+
+def disk_full(e: BaseException) -> bool:
+    import errno
+    return isinstance(e, OSError) and (getattr(e, "winerror", None) in _FULL_WINERRORS
+                                       or e.errno == errno.ENOSPC)
+
+
+def _full(conn, import_id: int, destination: str, e: OSError) -> DestinationFull:
+    """A full library drive used to fail the file it happened on and then every
+    file after it, one by one. Now the import pauses on the spot: the file stays
+    staged (not 'failed'), and importing again carries on once there's room (0.54)."""
+    conn.commit()
+    drive = os.path.splitdrive(destination)[0] or destination
+    text = (f"The library drive is full - there is no room left on {drive} for the next file. Nothing was "
+            "lost: the files not filed yet are safe in staging. Free some space, then import again to carry on.")
+    _set(conn, import_id, "waiting", text)
+    err = DestinationFull(text)
+    err.__cause__ = e
+    return err
+
+
+def _local_date(created: str) -> date:
+    """imports.created_at is UTC (SQLite's datetime('now')); {import_date} is
+    the day on this PC's clock. Taken as it stood, an evening import in a zone
+    behind UTC was filed under tomorrow's date (0.54)."""
+    try:
+        return datetime.fromisoformat(created).replace(tzinfo=timezone.utc).astimezone().date()
+    except (ValueError, OSError, OverflowError):
+        return date.fromisoformat(created[:10])
 
 
 @dataclass
@@ -473,6 +513,10 @@ def _stage_pending(conn, import_id, source, cfg, should_stop, on_progress) -> bo
             _set(conn, import_id, "waiting", "Out of staging space")
             raise
         except OSError as e:
+            if disk_full(e) and os.path.isdir(source):    # staging filled up despite the check above (0.54)
+                conn.commit()
+                _set(conn, import_id, "waiting", "Out of staging space")
+                raise NoStagingSpace("no room to stage: the staging folder's drive is full") from e
             if not os.path.isdir(source):                 # card pulled out mid-copy
                 conn.commit()
                 _set(conn, import_id, "waiting", "Waiting for the card to be inserted again")
@@ -580,7 +624,7 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
 
     name, template, destination, created = conn.execute(
         "SELECT name, template, destination, created_at FROM imports WHERE id = ?", (import_id,)).fetchone()
-    import_date = date.fromisoformat(created[:10])
+    import_date = _local_date(created)
     if not os.path.isdir(destination):
         _set(conn, import_id, "waiting", f"Waiting for {destination}")
         raise WaitingForSource(destination)
@@ -603,6 +647,8 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
                     conn.commit()
                     _set(conn, import_id, "waiting", f"Waiting for {destination}")
                     raise WaitingForSource(destination) from e
+                if disk_full(e):
+                    raise _full(conn, import_id, destination, e)
                 conn.execute("UPDATE import_items SET state = 'failed', error = ? WHERE id = ?",
                              (f"{type(e).__name__}: {e}"[:300], item))
             conn.commit()
@@ -669,6 +715,8 @@ def place(conn: sqlite3.Connection, import_id: int, cfg: Settings_ | None = None
                 conn.commit()
                 _set(conn, import_id, "waiting", f"Waiting for {destination}")
                 raise WaitingForSource(destination) from e
+            if disk_full(e):
+                raise _full(conn, import_id, destination, e)
             conn.execute("UPDATE import_items SET state = 'failed', error = ? WHERE id = ?",
                          (f"{type(e).__name__}: {e}"[:300], item))
         conn.commit()

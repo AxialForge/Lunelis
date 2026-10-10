@@ -184,3 +184,22 @@ def test_a_scan_asked_for_during_a_scan_runs_afterwards():
     MainWindow.start(busy, [3])
     MainWindow.start(busy, [3, 5])
     assert busy._scan_queue == [3, 5]
+
+
+def test_a_file_open_in_another_program_is_read_again_before_it_is_called_unreadable(tmp_path, monkeypatch):
+    # 0.54: any passing failure became a permanent "no metadata".
+    import builtins
+    from lunelis.dupes.hashing import OFFLINE
+    from lunelis.importers import metadata
+    (tmp_path / "a.jpg").write_bytes(b"\xff\xd8\xff" + b"0" * 100)
+    real = builtins.open
+
+    def locked(path, *a, **k):
+        if str(path).endswith("a.jpg"):
+            raise PermissionError(13, "in use by another program", str(path))
+        return real(path, *a, **k)
+    monkeypatch.setattr(builtins, "open", locked)
+    monkeypatch.setattr(metadata, "_tries", {})
+    errors = [metadata._read_one(str(tmp_path), "a.jpg")[2] for _ in range(metadata.MAX_TRIES)]
+    assert all(e.startswith(OFFLINE) for e in errors[:-1])          # pending: tried again next pass
+    assert errors[-1].startswith("PermissionError")                # still locked after a few passes: said so

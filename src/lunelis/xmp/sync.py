@@ -17,7 +17,7 @@ from pathlib import Path
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable
 
 from lunelis.xmp.sidecar import XmpFields, default_sidecar, read_sidecar, write_sidecar
@@ -97,6 +97,7 @@ def import_sidecars(conn: sqlite3.Connection, *, on_progress: ProgressFn | None 
             return None, f"{type(e).__name__}: {e}"[:300]
 
     upserts: list[tuple] = []
+    labels: list[tuple] = []
     synced: list[tuple] = []
     keyword_adds: list[tuple] = []
 
@@ -108,6 +109,11 @@ def import_sidecars(conn: sqlite3.Connection, *, on_progress: ProgressFn | None 
                 " color_label = excluded.color_label, updated_at = datetime('now')"
                 " WHERE ratings.xmp_pending = 0",
                 upserts)
+            conn.executemany(
+                "INSERT INTO ratings (file_id, color_label) VALUES (?, ?)"
+                " ON CONFLICT(file_id) DO UPDATE SET color_label = excluded.color_label,"
+                " updated_at = datetime('now') WHERE ratings.xmp_pending = 0",
+                labels)
             conn.executemany("UPDATE files SET sidecar_synced_mtime = ? WHERE id = ?", synced)
             if keyword_adds:
                 from lunelis.tags import model as tags
@@ -118,6 +124,7 @@ def import_sidecars(conn: sqlite3.Connection, *, on_progress: ProgressFn | None 
                             conn.execute("INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?)", (fid, tid))
             conn.commit()
             upserts.clear()
+            labels.clear()
             synced.clear()
             keyword_adds.clear()
             return True
@@ -128,7 +135,15 @@ def import_sidecars(conn: sqlite3.Connection, *, on_progress: ProgressFn | None 
             flag = "reject"
         else:
             flag = row["flag"] if row["flag"] == "pick" else None   # picks live only in the catalog
-        if row["has_row"] or (fields.stars, fields.rejected, fields.label) != (0, False, None):
+        if not fields.has_rating:
+            # No xmp:Rating in the sidecar at all (an editor that only keeps
+            # its develop settings there): that is "no opinion", and used to
+            # be read as 0 stars and written over the photo's stars, reject
+            # flag and label. Stars and flag are left alone; a label is taken
+            # only when the sidecar actually has one (0.54).
+            if fields.label is not None:
+                labels.append((row["id"], fields.label))
+        elif row["has_row"] or (fields.stars, fields.rejected, fields.label) != (0, False, None):
             # Don't create a row for every untouched sidecar (darktable writes
             # one per imported photo, rating 0, no label).
             upserts.append((row["id"], fields.stars, flag, fields.label))
@@ -149,6 +164,7 @@ def import_sidecars(conn: sqlite3.Connection, *, on_progress: ProgressFn | None 
 
 EXPORT_SQL = """
     SELECT f.id, r.id AS root_id, r.path AS root, f.rel_path, f.filename, f.sidecar,
+           f.sidecar_synced_mtime,
            rt.stars, rt.flag, rt.color_label, ed.stack AS edit_stack,
            (SELECT group_concat(t.name, char(31)) FROM file_tags ft JOIN tags t ON t.id = ft.tag_id
              WHERE ft.file_id = f.id AND ft.confidence IS NULL) AS tag_names
@@ -250,11 +266,23 @@ def export_pending(conn: sqlite3.Connection, *, on_progress: ProgressFn | None =
             elif mode == "beside" and not empty:
                 beside_name = default_sidecar(row["filename"])
             beside_mtime = None
+            extra: tuple = ()
             if beside_name:
                 path = os.path.join(folder, beside_name)
+                # The sidecar was changed by another program since Lunelis last
+                # read it (or was never read): keywords added there are not in
+                # the catalog yet, and writing the catalog's list would wipe
+                # them. They are kept in the sidecar and handed back to be added
+                # to the catalog. A sidecar Lunelis has read is still written
+                # exactly, so removing a tag here removes it there (0.54).
+                if os.path.exists(path) and _iso_utc_mtime(path) != row["sidecar_synced_mtime"]:
+                    have = {k.lower() for k in fields.keywords}
+                    extra = tuple(k for k in read_sidecar(path).keywords if k.lower() not in have)
+                    if extra:
+                        fields = replace(fields, keywords=tuple(sorted(fields.keywords + extra, key=str.lower)))
                 write_sidecar(path, fields)
                 beside_mtime = _iso_utc_mtime(path)
-            return beside_name, beside_mtime, None
+            return beside_name, beside_mtime, None, extra
         except Exception as e:
             err = f"{type(e).__name__}: {e}"[:300]
             if mode == "beside":
@@ -264,9 +292,20 @@ def export_pending(conn: sqlite3.Connection, *, on_progress: ProgressFn | None =
     cleared: list[tuple] = []
     failed: list[tuple] = []
     sidecars: list[tuple] = []
+    keyword_adds: list[tuple] = []
 
-    def apply(row, name=None, mtime=None, err=None):
+    def apply(row, name=None, mtime=None, err=None, extra=()):
         if row is None:
+            if keyword_adds:
+                # Keywords another program put in the sidecar, kept there by
+                # the write above: the catalog learns them too (0.54).
+                from lunelis.tags import model as tags
+                for fid, kws in keyword_adds:
+                    for kw in kws:
+                        tid = tags.tag_id(conn, kw)
+                        if tid is not None:
+                            conn.execute("INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?)", (fid, tid))
+                keyword_adds.clear()
             # Clear pending only if the rating is still what we wrote: a change
             # made while the write was in flight stays pending for next time.
             conn.executemany(
@@ -291,6 +330,8 @@ def export_pending(conn: sqlite3.Connection, *, on_progress: ProgressFn | None =
             failed.append((err, row["id"]))    # saved where it belongs; the extra copy said why not
         if name:
             sidecars.append((name, mtime, mtime, row["id"]))
+        if extra:
+            keyword_adds.append((row["id"], extra))
         return True
 
     try:

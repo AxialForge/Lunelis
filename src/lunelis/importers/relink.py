@@ -41,6 +41,9 @@ class RelinkResult:
     by_method: dict | None = None
 
 
+COMMIT_EVERY = 200
+
+
 def _orphans(conn):
     return conn.execute(
         "SELECT f.id, f.root_id, f.rel_path, f.filename, f.size_bytes, f.mtime, e.captured_at,"
@@ -79,9 +82,10 @@ def _unique_pairs(orphans, newcomers, key) -> list[tuple]:
 
 
 def merge(conn: sqlite3.Connection, orphan_id: int, newcomer_id: int, method: str,
-          *, sidecar_store=None, thumbnail_cache=None) -> None:
+          *, sidecar_store=None, thumbnail_cache=None, commit: bool = True) -> None:
     """The orphan entry takes over the newcomer's location; the newcomer's
-    blank row (and anything derived from it: EXIF, thumbnail) goes."""
+    blank row (and anything derived from it: EXIF, thumbnail) goes.
+    `commit=False` leaves the saving to the caller (relink() saves in batches)."""
     new = conn.execute(
         "SELECT f.root_id, f.rel_path, f.filename, f.sidecar, f.sidecar_mtime, f.mtime, r.path,"
         "       f.thumbnail_path FROM files f JOIN roots r ON r.id = f.root_id WHERE f.id = ?",
@@ -99,7 +103,8 @@ def merge(conn: sqlite3.Connection, orphan_id: int, newcomer_id: int, method: st
         (to_root, to_path, to_name, sidecar, sidecar_mtime, mtime, orphan_id))
     conn.execute("INSERT INTO file_moves (file_id, from_root, from_path, to_root, to_path, method)"
                  " VALUES (?, ?, ?, ?, ?, ?)", (orphan_id, from_root, from_path, to_root, to_path, method))
-    conn.commit()
+    if commit:
+        conn.commit()
 
     # Lunelis's own files follow the entry: the central sidecar is keyed by
     # location, the newcomer's thumbnail (keyed by its id) is now an orphan.
@@ -129,14 +134,30 @@ def relink(conn: sqlite3.Connection, *, use_hashes: bool = True,
     linked_o, linked_n = set(), set()
 
     def run_tier(method, pairs):
-        for o, n in pairs:
-            if o[0] in linked_o or n[0] in linked_n:
-                continue
-            merge(conn, o[0], n[0], method, sidecar_store=sidecar_store, thumbnail_cache=thumbnail_cache)
-            linked_o.add(o[0])
-            linked_n.add(n[0])
-            result.linked += 1
-            result.by_method[method] += 1
+        # Saved every COMMIT_EVERY files, not after each one: a folder of
+        # 20,000 moved photos was 20,000 separate saves. Each file's own files
+        # (its central sidecar) still move right after its catalog change, so
+        # a stop part-way loses at most one batch of re-linking, which the
+        # next scan simply does again (0.54).
+        pending = 0
+        try:
+            for o, n in pairs:
+                if o[0] in linked_o or n[0] in linked_n:
+                    continue
+                merge(conn, o[0], n[0], method, sidecar_store=sidecar_store, thumbnail_cache=thumbnail_cache,
+                      commit=False)
+                linked_o.add(o[0])
+                linked_n.add(n[0])
+                result.linked += 1
+                result.by_method[method] += 1
+                pending += 1
+                if pending >= COMMIT_EVERY:
+                    conn.commit()
+                    pending = 0
+        except BaseException:
+            conn.rollback()                # never save half of one file's change
+            raise
+        conn.commit()
 
     def remaining():
         return ([o for o in orphans if o[0] not in linked_o],

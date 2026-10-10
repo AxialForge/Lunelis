@@ -281,15 +281,15 @@ def make_manual(conn: sqlite3.Connection, ids: list[int]) -> int:
     """Photo > Collapse into a timelapse: any number of frames, in shooting order."""
     if len(ids) < 2:
         raise ValueError("a timelapse needs at least two photos")
-    q = ",".join("?" * len(ids))
     # A RAW+JPEG pair is one frame: the JPEG half goes when its RAW is there too.
-    order = [r[0] for r in conn.execute(
-        f"SELECT f.id FROM files f LEFT JOIN exif e ON e.file_id = f.id WHERE f.id IN ({q})"
-        f" AND NOT (f.pair_of IS NOT NULL AND f.pair_of IN ({q}))"
-        f" ORDER BY e.captured_at, f.rel_path", ids + ids)]
+    # Asked in pieces: a timelapse of tens of thousands of frames went past
+    # SQLite's limit on values in one statement (0.54).
+    from lunelis import stacks
+    order = stacks.shooting_order(conn, ids)
+    in_order = set(order)
     # A photo is in one timelapse: take it out of any other.
     for sid, fids in conn.execute("SELECT id, file_ids FROM sequences WHERE status != 'dismissed'").fetchall():
-        if set(order) & set(json.loads(fids)):
+        if in_order & set(json.loads(fids)):
             set_status(conn, sid, "dismissed")
     sid = conn.execute(
         "INSERT INTO sequences (key, kind, origin, status, file_ids, frames, detail) VALUES (?, 'timelapse', 'manual',"
@@ -321,13 +321,13 @@ def stack(conn: sqlite3.Connection, sid: int, ids: list[int] | None = None) -> i
     if not ids or stack_of(conn, sid):
         return stack_of(conn, sid) or 0
     # Its frames leave any burst stack they were in (a photo is in one stack).
-    q = ",".join("?" * len(ids))
-    for (old,) in conn.execute(f"SELECT DISTINCT stack_id FROM stack_files WHERE file_id IN ({q})", ids).fetchall():
+    from lunelis import stacks                   # in pieces: a long timelapse is past one statement's limit (0.54)
+    for old in stacks.stacks_holding(conn, ids):
         conn.execute("DELETE FROM stack_files WHERE stack_id = ?", (old,))
         conn.execute("DELETE FROM stacks WHERE id = ?", (old,))
     # RAW+JPEG partners ride along, so the pair stays together behind the cover.
-    partners = [r[0] for r in conn.execute(f"SELECT id FROM files WHERE pair_of IN ({q})", ids)]
-    members = list(ids) + [p for p in partners if p not in set(ids)]
+    in_ids = set(ids)
+    members = list(ids) + [p for p in stacks.pair_partners(conn, ids) if p not in in_ids]
     st = conn.execute("INSERT INTO stacks (kind, cover_file_id, cover_chosen, size) VALUES ('timelapse', ?, 0, ?)",
                       (ids[0], len(ids))).lastrowid
     conn.executemany("INSERT OR IGNORE INTO stack_files (stack_id, file_id, position) VALUES (?, ?, ?)",

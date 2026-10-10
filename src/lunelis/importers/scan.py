@@ -84,6 +84,15 @@ def _norm(path: str | Path) -> str:
     return norm
 
 
+def _real(path: str) -> str:
+    """Where a path really is, for comparing only (never stored or shown): a
+    mapped drive letter becomes its network path, a junction its target."""
+    try:
+        return os.path.normcase(os.path.realpath(path))
+    except OSError:
+        return os.path.normcase(path)
+
+
 def root_kind(path: str) -> str:
     """'nas' for UNC paths and mapped network drives, else 'local'."""
     if path.startswith("\\\\"):
@@ -117,6 +126,30 @@ def add_root(conn: sqlite3.Connection, path: str | Path) -> int:
             continue
         if common in (key, other):
             raise RootOverlap(f"{norm} overlaps existing root {row['path']}")
+
+    # The same folder under another spelling - a mapped drive letter and its
+    # network path, a junction - passed the text comparison above and every
+    # photo was then cataloged twice (0.54).
+    real = _real(norm)
+    for row in conn.execute("SELECT id, path FROM roots"):
+        if not os.path.isdir(row["path"]):
+            continue                     # offline right now: nothing can be told about it
+        other_real = _real(row["path"])
+        same = real == other_real
+        if not same:
+            try:
+                same = os.path.samefile(norm, row["path"])
+            except OSError:
+                same = False
+        if same:
+            raise RootOverlap(f"{norm} is the same folder as the source {row['path']}, which is already in "
+                              "the library (one is a drive letter or shortcut for the other).")
+        try:
+            common = os.path.commonpath([real, other_real])
+        except ValueError:
+            continue
+        if common in (real, other_real):
+            raise RootOverlap(f"{norm} overlaps existing root {row['path']} (the same place under another name)")
 
     cur = conn.execute(
         "INSERT INTO roots (path, kind) VALUES (?, ?)", (norm, root_kind(norm))
@@ -363,6 +396,19 @@ def scan_root(conn: sqlite3.Connection, root_id: int, *,
                 " WHERE root_id = ? AND rel_path = ?",
                 updates,
             )
+            # ...and so is what was worked out from the old picture: the faces
+            # Lunelis found itself and nobody answered, the scene embedding and
+            # the damage record. Deleting them makes the faces, scenes and
+            # damage passes look at the new bytes. Named, confirmed, hand-drawn
+            # and ignored faces are never touched (0.54).
+            changed = [(u[2], u[3]) for u in updates]
+            one = "(SELECT id FROM files WHERE root_id = ? AND rel_path = ?)"
+            conn.executemany(
+                f"DELETE FROM faces WHERE file_id = {one} AND person_id IS NULL AND source = 'auto'"
+                " AND confirmed = 0 AND ignored = 0", changed)
+            conn.executemany(f"DELETE FROM face_scans WHERE file_id = {one}", changed)
+            conn.executemany(f"DELETE FROM embeddings WHERE file_id = {one}", changed)
+            conn.executemany(f"DELETE FROM damaged WHERE file_id = {one}", changed)
         if restores:
             conn.executemany(
                 "UPDATE files SET missing_since = NULL WHERE root_id = ? AND rel_path = ?",

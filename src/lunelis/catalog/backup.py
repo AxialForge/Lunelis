@@ -22,6 +22,7 @@ import sqlite3
 import sys
 import time
 import zipfile
+import zlib
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -117,19 +118,35 @@ def snapshot_if_due(conn: sqlite3.Connection, data_dir: Path) -> Path | None:
 def restore(snapshot_zip: Path, catalog_path: Path) -> Path:
     """Replace the catalog with a snapshot. The app must be closed. The catalog
     being replaced is itself kept alongside as `catalog.db.before-restore-<time>`."""
-    with zipfile.ZipFile(snapshot_zip) as z:
-        tmp = catalog_path.with_suffix(".db.restoring")
-        with z.open("catalog.db") as src, open(tmp, "wb") as dst:
-            while chunk := src.read(1 << 20):
-                dst.write(chunk)
-    check = sqlite3.connect(str(tmp))
+    tmp = catalog_path.with_suffix(".db.restoring")
+    # A zip that isn't one, has no catalog inside, is cut short, or holds
+    # something that isn't a database used to raise past the caller (start-up
+    # died with a traceback) and leave the .db.restoring file behind. Every
+    # such case is now one ValueError, with the half-written file removed (0.54).
     try:
-        ok = check.execute("PRAGMA integrity_check").fetchone()[0]
-    finally:
-        check.close()                    # Windows can't replace a file that's open
-    if ok != "ok":
-        tmp.unlink()
-        raise ValueError(f"snapshot failed its integrity check: {ok}")
+        try:
+            with zipfile.ZipFile(snapshot_zip) as z:
+                with z.open("catalog.db") as src, open(tmp, "wb") as dst:
+                    while chunk := src.read(1 << 20):
+                        dst.write(chunk)
+        except (zipfile.BadZipFile, KeyError, EOFError, zlib.error) as e:
+            raise ValueError(f"{Path(snapshot_zip).name} isn't a readable Lunelis catalog backup ({e})") from e
+        try:
+            check = sqlite3.connect(str(tmp))
+            try:
+                ok = check.execute("PRAGMA integrity_check").fetchone()[0]
+            finally:
+                check.close()                # Windows can't replace a file that's open
+        except sqlite3.DatabaseError as e:
+            raise ValueError(f"{Path(snapshot_zip).name} doesn't hold a usable catalog ({e})") from e
+        if ok != "ok":
+            raise ValueError(f"snapshot failed its integrity check: {ok}")
+    except BaseException:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
     if catalog_path.exists():
         # Copied, not moved, aside: catalog.db exists at every moment, so a
         # crash here can never leave Lunelis to start on an empty catalog.
@@ -200,6 +217,8 @@ def finish_pending_restore(data_dir: Path, catalog_path: Path) -> Path | None:
         return None
     try:
         src = Path(json.loads(marker.read_text(encoding="utf-8"))["zip"])
+    except (KeyError, TypeError) as e:       # a damaged request file: say so, don't crash the start (0.54)
+        raise ValueError(f"the restore request couldn't be read ({e!r})") from e
     finally:
         marker.unlink()
     restore(src, catalog_path)

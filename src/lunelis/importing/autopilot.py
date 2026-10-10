@@ -74,14 +74,34 @@ def to_review(conn: sqlite3.Connection) -> list[int]:
 
 # --- helpers ---------------------------------------------------------------------------------------
 
+def _chunks(ids, n: int = 900):
+    """A very large import has more photos than SQLite takes values in one
+    statement (32,766): every "IN (...)" over the import's photos is asked in
+    pieces. One stage used to fail with "too many SQL variables" (0.54)."""
+    ids = list(ids)
+    for i in range(0, len(ids), n):
+        yield ids[i:i + n]
+
+
+def _marks(chunk) -> str:
+    return ",".join("?" * len(chunk))
+
+
+def _by_time(rows) -> list:
+    """Rows of (id, captured_at, ...) as ORDER BY e.captured_at, f.id gave them: no time first."""
+    return sorted(rows, key=lambda r: (r[1] is not None, r[1] or "", r[0]))
+
+
 def _photos(conn, ids: list[int]) -> list[int]:
     if not ids:
         return []
-    rows = conn.execute(
-        f"SELECT f.id FROM files f LEFT JOIN exif e ON e.file_id = f.id WHERE f.id IN ({','.join('?' * len(ids))})"
-        f" AND COALESCE(f.format, '') NOT IN ({','.join('?' * len(VIDEO))}) ORDER BY e.captured_at, f.id",
-        (*ids, *VIDEO)).fetchall()
-    return [r[0] for r in rows]
+    rows = []
+    for chunk in _chunks(ids):
+        rows += conn.execute(
+            f"SELECT f.id, e.captured_at FROM files f LEFT JOIN exif e ON e.file_id = f.id"
+            f" WHERE f.id IN ({_marks(chunk)}) AND COALESCE(f.format, '') NOT IN ({_marks(VIDEO)})",
+            (*chunk, *VIDEO)).fetchall()
+    return [r[0] for r in _by_time(rows)]
 
 
 def _thumb_gray(conn, fid: int, thumbs: Path) -> np.ndarray | None:
@@ -104,16 +124,20 @@ def best_frames(conn, ids: list[int]) -> list[int]:
     """The photos worth showing: not rejected, and of a burst only its cover."""
     if not ids:
         return []
-    q = ",".join("?" * len(ids))
-    out = []
-    for fid, flag, stack, cover in conn.execute(
-            f"SELECT f.id, rt.flag, sf.stack_id, s.cover_file_id FROM files f LEFT JOIN ratings rt ON rt.file_id = f.id"
+    rows = []
+    for chunk in _chunks(ids):
+        rows += conn.execute(
+            f"SELECT f.id, e.captured_at, rt.flag, sf.stack_id, s.cover_file_id FROM files f"
+            f" LEFT JOIN ratings rt ON rt.file_id = f.id"
             f" LEFT JOIN stack_files sf ON sf.file_id = f.id LEFT JOIN stacks s ON s.id = sf.stack_id"
-            f" LEFT JOIN exif e ON e.file_id = f.id WHERE f.id IN ({q}) ORDER BY e.captured_at, f.id", ids):
+            f" LEFT JOIN exif e ON e.file_id = f.id WHERE f.id IN ({_marks(chunk)})", chunk).fetchall()
+    out = []
+    for fid, _at, flag, stack, cover in _by_time(rows):
         if flag == "reject" or (stack is not None and cover != fid):
             continue
         out.append(fid)
-    return [f for f in out if f in set(_photos(conn, out))]
+    photos = set(_photos(conn, out))
+    return [f for f in out if f in photos]
 
 
 # --- stages ----------------------------------------------------------------------------------------
@@ -121,8 +145,7 @@ def best_frames(conn, ids: list[int]) -> list[int]:
 def _bursts(conn, ids, thumbs, data_dir, stop) -> tuple[str, str, dict]:
     from lunelis import stacks
     stacks.rebuild_from_settings(conn)
-    sids = sorted({r[0] for r in conn.execute(
-        f"SELECT DISTINCT stack_id FROM stack_files WHERE file_id IN ({','.join('?' * len(ids))})", ids)}) if ids else []
+    sids = stacks.stacks_holding(conn, ids) if ids else []
     before, changed = {}, 0
     for sid in sids:
         if stop():
@@ -151,9 +174,12 @@ def _scenes(conn, ids, thumbs, data_dir, stop):
     photos = _photos(conn, ids)
 
     def pairs():
-        q = ",".join("?" * len(photos))
-        return {tuple(r) for r in conn.execute(
-            f"SELECT file_id, tag_id FROM file_tags WHERE confidence IS NOT NULL AND file_id IN ({q})", photos)}
+        found = set()
+        for chunk in _chunks(photos):
+            found.update(tuple(r) for r in conn.execute(
+                f"SELECT file_id, tag_id FROM file_tags WHERE confidence IS NOT NULL"
+                f" AND file_id IN ({_marks(chunk)})", chunk))
+        return found
     before = pairs() if photos else set()
     _emb, n = scenes.tag_files(conn, photos, rec, data_dir, stop)
     added = sorted(pairs() - before) if photos else []
@@ -164,17 +190,24 @@ def _scenes(conn, ids, thumbs, data_dir, stop):
 def _top_scene(conn, ids) -> str | None:
     if not ids:
         return None
-    row = conn.execute(
-        f"SELECT t.name, COUNT(*) c FROM file_tags ft JOIN tags t ON t.id = ft.tag_id"
-        f" WHERE ft.file_id IN ({','.join('?' * len(ids))}) AND t.name LIKE 'Scene|%'"
-        f" GROUP BY t.id ORDER BY c DESC LIMIT 1", ids).fetchone()
-    return row[0].split("|")[-1] if row and row[1] >= max(2, len(ids) // 5) else None
+    counts: dict[str, int] = {}
+    for chunk in _chunks(ids):
+        for name, c in conn.execute(
+                f"SELECT t.name, COUNT(*) c FROM file_tags ft JOIN tags t ON t.id = ft.tag_id"
+                f" WHERE ft.file_id IN ({_marks(chunk)}) AND t.name LIKE 'Scene|%' GROUP BY t.id", chunk):
+            counts[name] = counts.get(name, 0) + c
+    if not counts:
+        return None
+    name = max(counts, key=counts.get)
+    return name.split("|")[-1] if counts[name] >= max(2, len(ids) // 5) else None
 
 
 def _event_name(conn, ids) -> str:
     from lunelis.events.model import date_range_text
-    row = conn.execute(f"SELECT MIN(captured_at), MAX(captured_at) FROM exif WHERE file_id IN ({','.join('?' * len(ids))})",
-                       ids).fetchone()
+    spans = [conn.execute(f"SELECT MIN(captured_at), MAX(captured_at) FROM exif WHERE file_id IN ({_marks(chunk)})",
+                          chunk).fetchone() for chunk in _chunks(ids)]
+    spans = [s for s in spans if s and s[0]]
+    row = (min(s[0] for s in spans), max(s[1] for s in spans)) if spans else None
     when = date_range_text(row[0], row[1]) if row and row[0] else datetime.now().strftime("%b %d, %Y").replace(" 0", " ")
     return f"{_top_scene(conn, ids) or 'Shoot'} · {when}"
 

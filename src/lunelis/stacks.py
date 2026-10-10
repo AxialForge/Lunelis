@@ -167,31 +167,69 @@ def unstack(conn: sqlite3.Connection, stack_id: int) -> int:
     return len(fids)
 
 
+# --- long id lists ---------------------------------------------------------------------------
+# SQLite takes at most 32,766 values in one statement. "WHERE id IN (?, ?, ...)"
+# with a whole selection - sometimes twice in one statement - failed with "too
+# many SQL variables" on a very large one, so these ask in pieces (0.54).
+
+def _chunks(ids, n: int = 900):
+    ids = list(ids)
+    for i in range(0, len(ids), n):
+        yield ids[i:i + n]
+
+
+def shooting_order(conn: sqlite3.Connection, ids: list[int]) -> list[int]:
+    """`ids` by capture time, then path - without the JPEG half of a RAW+JPEG
+    pair whose RAW is among them too (a pair is one shot)."""
+    chosen = set(ids)
+    rows = []
+    for chunk in _chunks(ids):
+        rows += conn.execute(
+            f"SELECT f.id, f.pair_of, e.captured_at, f.rel_path FROM files f LEFT JOIN exif e ON e.file_id = f.id"
+            f" WHERE f.id IN ({','.join('?' * len(chunk))})", chunk).fetchall()
+    rows = [r for r in rows if not (r[1] is not None and r[1] in chosen)]
+    # As ORDER BY e.captured_at, f.rel_path did: photos with no time first.
+    rows.sort(key=lambda r: (r[2] is not None, r[2] or "", r[3]))
+    return [r[0] for r in rows]
+
+
+def pair_partners(conn: sqlite3.Connection, ids: list[int]) -> list[int]:
+    """The other half of every RAW+JPEG pair that has a file among `ids`."""
+    out: list[int] = []
+    for chunk in _chunks(ids):
+        out += [r[0] for r in conn.execute(
+            f"SELECT id FROM files WHERE pair_of IN ({','.join('?' * len(chunk))})", chunk)]
+    return out
+
+
+def stacks_holding(conn: sqlite3.Connection, ids: list[int]) -> list[int]:
+    """Ids of the stacks that hold any of these files."""
+    out: set[int] = set()
+    for chunk in _chunks(ids):
+        out.update(r[0] for r in conn.execute(
+            f"SELECT DISTINCT stack_id FROM stack_files WHERE file_id IN ({','.join('?' * len(chunk))})", chunk))
+    return sorted(out)
+
+
 def make_burst(conn: sqlite3.Connection, ids: list[int]) -> int:
     """Photo > Collapse into a burst (0.53): these photos, in shooting order,
     as one burst tile. A 'chosen_burst' stack - the automatic rebuild leaves it
     alone. Its photos leave any other stack or timelapse. Returns the stack id."""
     if len(ids) < 2:
         raise ValueError("a burst needs at least two photos")
-    q = ",".join("?" * len(ids))
     # A RAW+JPEG pair is one shot: the JPEG half rides along behind its RAW.
-    order = [r[0] for r in conn.execute(
-        f"SELECT f.id FROM files f LEFT JOIN exif e ON e.file_id = f.id WHERE f.id IN ({q})"
-        f" AND NOT (f.pair_of IS NOT NULL AND f.pair_of IN ({q}))"
-        f" ORDER BY e.captured_at, f.rel_path", ids + ids)]
-    partners = [r[0] for r in conn.execute(f"SELECT id FROM files WHERE pair_of IN ({q})", ids)]
-    members_ = order + [p for p in partners if p not in set(order)]
-    m = ",".join("?" * len(members_))
-    for (old,) in conn.execute(f"SELECT DISTINCT stack_id FROM stack_files WHERE file_id IN ({m})",
-                               members_).fetchall():
+    order = shooting_order(conn, ids)
+    in_order = set(order)
+    members_ = order + [p for p in pair_partners(conn, ids) if p not in in_order]
+    for old in stacks_holding(conn, members_):
         conn.execute("DELETE FROM stack_files WHERE stack_id = ?", (old,))
         conn.execute("DELETE FROM stacks WHERE id = ?", (old,))
         conn.execute("UPDATE sequences SET stack_id = NULL WHERE stack_id = ?", (old,))
     import json
     for sid, fids in conn.execute("SELECT id, file_ids FROM sequences WHERE status != 'dismissed'").fetchall():
-        if set(order) & set(json.loads(fids)):
+        if in_order & set(json.loads(fids)):
             conn.execute("UPDATE sequences SET status = 'dismissed' WHERE id = ?", (sid,))
-    conn.execute(f"DELETE FROM stack_dismissed WHERE file_id IN ({m})", members_)
+    conn.executemany("DELETE FROM stack_dismissed WHERE file_id = ?", [(f,) for f in members_])
     st = conn.execute("INSERT INTO stacks (kind, cover_file_id, cover_chosen, size) VALUES ('chosen_burst', ?, 0, ?)",
                       (default_cover(conn, order), len(order))).lastrowid
     conn.executemany("INSERT INTO stack_files (stack_id, file_id, position) VALUES (?, ?, ?)",

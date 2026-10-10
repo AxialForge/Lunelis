@@ -220,14 +220,25 @@ def valid_gps(lat: float | None, lon: float | None) -> tuple[float | None, float
 
 def _gps(tags: dict, axis: str) -> float | None:
     tag, ref = tags.get(f"GPS GPS{axis}"), _text(tags.get(f"GPS GPS{axis}Ref"))
-    if tag is None or not isinstance(tag.values, list) or len(tag.values) < 3:
+    if tag is None or not isinstance(tag.values, list) or not tag.values:
         return None
+    # Degrees alone, or degrees and decimal minutes, are valid positions too
+    # (some phones and GPS loggers write them): they used to be dropped (0.54).
     try:
-        d, m, s = (float(v.num) / float(v.den) for v in tag.values[:3])
-    except (ZeroDivisionError, AttributeError):
+        parts = [float(v.num) / float(v.den) for v in tag.values[:3]]
+    except (ZeroDivisionError, AttributeError, TypeError, ValueError):
         return None
-    val = d + m / 60 + s / 3600
-    if ref in ("S", "W"):
+    parts += [0.0] * (3 - len(parts))
+    d, m, s = parts
+    letter = (ref or "").strip().upper()[:1]
+    want = "NS" if axis == "Latitude" else "EW"
+    if letter and letter not in want:
+        return None                       # a ref that belongs to the other axis, or junk: no place beats a wrong one
+    # No N/S/E/W at all used to be read as north / east. A writer that leaves
+    # the letter out usually signs the number instead, so a sign already there
+    # is kept; an unsigned one is still north / east, the common case (0.54).
+    val = abs(d) + abs(m) / 60 + abs(s) / 3600
+    if letter in ("S", "W") or (not letter and d < 0):
         val = -val
     return round(val, 7)
 
@@ -367,6 +378,10 @@ def pending_count(conn: sqlite3.Connection) -> int:
     return conn.execute(f"SELECT COUNT(*) FROM ({PENDING_SQL})").fetchone()[0]
 
 
+MAX_TRIES = 3                      # a passing read problem is retried on this many passes
+_tries: dict[str, int] = {}        # path -> tries so far (this run of Lunelis)
+
+
 def _read_one(root: str, rel_path: str) -> tuple[str | None, dict | None, str | None]:
     """(format, columns, error) for one file. Never raises."""
     from lunelis import pace
@@ -375,11 +390,20 @@ def _read_one(root: str, rel_path: str) -> tuple[str | None, dict | None, str | 
     try:
         with open(path, "rb") as fh:
             fmt, row = read_open(fh, rel_path)
+        _tries.pop(path, None)
         return fmt, row, None
     except Exception as e:                # one bad file must never stop the run
-        from lunelis.dupes.hashing import OFFLINE, offline_error
+        from lunelis.dupes.hashing import OFFLINE, offline_error, transient_error
         if offline_error(e, root):
             return None, None, OFFLINE + str(e)
+        if transient_error(e):
+            # Open in another program, or memory ran out for a moment: left
+            # pending for the next pass, a few times, rather than "no metadata"
+            # until the file changes (0.54; thumbnails do the same).
+            n = _tries[path] = _tries.get(path, 0) + 1
+            if n < MAX_TRIES:
+                return None, None, OFFLINE + str(e)
+        _tries.pop(path, None)
         return getattr(e, "fmt", None), None, f"{type(e).__name__}: {e}"[:300]
 
 

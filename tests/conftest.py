@@ -3,6 +3,9 @@ thumbnails, sidecars, backups - can ever land in the real library data."""
 import os
 import tempfile
 
+# Before anything imports Qt: every test file gets the windowless platform,
+# however pytest was started (it used to depend on the caller setting it) (0.54).
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ["LUNELIS_DATA_DIR"] = tempfile.mkdtemp(prefix="lunelis-test-data-")
 # ...and it is removed afterwards (0.50: they piled up in %TEMP%).
 import atexit, shutil
