@@ -36,6 +36,35 @@ def backup_dir(settings: Settings, data_dir: Path) -> Path:
                 or lunelis_folder.path(settings, lunelis_folder.BACKUPS_CATALOG) or data_dir / "backups")
 
 
+def snapshot_folders(catalog_path: Path, data_dir: Path) -> list[Path]:
+    """Every folder catalog snapshots may be in: the default one, and the one
+    Settings names (a backup folder, or the Lunelis folder) - read from the
+    catalog without opening it for writing, and skipped when it can't be read.
+    Start-up recovery looked only in the default folder (0.53)."""
+    import json
+    out = [data_dir / "backups"]
+    try:
+        c = sqlite3.connect(catalog_path.resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            got = dict(c.execute("SELECT key, value FROM settings WHERE key IN"
+                                 " ('catalog_backup_dir', 'lunelis_folder')"))
+        finally:
+            c.close()
+        if json.loads(got.get("catalog_backup_dir", "null")):
+            out.append(Path(json.loads(got["catalog_backup_dir"])))
+        if json.loads(got.get("lunelis_folder", "null")):
+            out.append(Path(json.loads(got["lunelis_folder"])) / "Backups" / "Catalog")
+    except (sqlite3.Error, ValueError, OSError):
+        pass
+    return list(dict.fromkeys(out))
+
+
+def all_snapshots(catalog_path: Path, data_dir: Path) -> list[Path]:
+    """Snapshots from every folder they may be in, newest first."""
+    found = [p for folder in snapshot_folders(catalog_path, data_dir) for p in list_snapshots(folder)]
+    return sorted(found, key=lambda p: p.name, reverse=True)
+
+
 def list_snapshots(folder: Path) -> list[Path]:
     if not folder.is_dir():
         return []

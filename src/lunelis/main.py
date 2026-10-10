@@ -54,6 +54,53 @@ def _wait_for_previous() -> None:
         k32.CloseHandle(handle)
 
 
+def instance_name(data_dir) -> str:
+    import hashlib
+    return "lunelis-" + hashlib.sha1(str(data_dir).lower().encode("utf-8")).hexdigest()[:16]
+
+
+def _only_instance(app) -> bool:
+    """One Lunelis per data folder (0.53). A second one - a double-click while
+    the first sits in the tray - used to open the same catalog: its job runner
+    took the first one's running job for an interrupted one and ran it again,
+    two workers on the same migration or backup. Now it asks the first to show
+    its window and leaves."""
+    from PySide6.QtCore import QLockFile
+    from PySide6.QtNetwork import QLocalServer, QLocalSocket
+    name = instance_name(paths.DATA_DIR)
+    lock = QLockFile(str(paths.DATA_DIR / "lunelis.lock"))
+    lock.setStaleLockTime(0)                           # a crashed Lunelis's lock is seen as stale by its PID
+    if not lock.tryLock(100):
+        sock = QLocalSocket()
+        sock.connectToServer(name)
+        if sock.waitForConnected(1500):
+            sock.write(b"show")
+            sock.waitForBytesWritten(1000)
+            sock.disconnectFromServer()
+        else:
+            QMessageBox.information(None, "Lunelis", "Lunelis is already running - look for its icon near the "
+                                    "clock. (If it isn't, wait a moment and try again.)")
+        return False
+    app._lunelis_lock = lock                           # held until the process ends
+    QLocalServer.removeServer(name)
+    server = QLocalServer(app)
+    server.listen(name)
+    app._lunelis_server = server
+    return True
+
+
+def _listen_for_second_start(app, window) -> None:
+    server = getattr(app, "_lunelis_server", None)
+    if server is None:
+        return
+
+    def show() -> None:
+        while server.hasPendingConnections():
+            server.nextPendingConnection().deleteLater()
+        window.open_page(getattr(window, "_page_name", None) or "Library")
+    server.newConnection.connect(show)
+
+
 def main() -> int:
     if "--self-test" in sys.argv:                 # packaged-build check (CI); never touches real data
         from lunelis.selftest import run
@@ -84,6 +131,8 @@ def main() -> int:
     paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
     from lunelis import log
     log.setup()
+    if not _only_instance(app):
+        return 0
     log.LOG.info("Lunelis %s starting (%s), data folder %s", paths.version(),
                  "packaged" if paths.FROZEN else "from source", paths.DATA_DIR)
 
@@ -106,6 +155,7 @@ def main() -> int:
     from lunelis.ui.main_window import MainWindow
 
     window = MainWindow(tray=True)
+    _listen_for_second_start(app, window)
     if "--updated" in sys.argv:
         from lunelis import updater
         updater.cleanup()
@@ -145,10 +195,25 @@ def _catalog_ok(backup) -> bool:
             QMessageBox.critical(None, "Lunelis", f"{e}\n\nInstall the newest Lunelis from Settings > Updates "
                                  "or github.com/AxialForge/Lunelis/releases. Your catalog is unchanged.")
             return False
-        except Exception as e:                         # e.g. a page damaged past the header
-            why = f"damaged: {e}"
+        except Exception as e:
+            import sqlite3
+            damaged = isinstance(e, sqlite3.DatabaseError) and any(
+                w in str(e).lower() for w in ("malformed", "not a database", "corrupt", "disk image"))
+            if not damaged:
+                # The catalog reads fine; upgrading it failed (its safety backup
+                # couldn't be written - a backup folder on a sleeping share, a
+                # full disk). Calling that "damaged" offered an empty catalog
+                # as the way out (0.53).
+                log.LOG.error("Couldn't upgrade the catalog: %s", e, exc_info=True)
+                QMessageBox.critical(
+                    None, "Lunelis", f"Lunelis couldn't get its catalog ready for this version:\n\n{e}\n\n"
+                    "Your catalog and your photos are unchanged. This is usually the catalog backup folder "
+                    "not being reachable (a network share that's asleep) or a full disk. Fix that and start "
+                    "Lunelis again.")
+                return False
+            why = f"damaged: {e}"                      # e.g. a page damaged past the header
     log.LOG.error("Catalog problem at start-up: %s", why)
-    snaps = backup.list_snapshots(paths.DATA_DIR / "backups")
+    snaps = backup.all_snapshots(cat, paths.DATA_DIR)
     box = QMessageBox(QMessageBox.Icon.Warning, "Lunelis",
                       f"Lunelis can't open its catalog ({why}).\n\nYour photos are not affected - the catalog "
                       "holds only Lunelis's own records (ratings, tags, albums...).")

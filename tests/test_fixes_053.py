@@ -111,3 +111,41 @@ def test_the_focus_photo_survives_a_reload_that_adds_photos(tmp_path):
     finally:
         w._quitting = True
         w.close()
+
+
+def test_a_second_lunelis_on_the_same_data_folder_asks_the_first_to_show(tmp_path, monkeypatch):
+    # Two copies on one catalog ran the same migration or backup twice.
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from lunelis import main, paths
+    monkeypatch.setattr(paths, "DATA_DIR", tmp_path)
+    for attr in ("_lunelis_lock", "_lunelis_server"):
+        monkeypatch.delattr(app, attr, raising=False)
+    try:
+        assert main._only_instance(app) is True
+        shown = []
+        main._listen_for_second_start(app, type("W", (), {"open_page": lambda self, n: shown.append(n)})())
+        assert main._only_instance(app) is False                  # the second start leaves...
+        for _ in range(50):
+            app.processEvents()
+        assert shown == ["Library"]                               # ...and the first shows its window
+    finally:
+        app._lunelis_server.close()
+        app._lunelis_lock.unlock()
+
+
+def test_startup_recovery_finds_snapshots_in_the_folder_settings_names(tmp_path):
+    # It only looked in <data>\backups: with a backup folder set it offered an old one, or none.
+    from lunelis.catalog import backup
+    from lunelis.settings import Settings
+    cat = tmp_path / "data" / "catalog.db"
+    cat.parent.mkdir()
+    conn = open_catalog(cat)
+    mine = tmp_path / "My backups"
+    Settings(conn).set("catalog_backup_dir", str(mine))
+    snap = backup.snapshot(conn, mine, "daily")
+    conn.close()
+    assert backup.list_snapshots(tmp_path / "data" / "backups") == []
+    assert backup.all_snapshots(cat, tmp_path / "data") == [snap]
+    (tmp_path / "junk.db").write_bytes(b"not a database at all")
+    assert backup.all_snapshots(tmp_path / "junk.db", tmp_path / "data") == []     # unreadable: just the default folder
