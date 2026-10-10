@@ -32,3 +32,16 @@ def test_the_buttons_that_open_something_work_when_clicked(tmp_path):
     assert got == ["wizard", "takeout", "stack"]
     for w in (view, wiz, tray):
         w.deleteLater()
+
+
+def test_the_stack_trays_close_button_shows_its_icon(tmp_path):
+    # 0.53: it was an empty square - its "x" didn't fit beside the padding.
+    QApplication.instance() or QApplication([])
+    from lunelis.ui.stack_tray import StackTray
+    from lunelis.ui.thumbcache import ThumbCache
+    tray = StackTray(open_catalog(tmp_path / "c.db"), ThumbCache(tmp_path / "thumbs"))
+    assert not tray.close_b.icon().isNull() and tray.close_b.width() >= 30
+    tray.show()
+    tray.close_b.click()
+    assert tray.isHidden()
+    tray.deleteLater()
