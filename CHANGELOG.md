@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.55.1] - 2026-10-11
+
+### Fixed
+
+- **Photos copied to a NAS came out hidden.** A migrated or imported
+  Library looked empty in Explorer although every file was there: each copy
+  is written under a temporary name that starts with a dot, the NAS marks
+  dot-files hidden, and the mark stayed after the rename. Copies are no
+  longer left hidden, and the migration wizard's Release step clears the
+  mark on what an earlier version copied. A file that was hidden at its
+  source stays hidden.
+
 ## [0.55.0] - 2026-10-11
 
 The look-and-feel pass from the 10 October review, a migration wizard that

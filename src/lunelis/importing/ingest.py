@@ -37,6 +37,7 @@ from lunelis.dupes.hashing import SourceOffline, is_network_error, sample_hash
 from lunelis.importers.formats import is_cataloged
 from lunelis.importing import profiles as camera_profiles
 from lunelis.importing.templates import Context, render, sibling
+from lunelis.paths import unhide
 
 CHUNK = 4 * 1024 * 1024
 TMP_PREFIX = ".lunelis-importing-"
@@ -407,6 +408,7 @@ def _copy_hashed(src: str, dst: str, should_stop: StopFn | None = None) -> str |
             os.fsync(fout.fileno())
         shutil.copystat(src, tmp)
         os.replace(tmp, dst)
+        unhide(dst, like=src)        # a NAS hides the dot-named temp file; the mark outlives the rename
         return h.hexdigest()
     except BaseException:
         try:

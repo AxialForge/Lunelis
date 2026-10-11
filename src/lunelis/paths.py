@@ -114,6 +114,29 @@ reload()
 
 # --- moving the data folder ---------------------------------------------------------
 
+HIDDEN = 0x2
+
+
+def unhide(path: str | os.PathLike, like: str | os.PathLike | None = None) -> bool:
+    """Clear Windows' hidden flag on a file Lunelis just wrote (0.55.1). A copy
+    is written under a temporary name that starts with a dot; a NAS marks
+    dot-files hidden and the mark stayed after the rename, so a migrated
+    Library looked empty in Explorer. `like`: the original - a file that was
+    hidden itself stays hidden. True if the flag was cleared."""
+    if sys.platform != "win32":
+        return False
+    try:
+        attrs = os.stat(path).st_file_attributes
+        if not attrs & HIDDEN:
+            return False
+        if like is not None and os.stat(like).st_file_attributes & HIDDEN:
+            return False
+        import ctypes
+        return bool(ctypes.windll.kernel32.SetFileAttributesW(str(path), attrs & ~HIDDEN))
+    except OSError:
+        return False
+
+
 def is_network_path(path: str | os.PathLike) -> bool:
     """A share (\\\\server\\share) or a drive letter mapped to one."""
     p = str(path)

@@ -635,7 +635,12 @@ class MigrationWizard(QDialog):
         self.release_why.setText("")
         self.report_view.setHtml("<h3>Checking every source file…</h3><p>Each one is looked up in the new "
                                  "Library. On a big library over the network this takes a few minutes.</p>")
-        self._run(lambda c: logs.accounted(c, mid), self._checked)
+
+        def check(c):
+            from lunelis.migrate import execute
+            execute.unhide_copied(c, mid)             # copies a NAS marked hidden (before 0.55.1)
+            return logs.accounted(c, mid)
+        self._run(check, self._checked)
 
     def _checked(self, rep) -> None:
         if isinstance(rep, Exception):

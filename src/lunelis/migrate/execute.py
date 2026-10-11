@@ -49,6 +49,7 @@ def _disk_full(e: OSError) -> bool:
     return getattr(e, "winerror", None) in DISK_FULL or e.errno == errno.ENOSPC
 from lunelis.dupes.quarantine import QUARANTINE_DIR
 from lunelis.importing.templates import sibling
+from lunelis.paths import unhide
 
 CHUNK = 4 * 1024 * 1024
 TMP_PREFIX = ".lunelis-migrating-"
@@ -110,6 +111,7 @@ def _copy_hashed(src: str, dst: str, throttle: Throttle, should_cancel) -> str |
             os.fsync(fout.fileno())
         shutil.copystat(src, tmp)
         os.replace(tmp, dst)
+        unhide(dst, like=src)        # a NAS hides the dot-named temp file; the mark outlives the rename
         return h.hexdigest()
     except InterruptedError:
         _unlink(tmp)
@@ -635,6 +637,23 @@ def cancelled(conn: sqlite3.Connection, job_id: int) -> None:
         logs.write_manifest(conn, row[0])
     except OSError:
         pass
+
+
+def unhide_copied(conn: sqlite3.Connection, migration_id: int) -> int:
+    """Copies made before 0.55.1 came out hidden on a NAS (see paths.unhide).
+    Clears the mark on every copy of this migration whose original, if it is
+    still there, isn't hidden itself. Returns how many were cleared."""
+    row = conn.execute("SELECT target FROM migrations WHERE id = ?", (migration_id,)).fetchone()
+    if row is None or not os.path.isdir(row[0]):
+        return 0
+    roots = dict(conn.execute("SELECT id, path FROM roots"))
+    n = 0
+    for src_root, src_rel, dest_rel in conn.execute(
+            "SELECT src_root, src_rel, dest_rel FROM migration_items WHERE migration_id = ? AND action = 'move'"
+            " AND state IN ('copied', 'done', 'kept', 'released') AND dest_rel IS NOT NULL", (migration_id,)).fetchall():
+        src = os.path.join(roots.get(src_root, ""), *src_rel.split("/"))
+        n += unhide(os.path.join(row[0], *dest_rel.split("/")), like=src if os.path.isfile(src) else None)
+    return n
 
 
 def release(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | None = None) -> int:
