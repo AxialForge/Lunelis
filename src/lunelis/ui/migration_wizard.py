@@ -426,6 +426,7 @@ class MigrationWizard(QDialog):
         self.back_b.setEnabled(i > 0 and i < 7)
         self.next_b.setText({6: "Start the copy…", 7: "Next", 8: "Close"}.get(i, "Next"))
         self.status.setText("")
+        self.next_b.setEnabled(True)
         {2: self._preview_layout, 3: self._dupe_counts, 4: self._scan_leftovers, 6: self._make_plan,
          7: self._show_run, 8: self._show_release}.get(i, lambda: None)()
         if i in (7, 8) and self.migration_id is not None:
@@ -457,6 +458,17 @@ class MigrationWizard(QDialog):
             self.migration_id = row[0]
             self.target.setText(row[2])
             self.go(7 if row[1] == "running" else 8)
+            return
+        # A migration that was cancelled part-way still has the catalog pointing
+        # at its copies: its Run step, where Start over is (0.55.2).
+        row = self.conn.execute(
+            "SELECT m.id, m.target FROM migrations m WHERE m.state = 'cancelled' AND EXISTS (SELECT 1 FROM"
+            " migration_items i WHERE i.migration_id = m.id AND i.action = 'move' AND i.state IN ('copied', 'kept'))"
+            " ORDER BY m.id DESC LIMIT 1").fetchone()
+        if row:
+            self.migration_id = row[0]
+            self.target.setText(row[1])
+            self.go(7)
         else:
             self.go(0)
 
@@ -610,7 +622,11 @@ class MigrationWizard(QDialog):
         self.run_view.setText(
             "When it reaches 100 %, press Next: the Release step checks every file and tells you what happened "
             "to each one." if p.copying else
-            "Press Next for the check of every file." if p.state == "done" else "")
+            "Press Next for the check of every file." if p.state == "done" else
+            f"This migration was stopped part-way. Lunelis still shows the {p.files_done:,} photos it copied at "
+            "their new place. Start over puts the catalog back on your originals, so the target can be emptied "
+            "and the migration planned again." if p.state == "cancelled" else "")
+        self.next_b.setEnabled(p.state != "cancelled")
         if not p.copying:
             self._tick.stop()
 

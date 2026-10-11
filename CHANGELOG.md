@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.55.2] - 2026-10-11
+
+### Fixed
+
+- **Start over couldn't be reached for a migration cancelled from the Jobs
+  button.** The wizard opened on step 1 as if nothing had happened, while
+  the catalog still pointed at the copies. It now opens on that migration's
+  Run step, which says what state it is in and offers Start over.
+
 ## [0.55.1] - 2026-10-11
 
 ### Added

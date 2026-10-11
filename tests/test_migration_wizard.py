@@ -182,3 +182,42 @@ def test_start_over_is_refused_once_originals_were_moved_aside(lib, monkeypatch)
     with pytest.raises(execute.MigrationError):
         execute.start_over(conn, w.migration_id)
     w.close()
+
+
+def test_a_cancelled_migration_opens_on_its_run_step_with_start_over(lib, monkeypatch, tmp_path):
+    """0.55.2: cancelled from the Jobs button, the wizard opened on step 1 and Start over couldn't be reached."""
+    QApplication.instance() or QApplication([])
+    conn, tmp, a, b, target, ra, rb, ids = lib
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(mw.paths, "DATA_DIR", tmp_path / "data")
+    from lunelis.jobs import engine
+    before = {r[0]: (r[1], r[2]) for r in conn.execute("SELECT id, root_id, rel_path FROM files")}
+    w = mw.MigrationWizard(conn)
+    for i in range(w.src_list.count()):
+        w.src_list.item(i).setCheckState(Qt.CheckState.Checked)
+    w._next()
+    w.target.setText(str(target))
+    for _ in range(5):
+        w._next()
+        w.wait()
+    w._next()
+    w.wait()
+    mid = w.migration_id
+    job = conn.execute("SELECT job_id FROM migrations WHERE id = ?", (mid,)).fetchone()[0]
+    engine.run_job(conn, job)
+    w.close()
+    conn.execute("UPDATE migrations SET state = 'cancelled', job_id = NULL WHERE id = ?", (mid,))
+    conn.execute("DELETE FROM jobs WHERE id = ?", (job,))            # as the Jobs panel leaves it
+    conn.commit()
+    w = mw.MigrationWizard(conn)
+    assert w.pages.currentIndex() == 7 and w.migration_id == mid
+    assert "stopped part-way" in w.run_view.text() and not w.next_b.isEnabled()
+    assert "cancelled" in w.run_panel.headline.text()
+    w._start_over()
+    w.wait()
+    assert w.pages.currentIndex() == 0 and w.next_b.isEnabled()
+    assert {r[0]: (r[1], r[2]) for r in conn.execute("SELECT id, root_id, rel_path FROM files")} == before
+    w.close()
+    w = mw.MigrationWizard(conn)                                     # nothing left to start over
+    assert w.pages.currentIndex() == 0
+    w.close()
