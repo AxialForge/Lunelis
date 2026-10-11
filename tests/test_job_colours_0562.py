@@ -1,4 +1,4 @@
-"""0.56.1: the Jobs panel colours a job's state - running, queued, finished, failed."""
+"""0.56.2: the Jobs panel colours a job's state - running, queued, finished, failed."""
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
