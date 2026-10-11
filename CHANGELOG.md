@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-10-11
+
+### Changed
+
+- **A migration to a network share copies four files at once.** One file
+  at a time left a fast link and the NAS mostly idle. Every copy is still
+  read back and compared with its original before it counts, and catalog
+  entries are still repointed one by one, in order. A file whose place in
+  the target is already taken, or wanted by another file, is handled one at
+  a time as before. Local drives still copy one file at a time.
+
+### Fixed
+
+- **After Start over, the emptied target stayed listed as a source**, so
+  planning into the same place again was refused ("the target overlaps the
+  source") until it was removed by hand in Settings.
+
 ## [0.55.2] - 2026-10-11
 
 ### Fixed

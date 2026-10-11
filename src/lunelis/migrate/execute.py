@@ -350,13 +350,18 @@ def migrate_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, throt
         "SELECT id, file_id, src_rel, dest_rel, size, action, state FROM migration_items"
         " WHERE migration_id = ? AND src_root = ? AND state IN ('planned', 'copied') ORDER BY src_rel",
         (mid, root_id)) if (r[2].rsplit("/", 1)[0] if "/" in r[2] else "") == folder]
-    for item in items:
+    n = copy_workers(target, opts)
+    done_ahead: dict[int, tuple[str, str | None]] = {}
+    for i, item in enumerate(items):
         if should_cancel and should_cancel():
             result.cancelled = True
             return result
+        if n > 1 and i % COPY_BATCH == 0:
+            done_ahead = _copy_ahead(conn, target, root_id, root, items[i:i + COPY_BATCH], n, throttle,
+                                     should_cancel)
         try:
             result.bytes_read += _migrate_item(conn, mid, target, target_root, opts, root_id, root, item,
-                                               throttle, should_cancel)
+                                               throttle, should_cancel, done_ahead.get(item[0]))
             result.hashed += 1
         except InterruptedError:
             result.cancelled = True
@@ -391,7 +396,84 @@ def _fail(conn, item_id: int, why: str) -> int:
     return 0
 
 
-def _migrate_item(conn, mid, target, target_root, opts, root_id, root, item, throttle, should_cancel) -> int:
+COPY_BATCH = 24             # copies made side by side before their catalog entries are repointed, in order
+NETWORK_COPIES = 4          # a NAS takes several streams at once; one stream left a 10 Gb link idle (0.56)
+
+
+def copy_workers(target: str, opts: dict) -> int:
+    """How many files are copied at once. One on a local drive - a hard disk
+    is slower with several writers - and several to a network share."""
+    if opts.get("copy_workers"):
+        return max(1, int(opts["copy_workers"]))
+    from lunelis import paths
+    return NETWORK_COPIES if paths.is_network_path(target) else 1
+
+
+def _original_problem(conn, file_id: int, root_id: int, src_rel: str, src: str, size: int) -> str | None:
+    """Why this original can't be copied as planned (None: it can)."""
+    cur = conn.execute("SELECT root_id, rel_path FROM files WHERE id = ?", (file_id,)).fetchone()
+    if cur is None or tuple(cur) != (root_id, src_rel):
+        return "The file moved since the plan was made - plan again"
+    if not os.path.exists(src):
+        return "The original is missing"
+    if os.path.getsize(src) != size:
+        return "The original changed since the plan was made - plan again"
+    planned_mtime = _ts(conn.execute("SELECT mtime FROM files WHERE id = ?", (file_id,)).fetchone()[0])
+    if planned_mtime is not None and abs(os.path.getmtime(src) - planned_mtime) > 2:
+        return "The original was edited since it was cataloged - rescan, then plan again"
+    return None
+
+
+def _copy_verified(src: str, dst: str, throttle, should_cancel) -> tuple[str, str | None] | None:
+    """Worker thread: copy, read the copy back, compare. ("ok", sha256), or
+    ("bad", None) when the copy didn't match (and was removed), or None when
+    stopped part-way. No catalog access here."""
+    digest = _copy_hashed(src, dst, throttle, should_cancel)
+    if digest is None:
+        return None
+    if _sha256(dst, throttle) != digest:
+        _unlink(dst)
+        return ("bad", None)
+    return ("ok", digest)
+
+
+def _copy_ahead(conn, target, root_id, root, items, workers, throttle, should_cancel) -> dict:
+    """The plain copies of a batch, several at once (0.56). Only a file whose
+    place in the target is free and wanted by no other file of the batch goes
+    ahead - everything else (a name already taken, a resumed copy, a changed
+    original) is left to the one-at-a-time path, which decides as before.
+    The catalog is only read here, on the calling thread; `_migrate_item`
+    repoints each entry afterwards, in order. item id -> _copy_verified()."""
+    from concurrent.futures import ThreadPoolExecutor
+    wanted: dict[str, int] = {}
+    for it in items:
+        if it[3]:
+            wanted[it[3].lower()] = wanted.get(it[3].lower(), 0) + 1
+    jobs = []
+    for item_id, file_id, src_rel, dest_rel, size, act, state in items:
+        if act != "move" or state != "planned" or not dest_rel or wanted[dest_rel.lower()] > 1:
+            continue
+        src, dst = _abs(root, src_rel), _abs(target, dest_rel)
+        try:
+            if os.path.exists(dst) or _original_problem(conn, file_id, root_id, src_rel, src, size):
+                continue
+        except OSError:
+            continue
+        jobs.append((item_id, src, dst))
+    if len(jobs) < 2:
+        return {}
+
+    def one(job):
+        try:
+            return job[0], _copy_verified(job[1], job[2], throttle, should_cancel)
+        except Exception:                  # noqa: BLE001 - the one-at-a-time path tries again and reports it
+            return job[0], None
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="migrate-copy") as pool:
+        return {k: v for k, v in pool.map(one, jobs) if v is not None}
+
+
+def _migrate_item(conn, mid, target, target_root, opts, root_id, root, item, throttle, should_cancel,
+                  ahead: tuple[str, str | None] | None = None) -> int:
     item_id, file_id, src_rel, dest_rel, size, act, state = item
     if act != "move":
         conn.execute("UPDATE migration_items SET state = 'skipped' WHERE id = ?", (item_id,))
@@ -402,28 +484,25 @@ def _migrate_item(conn, mid, target, target_root, opts, root_id, root, item, thr
         _finish_original(conn, mid, opts, item_id, root, src_rel, size, sidecar)
         return 0
 
-    cur = conn.execute("SELECT root_id, rel_path FROM files WHERE id = ?", (file_id,)).fetchone()
-    if tuple(cur) != (root_id, src_rel):
-        return _fail(conn, item_id, "The file moved since the plan was made - plan again")
     src = _abs(root, src_rel)
-    if not os.path.exists(src):
-        return _fail(conn, item_id, "The original is missing")
-    if os.path.getsize(src) != size:
-        return _fail(conn, item_id, "The original changed since the plan was made - plan again")
-    planned_mtime = _ts(conn.execute("SELECT mtime FROM files WHERE id = ?", (file_id,)).fetchone()[0])
-    if planned_mtime is not None and abs(os.path.getmtime(src) - planned_mtime) > 2:
-        return _fail(conn, item_id, "The original was edited since it was cataloged - rescan, then plan again")
+    why = _original_problem(conn, file_id, root_id, src_rel, src, size)
+    if why:
+        if ahead and ahead[0] == "ok":             # copied a moment ago, then the original changed
+            _unlink(_abs(target, dest_rel))
+        return _fail(conn, item_id, why)
+    if ahead and ahead[0] == "bad":
+        return _fail(conn, item_id, "The copy didn't match the original - removed; the original is untouched")
 
     # The destination: never overwrite, never rename. An identical file already
     # there is either our own earlier copy (resuming) or an unverified duplicate.
     folder, name = dest_rel.rsplit("/", 1) if "/" in dest_rel else ("", dest_rel)
     base = folder.replace("/", "\\")
-    digest = None
+    digest = ahead[1] if ahead else None           # copied and verified by _copy_ahead
     k = 1
     while True:
         cand_rel = dest_rel if k == 1 else "/".join([*sibling(base, k).split("\\"), name])
         dst = _abs(target, cand_rel)
-        if not os.path.exists(dst):
+        if digest is not None or not os.path.exists(dst):
             break
         if os.path.getsize(dst) == size:
             src_hash = _sha256(src, throttle)
@@ -710,6 +789,18 @@ def start_over(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path 
     conn.execute("UPDATE migrations SET state = 'cancelled', finished_at = COALESCE(finished_at, datetime('now'))"
                  " WHERE id = ?", (migration_id,))
     conn.commit()
+    # The target became a source when the copy started. With nothing of the
+    # catalog left in it, it stops being one - a new plan into the same place
+    # was refused as "the target overlaps a source" (0.56).
+    if target_root is not None and not conn.execute("SELECT 1 FROM files WHERE root_id = ? LIMIT 1",
+                                                    (target_root,)).fetchone():
+        from lunelis.importers.scan import remove_root
+        try:
+            remove_root(conn, target_root)
+        except Exception:                      # noqa: BLE001 - still in use: it stays listed, as before
+            conn.rollback()
+        conn.execute("UPDATE migrations SET target_root_id = NULL WHERE id = ?", (migration_id,))
+        conn.commit()
     # The Lunelis folder was pointed inside the target when the copy started.
     from lunelis.settings import Settings
     st = Settings(conn)

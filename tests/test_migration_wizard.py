@@ -150,6 +150,9 @@ def test_start_over_points_the_catalog_back_at_the_originals(lib, monkeypatch, t
     assert [p for p in all_files(target) if "Library" in p] == copies  # ...the copies neither
     assert conn.execute("SELECT state FROM migrations WHERE id = ?", (mid,)).fetchone()[0] == "cancelled"
     assert Settings(conn).get("lunelis_folder") is None                # as it was before the migration
+    assert not conn.execute("SELECT 1 FROM roots WHERE path = ?", (str(target),)).fetchone()   # no longer a source
+    from lunelis.migrate.plan import check_target
+    check_target(conn, str(target))                                      # ...so the same place can be planned again
     assert list((tmp_path / "data" / "backups").iterdir())             # the catalog was backed up, not in the target
     with __import__("pytest").raises(execute.MigrationError):
         execute.start_over(conn, mid + 99)
