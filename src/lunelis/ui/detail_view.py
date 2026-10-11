@@ -1363,6 +1363,12 @@ class DetailView(QWidget):
                 b.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         for area in self.findChildren(QScrollArea):
             area.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # A panel rebuilt under the pointer can hand the focus to the next
+        # button in line: it goes back to the photo.
+        from PySide6.QtWidgets import QApplication
+        at = QApplication.focusWidget()
+        if isinstance(at, QAbstractButton) and self.isAncestorOf(at):
+            self.setFocus()
 
     # --- showing ---------------------------------------------------------------------------
 
@@ -1767,6 +1773,11 @@ class DetailView(QWidget):
         self.recog.setVisible(on)
         if on:
             self.recog.show_photo(self.info.file_id, video=bool(self.info.is_video))
+        from PySide6.QtWidgets import QApplication
+        at = QApplication.focusWidget()
+        if (at is None and self.isVisible() and self.window().isActiveWindow()) or (
+                at is not None and (at is self.recog or self.recog.isAncestorOf(at))):
+            self.setFocus()                            # the panel was rebuilt under the focus: back to the photo
 
     def _hot_face(self, face_id) -> None:
         self.canvas.hot_face = face_id

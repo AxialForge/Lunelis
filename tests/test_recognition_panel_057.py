@@ -51,18 +51,20 @@ def test_the_panel_lists_people_animals_and_the_ways_to_add_one(lib):
     asked = []
     p.add_face.connect(asked.append)
     p.show_photo(ids["both.jpg"])
-    texts = [b.text() for b in p.findChildren(QPushButton)]
+    def buttons():
+        return [b for b in p.findChildren(QPushButton) if b.isVisibleTo(p)]
+    texts = [b.text() for b in buttons()]
     assert "Add a face by hand…" in texts and "Add a pet or animal by hand…" in texts
     assert "Look for faces again" in texts
     assert set(p.rows) == {two[0].id, two[1].id}
     for t in ("Add a face by hand…", "Add a pet or animal by hand…"):
-        next(b for b in p.findChildren(QPushButton) if b.text() == t).click()
+        next(b for b in buttons() if b.text() == t).click()
     assert asked == ["person", "pet"]
     p.show_photo(ids["empty.jpg"])
     assert not p.rows                                              # and it says so, with the buttons still there
-    assert "Add a face by hand…" in [b.text() for b in p.findChildren(QPushButton)]
+    assert "Add a face by hand…" in [b.text() for b in buttons()]
     p.show_photo(ids["empty.jpg"], video=True)
-    assert not p.findChildren(QPushButton)
+    assert not buttons()
 
 
 def test_scene_suggestions_are_answered_in_the_panel(lib):

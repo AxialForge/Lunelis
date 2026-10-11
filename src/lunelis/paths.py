@@ -80,9 +80,10 @@ def resolve_data_dir() -> Path:
     env = os.environ.get("LUNELIS_DATA_DIR")
     if env:
         return Path(env)
+    under_test = "pytest" in sys.modules and not FROZEN
     try:
         chosen = json.loads(LOCATION_FILE.read_text(encoding="utf-8")).get("data_dir")
-        if chosen:
+        if chosen and not (under_test and LOCATION_FILE == _REAL_LOCATION_FILE):
             return Path(chosen)
     except FileNotFoundError:
         pass
@@ -90,7 +91,20 @@ def resolve_data_dir() -> Path:
         # A moved data folder would silently "vanish" into the default one:
         # start-up says so instead (main.py).
         LOCATION_PROBLEM = f"{LOCATION_FILE} couldn't be read ({type(e).__name__}: {e})"
+    if under_test:
+        # A test run that didn't go through tests/conftest.py (a scratch test
+        # file somewhere else) would open the real library's catalog. Never:
+        # a throwaway folder instead (0.57).
+        global _TEST_DIR
+        if _TEST_DIR is None:
+            import tempfile
+            _TEST_DIR = Path(tempfile.mkdtemp(prefix="lunelis-test-data-"))
+        return _TEST_DIR
     return _LOCALAPPDATA / "Lunelis"
+
+
+_TEST_DIR: Path | None = None
+_REAL_LOCATION_FILE = LOCATION_FILE
 
 
 def set_data_dir(path: Path) -> None:

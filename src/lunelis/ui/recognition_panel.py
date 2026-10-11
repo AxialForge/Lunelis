@@ -231,6 +231,7 @@ class RecognitionPanel(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.body = QWidget()
         self.v = QVBoxLayout(self.body)
         self.v.setContentsMargins(10, 12, 8, 12)
@@ -246,10 +247,11 @@ class RecognitionPanel(QWidget):
             it = self.v.takeAt(0)
             w = it.widget()
             if w is not None and w is not self.status:
-                w.setParent(None)                  # gone now, not at the next turn of the event loop
+                # Hidden, then deleted by the event loop. (Not setParent(None): that
+                # makes each row a window for a moment, and the photo view lost
+                # the keyboard when those windows went.)
+                w.hide()
                 w.deleteLater()
-            elif w is self.status:
-                w.setParent(None)
 
     def show_photo(self, file_id: int | None, video: bool = False) -> None:
         self.file_id = file_id
@@ -294,6 +296,12 @@ class RecognitionPanel(QWidget):
                                       "and hand-drawn faces stay", self._look_again))
         self.v.addWidget(self.status)
         self.v.addStretch(1)
+        # The panel never holds the keyboard: Left / Right still change photo
+        # after a click here, and a row rebuilt under the focus can't pass it
+        # on to the next button. Everything here is also in the Faces menu.
+        from PySide6.QtWidgets import QAbstractButton
+        for b in self.findChildren(QAbstractButton):
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
     def _action(self, text: str, tip: str, slot) -> QPushButton:
         b = QPushButton(text, clicked=slot)
