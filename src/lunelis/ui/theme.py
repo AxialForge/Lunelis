@@ -389,6 +389,21 @@ def _stylesheet(t: Theme | None = None) -> str:
     QHeaderView {{ qproperty-defaultAlignment: 'AlignLeft | AlignVCenter'; background: {t.surface_alt}; }}
     QListWidget::item, QListView::item {{ padding: 6px 4px; border-radius: 4px; }}
     QListWidget#CheckList::item {{ padding: 8px 4px; min-height: 28px; }}
+    /* The recognition panel beside the photo (0.57). */
+    QWidget#RecognitionPanel {{ background: {t.surface}; border-right: 1px solid {t.border}; }}
+    QWidget#RecognitionPanel QScrollArea, QWidget#RecognitionPanel QScrollArea > QWidget > QWidget {{
+        background: {t.surface}; }}
+    QFrame#RecognitionRow {{ border-radius: 6px; }}
+    QFrame#RecognitionRow:hover {{ background: {t.surface_alt}; }}
+    QLabel#RowTitle {{ color: {t.text}; font-size: 13px; font-weight: 600; }}
+    QLabel#FaceCrop, QLabel#FaceCropEmpty {{ border-radius: 6px; background: {t.tile_placeholder}; }}
+    QWidget#RecognitionPanel QToolButton {{ border: 1px solid {t.border}; border-radius: 13px;
+        background: {t.field_bg}; color: {t.text}; font-size: 14px; }}
+    QWidget#RecognitionPanel QToolButton:hover {{ border-color: {t.accent}; }}
+    QWidget#RecognitionPanel QToolButton#Yes {{ color: #2e8b57; font-weight: 700; }}
+    QWidget#RecognitionPanel QToolButton#No {{ color: #d0453b; font-weight: 700; }}
+    QPushButton#PanelAction {{ text-align: left; padding: 6px 10px; }}
+    QPushButton#RowButton {{ padding: 4px 10px; min-height: 0; }}
     /* The Tags page (0.52): groups on the left, picture cards on the right. */
     QListWidget#TagGroups {{ background: transparent; border: none; }}
     QListWidget#TagGroups::item {{ padding: 9px 12px; border-radius: 6px; color: {t.text}; }}

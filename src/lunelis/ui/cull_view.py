@@ -228,7 +228,9 @@ class CullView(QWidget):
         window = getattr(self.rate_ids, "__self__", None)          # the main window: its undo history
         if ctrl and k in (Qt.Key.Key_Z, Qt.Key.Key_Y) and window is not None:
             redo = k == Qt.Key.Key_Y or bool(e.modifiers() & Qt.KeyboardModifier.ShiftModifier)
-            window.redo() if redo else window.undo()
+            # The rating history itself (0.57): undo() first undoes an edit open in the
+            # photo view behind this window - unseen, and the star stayed.
+            window._step(undo=not redo)
             self._show()
             return
         if k == Qt.Key.Key_Question and window is not None:

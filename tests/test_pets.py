@@ -106,7 +106,7 @@ def test_the_pets_tab_and_the_photo_overlay(tmp_path, monkeypatch):
         w.open_detail(ids["dog.jpg"])
         d = w.detail
         d.set_faces_overlay(True)
-        monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda *a, **k: ("Rex", True)))
+        monkeypatch.setattr("lunelis.ui.recognition_panel.ask_name", lambda *a, **k: ("name", "Rex"))
         d._name_pet(dog, ask_first=True)
         assert "Pets|Rex" in tags.tags_of(w.conn, ids["dog.jpg"])
         assert [(lab, st) for _, _, lab, st in d.canvas.faces] == [("Rex", "pet")]    # named: a solid box (0.52.1)
@@ -175,7 +175,7 @@ def test_the_faces_menu_adds_redraws_and_removes_by_hand(tmp_path, monkeypatch):
         # Add a pet: drag a box (no Ctrl), name it.
         d.start_face_draw("pet")
         assert d.canvas.draw_mode == "pet" and d.faces_b.isChecked()
-        monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda *a, **k: ("Rex", True)))
+        monkeypatch.setattr("lunelis.ui.recognition_panel.ask_name", lambda *a, **k: ("name", "Rex"))
         d._face_drawn([0.6, 0.1, 0.2, 0.2])
         assert d.canvas.draw_mode is None and "Pets|Rex" in tags.tags_of(w.conn, fid)
         # Add a person.

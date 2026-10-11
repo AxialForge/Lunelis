@@ -720,6 +720,7 @@ class MainWindow(QMainWindow):
         v = self.edit_page.view
         v.back.connect(self._edit_page_back)
         v.rate.connect(lambda change: self.rate(**change))
+        v.rotate_requested.connect(self.rotate)
         v.show_event.connect(self.show_event)
         v.edited.connect(self._photo_edited)
         v.tags_changed.connect(self._sidecars_due)
@@ -2787,11 +2788,14 @@ class MainWindow(QMainWindow):
             self._drop_scope()
             self.show_page("Library")
             self._nav["Library"].setChecked(True)
+            self.grid.setFocus()
             return
         if name != "Library" and getattr(self, "_scope_from", None):
             self._scope_from = None
             self._scope_stale = True
         self.show_page(name)
+        if name == "Library":
+            self.grid.setFocus()                       # the arrow keys, Enter and Space are the grid's (0.57)
 
     def show_page(self, name: str) -> None:
         if name != "Library" and hasattr(self, "stack_tray"):
@@ -2861,6 +2865,7 @@ class MainWindow(QMainWindow):
         elif name == "Map":
             self.pages.setCurrentWidget(self.map_page)
             self.map_page.refresh()
+            self.map_page.canvas.setFocus()            # + and - zoom at once (0.57: the sidebar kept the keys)
         elif name == "On this day":
             self.pages.setCurrentWidget(self.calendar_page)
             self.calendar_page.refresh()
@@ -3272,6 +3277,9 @@ class MainWindow(QMainWindow):
             self.status.setText("That photo isn't part of a burst stack")
             return
         fid, sid = cur
+        if self.pages.currentWidget() is self.edit_page:
+            self._edit_page_stack(fid, sid)
+            return
         opened = self.index.toggle_stack(sid)
         self.grid.set_index(self.index)
         shown = self._shown_photo()
@@ -3291,6 +3299,11 @@ class MainWindow(QMainWindow):
                 n = self.conn.execute("SELECT COUNT(*) FROM stack_files WHERE stack_id = ?", (sid,)).fetchone()[0]
                 self.status.setText(f"Stack open: its {n:,} frames are in the filmstrip - arrow keys step through "
                                     "them, S closes it" if opened else "Stack closed")
+                if pos < 0:
+                    # Closed from a frame behind the cover: the frame stays on screen
+                    # (and under the keys), so its list does too - said, not silent (0.57).
+                    self.status.setText("Stack closed in the Library - this frame stays open here, with the "
+                                        "others in the filmstrip, until you go back")
             return
         if not opened:
             # Closed: land on the tile that stands for the stack now.
@@ -3303,6 +3316,25 @@ class MainWindow(QMainWindow):
             self.grid.scroll_to(pos)
             self.grid.selection_changed.emit(1)
         self.grid.viewport().update()
+
+    def _edit_page_stack(self, fid: int, sid: int) -> None:
+        """S on the Edit page: the stack opens or closes in the page's own list
+        (0.57: it opened in the Library behind the page, and nothing showed)."""
+        view = self.edit_page.view
+        idx = view.index
+        opened = idx.toggle_stack(sid)
+        frames = sum(1 for i in range(len(idx)) if idx.stack_id(i) == sid)
+        if idx.position(fid) >= 0:
+            view.follow(idx)
+        else:
+            # Closed from a frame behind the cover: the cover is the photo to edit now.
+            view.open(idx, next((i for i in range(len(idx)) if idx.stack_id(i) == sid), 0))
+        if opened and frames < 2:
+            self.status.setText("Only this frame of the stack is among the photos here - choose "
+                                "\"What the library shows now\" above to step through them all")
+        else:
+            self.status.setText(f"Stack open: its {frames:,} frames are in the filmstrip - arrow keys step through "
+                                "them, S closes it" if opened else "Stack closed")
 
     def set_stack_cover(self) -> None:
         cur = self._current_stack()
@@ -3665,13 +3697,18 @@ class MainWindow(QMainWindow):
             return
         from lunelis import turns
         turns.turn(self.conn, ids, step)
+        # The Edit page's view too (0.57: Ctrl+[ and Ctrl+] turned the photo there
+        # and it stayed as it was on screen, and its own two buttons did nothing).
+        views = (self.detail, self.edit_page.view)
         for fid in ids:
             self.thumbs.reload(fid)
-            self.detail.big_thumbs.reload(fid)
-            self.detail.strip_thumbs.reload(fid)
+            for view in views:
+                view.big_thumbs.reload(fid)
+                view.strip_thumbs.reload(fid)
         self.grid.viewport().update()
-        if self.pages.currentWidget() is self.detail and self.detail.info and self.detail.info.file_id in ids:
-            self.detail.reshow()
+        for page, view in zip((self.detail, self.edit_page), views):
+            if self.pages.currentWidget() is page and view.info and view.info.file_id in ids:
+                view.reshow()
         self.status.setText(f"Turned {len(ids):,} {'photo' if len(ids) == 1 else 'photos'} - the files aren't changed")
 
     def _with_pairs(self, ids: list[int]) -> list[int]:

@@ -271,6 +271,7 @@ class PhotoCanvas(QWidget):
         self._tool_cache: tuple | None = None # (pix key, tool) -> (overlay QImage, histogram)
         self._draw: tuple[QPointF, QPointF] | None = None
         self.draw_mode = None             # set: the next drag draws a face box without Ctrl (0.53)
+        self.hot_face = None              # the face whose row the pointer is on in the recognition panel
         self.setMinimumSize(200, 100)                 # short windows (the 900 x 350 minimum) still fit
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -519,7 +520,7 @@ class PhotoCanvas(QWidget):
         for _fid, box, label, state in self.faces:
             r = self.face_rect(box)
             c = colours.get(state, colours["unknown"])
-            pen = QPen(c, 2)
+            pen = QPen(c, 4 if _fid == self.hot_face else 2)
             # A name draws a solid box with its label; no name changes the box:
             # dashed = suggested, dotted = unnamed pet / stranger, dash-dot = unnamed face.
             if state in ("suggested", "stranger", "animal", "unknown"):
@@ -1288,6 +1289,16 @@ class DetailView(QWidget):
                                                                            max(56, min(260, self.strip.height()))))
         row = QHBoxLayout()
         row.setSpacing(0)
+        # What was recognised in the photo, answered beside it (0.57). Shown with
+        # the face boxes (the Faces button, F), away while editing.
+        from lunelis.ui.recognition_panel import RecognitionPanel
+        self.recog = RecognitionPanel(conn)
+        self.recog.changed.connect(self._face_changed)
+        self.recog.add_face.connect(self.start_face_draw)
+        self.recog.hover.connect(self._hot_face)
+        self.recog.show_person.connect(self.show_person)
+        self.recog.hide()
+        row.addWidget(self.recog)
         row.addWidget(self.split, 1)
         row.addWidget(self._tool_rail())
         left.addLayout(row, 1)
@@ -1338,6 +1349,20 @@ class DetailView(QWidget):
         wrap = QWidget()
         wrap.setLayout(body)
         outer.addWidget(wrap, 1)
+        self._keep_keys()
+
+    def _keep_keys(self) -> None:
+        """A click on a button doesn't take the keys from the photo (0.57: after a
+        click on Next, Faces or a star, Left / Right walked along the buttons and
+        Space pressed one again). Tab still reaches every button. The side
+        panels' scroll areas don't take them either - they kept the arrow keys
+        for scrolling after a click anywhere in the panel."""
+        from PySide6.QtWidgets import QAbstractButton
+        for b in self.findChildren(QAbstractButton):
+            if b.focusPolicy() == Qt.FocusPolicy.StrongFocus:
+                b.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        for area in self.findChildren(QScrollArea):
+            area.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
     # --- showing ---------------------------------------------------------------------------
 
@@ -1462,6 +1487,8 @@ class DetailView(QWidget):
         if on == self.editing:
             return
         self.editing = on
+        if hasattr(self, "recog"):
+            self._sync_recog()
         self.side.setCurrentWidget(self.develop if on else self.panel)
         self._show_summary()
         self.canvas.show_faces = self.faces_b.isChecked() and not on     # editing: the edit tools own the canvas
@@ -1506,6 +1533,7 @@ class DetailView(QWidget):
         self._offer_timelapse(i.file_id)
         from lunelis.tags import model as tags
         self.panel.tag_box.set_tags(tags.tags_of(self.conn, i.file_id))
+        self._keep_keys()                          # the tags' own buttons are made anew each time
         from lunelis.catalog.exifblob import unpack_dict
         row = self.conn.execute("SELECT raw_exif FROM exif WHERE file_id = ?", (i.file_id,)).fetchone()
         self.panel.show_metadata(unpack_dict(row[0]) if row and row[0] else {})
@@ -1604,6 +1632,8 @@ class DetailView(QWidget):
         self._full_pix = None
         if self.info and self.info.is_video:
             self._play_video(self.info)
+        elif self.edit.active and self.edit.has_render:
+            self.edit._render()                    # the live edit is on screen: drawn again, turned (0.57)
         else:
             self._show_image()
 
@@ -1729,6 +1759,18 @@ class DetailView(QWidget):
                 else:
                     self.canvas.faces.append((f.id, f.box, "", "unknown"))
         self.canvas.update()
+        self._sync_recog()
+
+    def _sync_recog(self) -> None:
+        """The recognition panel is there with the face boxes, and shows this photo."""
+        on = (self.faces_b.isChecked() and not self.editing and not self.workspace and self.info is not None)
+        self.recog.setVisible(on)
+        if on:
+            self.recog.show_photo(self.info.file_id, video=bool(self.info.is_video))
+
+    def _hot_face(self, face_id) -> None:
+        self.canvas.hot_face = face_id
+        self.canvas.update()
 
     def _face_changed(self) -> None:
         self.load_faces()
@@ -1738,16 +1780,9 @@ class DetailView(QWidget):
     def _ask_name(self, title: str) -> str | None:
         from PySide6.QtWidgets import QInputDialog
         from lunelis.recognize import faces
-        names = [p.name for p in faces.people(self.conn)]
-        name, ok = QInputDialog.getItem(self, title, "Who is this? Pick someone or type a new name:",
-                                        names or [""], 0, True)
-        name = (name or "").strip()
-        if ok and name.casefold() == "unknown":
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Strangers", "\"Unknown\" is kept for strangers: choose Stranger "
-                                    "instead, and the photo is tagged People > Unknown.")
-            return None
-        return name if ok else None                # "" = OK with no name: a box without a name
+        from lunelis.ui import recognition_panel
+        choice, name = recognition_panel.ask_name(self, self.conn, None, faces.PERSON, title=title, others=False)
+        return name if choice == "name" else None
 
     def _face_menu(self, face_id: int, at) -> None:
         from PySide6.QtWidgets import QMenu
@@ -1895,38 +1930,24 @@ class DetailView(QWidget):
         self.canvas.message = f"{n} face{'s' if n != 1 else ''} found" if n else "No faces found - add one by hand"
         self.canvas.update()
 
-    def _name_face(self, face_id: int) -> None:
+    def _face(self, face_id: int):
         from lunelis.recognize import faces
-        name = self._ask_name("Name this face")
-        if name:
-            try:
-                faces.name_faces(self.conn, [face_id], name)
-            except ValueError as e:                # a pet's name (0.52)
-                from PySide6.QtWidgets import QMessageBox
-                QMessageBox.information(self, "Name this face", str(e))
-                return
-            self._face_changed()
+        if self.info is None:
+            return None
+        return next((f for f in faces.faces_of(self.conn, self.info.file_id, with_ignored=True)
+                     if f.id == face_id), None)
+
+    def _name_face(self, face_id: int) -> None:
+        f = self._face(face_id)
+        if f is not None:
+            self.recog.name_face(f, "person")          # the dialog with the face in it (0.57)
 
     def _name_pet(self, face_id: int, ask_first: bool = False) -> None:
-        """Mark a face as an animal and, when a name is given, name the pet."""
-        from PySide6.QtWidgets import QInputDialog
-        from lunelis.recognize import faces
-        pets = [p.name for p in faces.people(self.conn, faces.PET)]
-        name, ok = QInputDialog.getItem(self, "An animal", "Which pet is this? Pick one, type a new name, or "
-                                        "leave it empty for an animal you don't name:", pets or [""], 0, True)
-        if not ok:
-            return
-        name = (name or "").strip()
-        try:
-            if name:
-                faces.name_pet(self.conn, [face_id], name)
-            else:
-                faces.mark_animal(self.conn, [face_id])
-        except ValueError as e:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "An animal", str(e))
-            return
-        self._face_changed()
+        """Name a pet - or, with no name given, mark the face as an animal."""
+        f = self._face(face_id)
+        if f is not None:
+            self.recog.file_id = self.info.file_id
+            self.recog.name_face(f, "pet")
 
     def _face_drawn(self, box: list) -> None:
         if self.info is None:
@@ -1958,6 +1979,15 @@ class DetailView(QWidget):
     def keyPressEvent(self, e) -> None:
         k, mods = e.key(), e.modifiers()
         ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit
+        typing = QApplication.focusWidget()
+        if typing is not self and isinstance(typing, (QLineEdit, QAbstractSpinBox)) and self.isAncestorOf(typing):
+            # A key a text box passed on (Esc, Enter, Up, Down in the tag box or a
+            # slider's number): it was typed there, it isn't a shortcut (0.57: Esc
+            # closed the photo, Up / Down changed it). Esc gives the keys back to the photo.
+            if k == Qt.Key.Key_Escape:
+                self.setFocus()
+            return
         if k == Qt.Key.Key_Escape and self.canvas.draw_mode is not None:
             self._end_face_draw()                      # not adding a face after all
             return

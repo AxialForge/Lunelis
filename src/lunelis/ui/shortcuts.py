@@ -43,6 +43,7 @@ KEYS: dict[str, list[tuple[str, str]]] = {
         ("Arrows, Page Up/Down, Home/End", "Move through the grid (with Shift: extend the selection)"),
         ("Ctrl+mouse wheel", "Change the thumbnail size"),
         ("S", "Open or close a burst stack"),
+        ("Backspace", "Out of an album, event or tag: back to the page it was opened from"),
     ],
     "Photo view": [
         ("Left / Right, Space", "Previous / next photo"),
@@ -52,6 +53,7 @@ KEYS: dict[str, list[tuple[str, str]]] = {
         ("Mouse wheel", "Zoom around the pointer (Settings > General can make it change photo)"),
         ("Middle-button drag", "Pan the photo"),
         ("E", "Open or close the Edit panel"),
+        ("S", "Open or close the burst stack this photo is in (its frames join or leave the filmstrip)"),
         ("F", "Show or hide the faces and their names (click a face to name or correct it; Ctrl+drag adds one)"),
         ("Ctrl+Shift+L", "Set the location on the map (a pin, for photos without GPS)"),
         ("Esc, Backspace", "Back to the library"),

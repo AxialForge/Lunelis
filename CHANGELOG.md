@@ -6,6 +6,41 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-10-11
+
+### Added
+
+- **A recognition panel beside the photo.** With the face boxes on (the
+  Faces button, F), a panel to the left of the photo lists the people, the
+  pets and animals and the scene suggestions found in it. A suggested name
+  or scene is answered yes or no right there; an unnamed face gets a name;
+  a face or an animal Lunelis missed is added by hand; and "Look for faces
+  again" runs detection on the photo once more. Pointing at a row
+  highlights that face on the photo.
+- **A better "Who is this?"** The dialog shows the face, narrows the list
+  of people as you type (with their pictures, the suggested person first),
+  and offers Stranger, It's an animal and Not a face as buttons.
+
+### Fixed
+
+Every keyboard shortcut was pressed for real in the screen where it is
+documented, and these did nothing or the wrong thing:
+
+- **S on the Edit page** opened the stack in the hidden Library.
+- **Ctrl+[ and Ctrl+]** said the photo was turned but didn't turn it on the
+  Edit page, nor in the photo view with the Edit panel open; the Edit
+  page's two rotate buttons did nothing.
+- **Ctrl+Z in culling**, opened over a photo with an edit in progress,
+  undid the hidden edit instead of the rating.
+- **Left, Right and Space stopped changing photo** after a click on a
+  button or in the side panel.
+- **Esc, Up, Down and Enter typed in the tag box or a number box** closed
+  the photo, changed photo or ended cropping.
+- **+ and - on the Map, and the arrow keys in the Library,** did nothing
+  after arriving by a click in the sidebar.
+- The shortcut sheet now lists **Backspace** (out of an album) and **S**
+  in the photo view.
+
 ## [0.56.2] - 2026-10-11
 
 ### Changed
