@@ -156,6 +156,34 @@ class Report:
         return "\n".join(lines)
 
 
+def _file_sha(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        while chunk := fh.read(4 * 1024 * 1024):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _elsewhere(conn: sqlite3.Connection, roots: dict, root_id: int, rel: str, full: str, size: int) -> bool:
+    """Is this uncataloged source file, byte for byte, a photo the catalog
+    holds somewhere else? Only for a file the catalog once had at this very
+    place and then recognised elsewhere (file_moves) - not a search of the
+    whole library."""
+    for to_root, to_path in conn.execute(
+            "SELECT f.root_id, f.rel_path FROM file_moves m JOIN files f ON f.id = m.file_id"
+            " WHERE m.from_root = ? AND m.from_path = ? COLLATE NOCASE", (root_id, rel)).fetchall():
+        if (to_root, to_path.lower()) == (root_id, rel.lower()) or to_root not in roots:
+            continue
+        other = os.path.join(roots[to_root], *to_path.split("/"))
+        try:
+            if os.path.isfile(other) and os.path.getsize(other) == size and _file_sha(other) == _file_sha(full):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def accounted(conn: sqlite3.Connection, migration_id: int, write: bool = True) -> Report:
     """Check every file of the before inventory against what happened."""
     rep = Report(migration_id)
@@ -179,6 +207,7 @@ def accounted(conn: sqlite3.Connection, migration_id: int, write: bool = True) -
     for r, rel in stems_moved:
         bare_moved[r].add(rel.rsplit(".", 1)[0])
     from lunelis.importers.formats import CATALOGED_EXTS
+    roots_by_id = dict(conn.execute("SELECT id, path FROM roots"))
 
     with open(before, newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
@@ -210,6 +239,11 @@ def accounted(conn: sqlite3.Connection, migration_id: int, write: bool = True) -
                     what = "Left in place - excluded from the library"
                 elif ext not in CATALOGED_EXTS:
                     what = "Left in place - not a photo or video"
+                elif _elsewhere(conn, roots_by_id, rid, rel, full, size):
+                    # A library update recognised this photo as one the catalog
+                    # already has in another source, so it was never part of
+                    # the plan. Checked byte for byte before it counts (0.56.1).
+                    what = "Left in place - an identical copy is already in your library"
                 else:
                     why = "a photo or video that isn't in the migration (added after it was planned?)"
             if why:

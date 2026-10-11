@@ -74,3 +74,29 @@ def test_two_files_wanting_one_place_are_left_to_the_careful_path(lib, monkeypat
     mid = _run(conn, target, monkeypatch, 4)
     assert len(went) == len(set(went))                                   # no place was written by two threads
     assert logs.accounted(conn, mid).clean
+
+
+def test_a_source_photo_the_catalog_has_elsewhere_is_accounted_for(lib, monkeypatch, tmp_path):
+    """0.56.1: 37 Takeout files a library update had recognised in another source blocked Release."""
+    import shutil
+    conn, tmp, a, b, target, ra, rb, ids = lib
+    # One photo of source A is "recognised" in a third source before the plan: its entry points there.
+    from lunelis.importers.scan import add_root
+    pool = tmp_path / "pool"
+    pool.mkdir()
+    rc = add_root(conn, str(pool))
+    fid, rel = conn.execute("SELECT id, rel_path FROM files WHERE root_id = ? AND rel_path LIKE '%DSC002.ARW'",
+                            (ra,)).fetchone()
+    shutil.copy2(os.path.join(str(a), *rel.split("/")), pool / "DSC002.ARW")
+    conn.execute("UPDATE files SET root_id = ?, rel_path = 'DSC002.ARW' WHERE id = ?", (rc, fid))
+    conn.execute("INSERT INTO file_moves (file_id, from_root, from_path, to_root, to_path, method)"
+                 " VALUES (?, ?, ?, ?, 'DSC002.ARW', 'exif')", (fid, ra, rel, rc))
+    conn.commit()
+    mid = plan.plan(conn, str(target), DEFAULT_TEMPLATE, plan.Options([ra, rb]))
+    engine.run_job(conn, execute.start(conn, mid))
+    rep = logs.accounted(conn, mid)
+    assert rep.clean and rep.counts["Left in place - an identical copy is already in your library"] == 1
+    # ...but only when it really is the same picture
+    (pool / "DSC002.ARW").write_bytes(b"x" * os.path.getsize(pool / "DSC002.ARW"))
+    rep = logs.accounted(conn, mid)
+    assert not rep.clean and len(rep.unaccounted) == 1

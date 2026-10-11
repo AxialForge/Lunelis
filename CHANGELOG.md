@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.56.1] - 2026-10-11
+
+### Fixed
+
+- **Release was blocked by source photos the catalog already has
+  elsewhere.** A file that a library update had recognised as a photo in
+  another source was never part of the plan, and the report listed it as
+  needing attention. It now counts as "left in place - an identical copy is
+  already in your library", after being compared byte for byte with that
+  copy.
+
 ## [0.56.0] - 2026-10-11
 
 ### Changed
