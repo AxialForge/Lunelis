@@ -3283,6 +3283,14 @@ class MainWindow(QMainWindow):
             if pos >= 0:
                 self.grid.current = self.grid.anchor = pos
             self.grid.viewport().update()
+            if self.pages.currentWidget() is self.detail:
+                # The photo view keeps its own copy of the list: without this S
+                # opened the stack in the Library behind it and the filmstrip
+                # never showed the frames (0.56.2).
+                self.detail.follow(self.index)
+                n = self.conn.execute("SELECT COUNT(*) FROM stack_files WHERE stack_id = ?", (sid,)).fetchone()[0]
+                self.status.setText(f"Stack open: its {n:,} frames are in the filmstrip - arrow keys step through "
+                                    "them, S closes it" if opened else "Stack closed")
             return
         if not opened:
             # Closed: land on the tile that stands for the stack now.

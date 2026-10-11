@@ -15,6 +15,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   cancelled. The word stays beside the dot, so colour is never the only
   signal, and each colour is checked for contrast in both themes.
 
+### Fixed
+
+- **S did nothing on a burst reached with the arrow keys in the photo
+  view.** It opened the stack in the Library behind the photo, but the
+  filmstrip kept showing one tile. The frames now appear in the filmstrip,
+  and the status line says how many there are.
+
 ## [0.56.1] - 2026-10-11
 
 ### Fixed
