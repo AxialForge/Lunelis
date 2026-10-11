@@ -25,6 +25,7 @@ Nothing is ever deleted.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 import json
 import os
 import shutil
@@ -637,6 +638,85 @@ def cancelled(conn: sqlite3.Connection, job_id: int) -> None:
         logs.write_manifest(conn, row[0])
     except OSError:
         pass
+
+
+@dataclass
+class StartedOver:
+    back: int = 0            # catalog entries pointing at their originals again
+    left: int = 0            # entries that stay on the copy (the original is gone or its place is taken)
+
+
+def start_over(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | None = None) -> StartedOver:
+    """Give up a migration that was started (0.55.1): the catalog goes back to
+    the originals, so the target can be emptied and the migration planned
+    again. Nothing on disk is deleted or moved - the copies made so far stay
+    in the target until the user removes them.
+
+    Only while every original is still in place: once originals were moved
+    aside (released, or a migration that didn't keep them) it is refused.
+    The copy has to be stopped first."""
+    row = conn.execute("SELECT state, target, target_root_id, job_id, options FROM migrations WHERE id = ?",
+                       (migration_id,)).fetchone()
+    if row is None:
+        raise MigrationError("no such migration")
+    state, target, target_root, job_id, options = row
+    if state not in ("running", "done", "cancelled"):
+        raise MigrationError("this migration can't be started over" if state != "planned"
+                             else "this migration hasn't started")
+    gone = conn.execute("SELECT COUNT(*) FROM migration_items WHERE migration_id = ? AND state IN"
+                        " ('done', 'released')", (migration_id,)).fetchone()[0]
+    if gone:
+        raise MigrationError(f"{gone:,} originals were already moved aside - put them back from the Quarantine "
+                             "page first")
+    js = conn.execute("SELECT state FROM jobs WHERE id = ?", (job_id,)).fetchone() if job_id is not None else None
+    if js and js[0] == "running":
+        raise MigrationError("the copy is still running - cancel it on the Jobs button first")
+    if backup_dir is not None:
+        from lunelis.catalog.backup import snapshot
+        snapshot(conn, backup_dir, "before-start-over")
+    if js and js[0] not in ("done", "cancelled"):
+        from lunelis.jobs import engine
+        engine.cancel(conn, job_id)
+    roots = dict(conn.execute("SELECT id, path FROM roots"))
+    out = StartedOver()
+    for item_id, file_id, src_root, src_rel, dest_rel in conn.execute(
+            "SELECT id, file_id, src_root, src_rel, dest_rel FROM migration_items WHERE migration_id = ?"
+            " AND action = 'move' AND state IN ('copied', 'kept')", (migration_id,)).fetchall():
+        src = _abs(roots.get(src_root, ""), src_rel)
+        cur = conn.execute("SELECT root_id, rel_path, sidecar FROM files WHERE id = ?", (file_id,)).fetchone()
+        taken = conn.execute("SELECT 1 FROM files WHERE root_id = ? AND rel_path = ? AND id != ?",
+                             (src_root, src_rel, file_id)).fetchone()
+        if cur is None or tuple(cur[:2]) != (target_root, dest_rel) or taken or not os.path.isfile(src):
+            out.left += 1
+            continue
+        side_mtime = None
+        if cur[2]:
+            s_src = os.path.join(os.path.dirname(src), cur[2])
+            if os.path.exists(s_src):
+                side_mtime = datetime.fromtimestamp(os.stat(s_src).st_mtime, tz=timezone.utc).isoformat(
+                    timespec="seconds")
+        conn.execute("UPDATE files SET root_id = ?, rel_path = ?, sidecar_mtime = ?, missing_since = NULL"
+                     " WHERE id = ?", (src_root, src_rel, side_mtime, file_id))
+        conn.execute("INSERT INTO file_moves (file_id, from_root, from_path, to_root, to_path, method)"
+                     " VALUES (?, ?, ?, ?, ?, 'start-over')", (file_id, target_root, dest_rel, src_root, src_rel))
+        conn.execute("UPDATE migration_items SET state = 'planned', sha256 = NULL WHERE id = ?", (item_id,))
+        try:
+            _move_central_sidecar(conn, file_id, target_root, target, dest_rel, src_root, roots[src_root], src_rel)
+        except OSError:
+            pass                                   # the catalog holds the edits; the file is a mirror
+        out.back += 1
+        if out.back % 500 == 0:
+            conn.commit()
+    conn.execute("UPDATE migrations SET state = 'cancelled', finished_at = COALESCE(finished_at, datetime('now'))"
+                 " WHERE id = ?", (migration_id,))
+    conn.commit()
+    # The Lunelis folder was pointed inside the target when the copy started.
+    from lunelis.settings import Settings
+    st = Settings(conn)
+    mine = os.path.join(target, "Lunelis")
+    if os.path.normcase(str(st.get("lunelis_folder") or "")) == os.path.normcase(mine):
+        st.set("lunelis_folder", json.loads(options or "{}").get("lunelis_folder_before"))
+    return out
 
 
 def unhide_copied(conn: sqlite3.Connection, migration_id: int) -> int:

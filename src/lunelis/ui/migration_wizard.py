@@ -223,6 +223,7 @@ class ProgressPanel(QWidget):
 
 class MigrationWizard(QDialog):
     job_started = Signal(int)
+    cancel_job = Signal(int)             # Start over: the runner should drop this job
     library_changed = Signal()
     open_takeout = Signal()
 
@@ -381,6 +382,13 @@ class MigrationWizard(QDialog):
         self.run_view = QLabel(objectName="Help", wordWrap=True)
         lv.addWidget(self.run_view)
         lv.addStretch(1)
+        row = QHBoxLayout()
+        self.over_run_b = QPushButton("Start over…", clicked=self._start_over)
+        self.over_run_b.setToolTip("Give this migration up: the catalog goes back to your originals, so the "
+                                   "target can be emptied and the migration planned again.")
+        row.addWidget(self.over_run_b)
+        row.addStretch(1)
+        lv.addLayout(row)
         return w
 
     def _release(self) -> QWidget:
@@ -399,8 +407,11 @@ class MigrationWizard(QDialog):
         self.logs_b = QPushButton("Open the report folder", clicked=self._open_logs)
         self.release_b = QPushButton("Release the originals…", clicked=self._do_release)
         self.release_b.setEnabled(False)
+        self.over_b = QPushButton("Start over…", clicked=self._start_over)
+        self.over_b.setToolTip(self.over_run_b.toolTip())
         row.addWidget(self.check_b)
         row.addWidget(self.logs_b)
+        row.addWidget(self.over_b)
         row.addStretch(1)
         row.addWidget(self.release_b)
         lv.addLayout(row)
@@ -550,6 +561,12 @@ class MigrationWizard(QDialog):
                                 "original. The catalog is backed up first.") != QMessageBox.StandardButton.Yes:
             return
         st = Settings(self.conn)
+        import json
+        opts = json.loads(self.conn.execute("SELECT options FROM migrations WHERE id = ?",
+                                            (self.migration_id,)).fetchone()[0] or "{}")
+        opts["lunelis_folder_before"] = st.get("lunelis_folder")     # Start over puts it back
+        self.conn.execute("UPDATE migrations SET options = ? WHERE id = ?", (json.dumps(opts), self.migration_id))
+        self.conn.commit()
         st.set("lunelis_folder", os.path.join(s.target, "Lunelis"))
         st.set("trash_keep_days", self.keep_days.currentData())
         from lunelis import lunelis_folder
@@ -662,6 +679,50 @@ class MigrationWizard(QDialog):
             "Release is off until the copy has finished.")
         if not p.copying:
             self._tick.stop()
+
+    def _start_over(self) -> None:
+        """Give the migration up and go back to step 1 (0.55.1)."""
+        if self.migration_id is None or self._thread is not None:
+            return
+        p = self._progress()
+        if QMessageBox.question(
+                self, "Start over?",
+                "Give this migration up?\n\nThe copy stops and Lunelis goes back to showing your originals "
+                f"where they were. Nothing is deleted: the {p.files_done:,} copies already in\n{p.target}\n"
+                "stay there until you remove them yourself. Then you can plan the migration again.\n\n"
+                "The catalog is backed up first.") != QMessageBox.StandardButton.Yes:
+            return
+        import time
+
+        from lunelis.migrate import execute
+        mid = self.migration_id
+        job = self.conn.execute("SELECT job_id FROM migrations WHERE id = ?", (mid,)).fetchone()[0]
+        if job is not None:
+            self.cancel_job.emit(job)
+        folder = paths.DATA_DIR / "backups"          # not the Lunelis folder: that one is in the target
+        self._tick.stop()
+        self.status.setText("Stopping the copy and going back to the originals…")
+
+        def work(c):
+            for _ in range(120):                      # the runner lets go of the file it is on
+                row = c.execute("SELECT state FROM jobs WHERE id = ?", (job,)).fetchone() if job else None
+                if not row or row[0] != "running":
+                    break
+                time.sleep(0.5)
+            return execute.start_over(c, mid, backup_dir=folder)
+        self._run(work, self._started_over)
+
+    def _started_over(self, res) -> None:
+        if isinstance(res, Exception):
+            self.status.setText(f"Couldn't start over: {res}")
+            self._tick.start()
+            return
+        self.migration_id, self.summary, self._checked_for = None, None, None
+        self.library_changed.emit()
+        self.go(0)
+        self.status.setText(f"Started over: {res.back:,} photos point at their originals again"
+                            + (f"; {res.left:,} stay on their copy" if res.left else "")
+                            + ". Empty the target yourself, update the library (F5), then plan again.")
 
     def _open_logs(self) -> None:
         if self.migration_id is None:

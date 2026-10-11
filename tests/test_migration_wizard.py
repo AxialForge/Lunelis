@@ -107,3 +107,78 @@ def test_the_report_puts_the_answer_first_and_groups_the_rest():
 def status_time():
     from lunelis.migrate.status import time_left
     return time_left(30), time_left(1800), time_left(9000)
+
+
+def test_start_over_points_the_catalog_back_at_the_originals(lib, monkeypatch, tmp_path):
+    """0.55.1: a half-done migration can be given up - nothing is deleted, the
+    catalog shows the originals again and a new plan can be made."""
+    QApplication.instance() or QApplication([])
+    conn, tmp, a, b, target, ra, rb, ids = lib
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(mw.paths, "DATA_DIR", tmp_path / "data")
+    from lunelis.jobs import engine
+    from lunelis.migrate import execute
+    before = {r[0]: (r[1], r[2]) for r in conn.execute("SELECT id, root_id, rel_path FROM files")}
+    originals = sorted(all_files(a) + all_files(b))
+    w = mw.MigrationWizard(conn)
+    for i in range(w.src_list.count()):
+        w.src_list.item(i).setCheckState(Qt.CheckState.Checked)
+    w._next()
+    w.target.setText(str(target))
+    for _ in range(5):
+        w._next()
+        w.wait()
+    w._next()
+    w.wait()
+    mid = w.migration_id
+    job = conn.execute("SELECT job_id FROM migrations WHERE id = ?", (mid,)).fetchone()[0]
+    engine.run_job(conn, job)                                  # the whole copy; the originals are kept
+    moved = conn.execute("SELECT COUNT(*) FROM migration_items WHERE migration_id = ? AND state = 'kept' AND action = 'move'",
+                         (mid,)).fetchone()[0]
+    assert moved and Settings(conn).get("lunelis_folder")
+    copies = [p for p in all_files(target) if "Library" in p]
+    asked = []
+    w.cancel_job.connect(asked.append)
+    w.go(8)
+    w.wait()
+    w._start_over()
+    w.wait()
+    assert asked == [job] and w.pages.currentIndex() == 0 and w.migration_id is None
+    assert f"{moved:,} photos point at their originals again" in w.status.text()
+    assert {r[0]: (r[1], r[2]) for r in conn.execute("SELECT id, root_id, rel_path FROM files")} == before
+    assert sorted(all_files(a) + all_files(b)) == originals            # nothing moved or deleted...
+    assert [p for p in all_files(target) if "Library" in p] == copies  # ...the copies neither
+    assert conn.execute("SELECT state FROM migrations WHERE id = ?", (mid,)).fetchone()[0] == "cancelled"
+    assert Settings(conn).get("lunelis_folder") is None                # as it was before the migration
+    assert list((tmp_path / "data" / "backups").iterdir())             # the catalog was backed up, not in the target
+    with __import__("pytest").raises(execute.MigrationError):
+        execute.start_over(conn, mid + 99)
+    w.close()
+
+
+def test_start_over_is_refused_once_originals_were_moved_aside(lib, monkeypatch):
+    QApplication.instance() or QApplication([])
+    conn, tmp, a, b, target, ra, rb, ids = lib
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    from lunelis.jobs import engine
+    from lunelis.migrate import execute
+    w = mw.MigrationWizard(conn)
+    for i in range(w.src_list.count()):
+        w.src_list.item(i).setCheckState(Qt.CheckState.Checked)
+    w._next()
+    w.target.setText(str(target))
+    for _ in range(5):
+        w._next()
+        w.wait()
+    w._next()
+    w.wait()
+    job = conn.execute("SELECT job_id FROM migrations WHERE id = ?", (w.migration_id,)).fetchone()[0]
+    engine.run_job(conn, job)
+    w.go(8)
+    w.wait()
+    w._do_release()
+    w.wait()
+    import pytest
+    with pytest.raises(execute.MigrationError):
+        execute.start_over(conn, w.migration_id)
+    w.close()

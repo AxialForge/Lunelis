@@ -8,6 +8,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.55.1] - 2026-10-11
 
+### Added
+
+- **Start over** on the migration wizard's Run and Release steps: give a
+  started migration up. The copy stops, the catalog shows your originals
+  where they were again and the Lunelis folder setting goes back, so the
+  target can be emptied and the migration planned again. Nothing is deleted
+  or moved; the catalog is backed up first. Refused once originals have
+  been moved aside.
+
 ### Fixed
 
 - **Photos copied to a NAS came out hidden.** A migrated or imported

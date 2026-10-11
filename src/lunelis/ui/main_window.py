@@ -3872,6 +3872,7 @@ class MainWindow(QMainWindow):
         from lunelis.ui.migration_wizard import MigrationWizard
         w = MigrationWizard(self.conn, self)
         w.job_started.connect(lambda _: self.runner.poke())
+        w.cancel_job.connect(lambda j: self.runner.stop_current(cancel=True) if self.runner.current == j else None)
         w.library_changed.connect(self.reload)
         w.open_takeout.connect(lambda: (w.hide(), self.open_page("Google Takeout")))
         w.finished.connect(lambda _r: self.migrate_page.refresh())
