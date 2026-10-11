@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.56.2] - 2026-10-11
+
+### Changed
+
+- **The Jobs panel colours each job's state:** blue for running, amber for
+  queued or waiting, green for done, red for failed, grey for paused or
+  cancelled. The word stays beside the dot, so colour is never the only
+  signal, and each colour is checked for contrast in both themes.
+
 ## [0.56.1] - 2026-10-11
 
 ### Fixed

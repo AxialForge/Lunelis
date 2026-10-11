@@ -104,6 +104,26 @@ STATE_TEXT = {"queued": "Queued", "running": "Running", "waiting": "Waiting", "p
               "done": "Done", "cancelled": "Cancelled", "failed": "Failed"}
 
 
+# State colours (0.56.2): light-theme value, dark-theme value. The word stays
+# beside the dot, so the colour is never the only signal.
+STATE_COLOUR = {"running": ("#2563c9", "#6aa5ff"), "queued": ("#9a6b00", "#f2c230"),
+                "waiting": ("#9a6b00", "#f2c230"), "paused": ("#6b6b76", "#a0a0ac"),
+                "done": ("#1f7a47", "#4cc38a"), "failed": ("#c0392b", "#ff6b5e"),
+                "cancelled": ("#6b6b76", "#a0a0ac")}
+
+
+def state_colour(state: str, theme=None) -> str | None:
+    """The colour of a job state in this theme (None: the normal text colour)."""
+    from PySide6.QtGui import QColor
+
+    from lunelis.ui import theme as themes
+    pair = STATE_COLOUR.get(state)
+    if pair is None:
+        return None
+    t = theme or themes.current()
+    return pair[1] if QColor(t.surface).lightness() < 128 else pair[0]
+
+
 class JobsDialog(QDialog):
     """The Jobs panel: every job, its progress and pause / resume / cancel."""
 
@@ -164,7 +184,15 @@ class JobsDialog(QDialog):
                          "migrate": "Migration", "backup": "Backup", "backup_verify": "Verify backup",
                          "scene_tags": "Scene tags", "faces": "Find faces"}.get(kind, kind)
             self.table.setItem(i, 0, QTableWidgetItem(f"{kind_text}: {title}"))
-            self.table.setItem(i, 1, QTableWidgetItem(STATE_TEXT.get(state, state)))
+            cell = QTableWidgetItem("\u25cf  " + STATE_TEXT.get(state, state))
+            colour = state_colour(state)
+            if colour:
+                from PySide6.QtGui import QBrush, QColor
+                cell.setForeground(QBrush(QColor(colour)))
+                f = cell.font()
+                f.setBold(state in ("running", "failed"))
+                cell.setFont(f)
+            self.table.setItem(i, 1, cell)
             bar = self.table.cellWidget(i, 2) or QProgressBar()
             bar.setRange(0, max(1, total))
             bar.setValue(done)
