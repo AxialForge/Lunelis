@@ -117,16 +117,10 @@ class ImportView(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        hl = QHBoxLayout(head)
-        hl.setContentsMargins(24, 0, 24, 0)
-        title = QLabel("Import")
-        title.setObjectName("PageTitle")
-        hl.addWidget(title)
-        hl.addStretch(1)
-        self.found = QLabel(objectName="Count")
-        hl.addWidget(self.found)
+        from lunelis.ui.page_header import page_header
+        head, hl = page_header("Import")
+        self.found = QLabel(objectName="Count")        # beside the title, as on every page (0.55)
+        hl.insertWidget(head.LEFT, self.found)
         outer.addWidget(head)
         # A shoot the autopilot sorted out, waiting to be looked over.
         self.review_bar = QWidget(objectName="Card")
@@ -134,7 +128,8 @@ class ImportView(QWidget):
         rb.setContentsMargins(24, 8, 24, 8)
         self.review_text = QLabel()
         rb.addWidget(self.review_text, 1)
-        rb.addWidget(QPushButton("Review it", objectName="Primary", clicked=lambda: self.review.emit()))
+        # Not filled: the page's one filled button is Import (0.55).
+        rb.addWidget(QPushButton("Review it", clicked=lambda: self.review.emit()))
         self.review_bar.hide()
         outer.addWidget(self.review_bar)
 
@@ -194,7 +189,9 @@ class ImportView(QWidget):
         self.table.setWordWrap(False)
         self.table.setMinimumHeight(90)
         self.table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
-        center.addWidget(self.table, 1)
+        from lunelis.ui.empty_state import EmptyStack
+        self.table_box = EmptyStack(self.table)
+        center.addWidget(self.table_box, 1)
         self.bar = QProgressBar()
         self.bar.hide()
         center.addWidget(self.bar)
@@ -203,49 +200,43 @@ class ImportView(QWidget):
         wrap.setLayout(body)
         outer.addWidget(wrap, 1)
 
-        # Two rows, so it fits a small or scaled window: where it goes, then go.
-        foot = QWidget(objectName="Toolbar")
-        foot_v = QVBoxLayout(foot)
-        foot_v.setContentsMargins(24, 12, 24, 12)
-        foot_v.setSpacing(10)
-        top = QHBoxLayout()
-        top.setSpacing(16)
-        fl = QHBoxLayout()
-        fl.setSpacing(16)
-        foot_v.addLayout(top)
-        foot_v.addLayout(fl)
+        # One aligned row (0.55): where it goes, how it's filed, what it's
+        # called, then the filled Import - captions above, fields on one line.
+        from PySide6.QtWidgets import QCheckBox, QGridLayout
         from lunelis.ui.widgets import ElidedLabel
-        dest_box = QVBoxLayout()
-        dest_box.addWidget(QLabel("Destination", objectName="FilterLabel"))
+        foot = QWidget(objectName="Toolbar")
+        grid = QGridLayout(foot)
+        grid.setContentsMargins(24, 12, 24, 12)
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(4)
+        grid.addWidget(QLabel("Destination", objectName="FilterLabel"), 0, 0)
         self.dest = ElidedLabel()
         self.dest.setStyleSheet("font-weight: 600;")
-        dest_box.addWidget(self.dest)
-        dest_box.addStretch(1)
-        top.addLayout(dest_box, 1)
-        top.addWidget(QPushButton("Change…", clicked=self._choose_destination), 0, Qt.AlignmentFlag.AlignTop)
-        tmpl_box = QVBoxLayout()
-        tmpl_box.addWidget(QLabel("Folders", objectName="FilterLabel"))
+        self.dest.setMinimumWidth(80)
+        grid.addWidget(self.dest, 1, 0)
+        grid.addWidget(QPushButton("Change…", clicked=self._choose_destination), 1, 1)
+        grid.addWidget(QLabel("Folders", objectName="FilterLabel"), 0, 2)
         self.template = QComboBox()
         self.template.setEditable(True)
-        self.template.setMinimumWidth(220)
-        tmpl_box.addWidget(self.template)
+        self.template.setMinimumContentsLength(12)
+        self.template.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        grid.addWidget(self.template, 1, 2)
         self.example = ElidedLabel()
         self.example.setObjectName("FilterLabel")
-        tmpl_box.addWidget(self.example)
-        top.addLayout(tmpl_box, 1)
-        name_box = QVBoxLayout()
-        name_box.addWidget(QLabel("Event name (optional)", objectName="FilterLabel"))
+        grid.addWidget(self.example, 2, 2, 1, 4)
+        grid.addWidget(QLabel("Event name (optional)", objectName="FilterLabel"), 0, 3)
         self.name = QLineEdit(placeholderText="e.g. Cleveland Air Show")
+        self.name.setMinimumWidth(110)
         self.name.textChanged.connect(self._update_preview)
-        name_box.addWidget(self.name)
-        fl.addLayout(name_box, 1)
-        from PySide6.QtWidgets import QCheckBox
+        grid.addWidget(self.name, 1, 3)
         self.autopilot_cb = QCheckBox("Autopilot")
         self.autopilot_cb.setToolTip("After the import: best frame of each burst, scene tags, an event, edits in "
                                      "your style, a draft album and a highlight reel - all waiting for you to "
                                      "review, nothing applied or removed before that")
         self.autopilot_cb.toggled.connect(lambda on: Settings(self.conn).set("autopilot", on))
-        fl.addWidget(self.autopilot_cb)
+        grid.addWidget(self.autopilot_cb, 1, 4)
+        fl = QHBoxLayout()
+        fl.setSpacing(8)
         self.go = QPushButton(clicked=self._start)
         self.go.setObjectName("Primary")
         fl.addWidget(self.go)
@@ -256,6 +247,9 @@ class ImportView(QWidget):
         self.clear_b.setToolTip("Delete from the card the files that are now verified in your library")
         self.clear_b.hide()
         fl.addWidget(self.clear_b)
+        grid.addLayout(fl, 1, 5)
+        for col, stretch in ((0, 3), (2, 3), (3, 2)):
+            grid.setColumnStretch(col, stretch)
         self._clear_id: int | None = None
         self.profile_name = ""
         outer.addWidget(foot)
@@ -390,6 +384,7 @@ class ImportView(QWidget):
             self._fill_drives()
         self.preview = []
         self.table.setRowCount(0)
+        self._table_note()
         self.clear_b.hide()
         self._clear_id = None
         self.message.setText(f"Reading {source}…")
@@ -451,12 +446,19 @@ class ImportView(QWidget):
         except TemplateError as e:
             self.example.setText(str(e))
 
+    def _table_note(self) -> None:
+        """A line in the folder table while it has nothing to list (0.55: a blank box under a header)."""
+        self.table_box.empty(None if self.table.rowCount() else
+                             "The folders these photos will be filed into are listed here once a card or "
+                             "folder has been read.")
+
     def _update_preview(self) -> None:
         self._update_example()
         if not self.preview:
             self.go.setText("Import")
             self.go.setEnabled(False)
             self.found.setText("")
+            self._table_note()
             return
         tmpl = self.template.currentText()
         counts, sizes = Counter(), Counter()
@@ -484,6 +486,7 @@ class ImportView(QWidget):
         n, total = len(self.preview), sum(s for _, s, _ in self.preview)
         self.message.setText(f"{self.profile_name}{n:,} photos and videos ({_gb(total)}) on {self.source}. File names are "
                              "kept exactly as they are; photos already in your library are skipped.")
+        self._table_note()
         self.found.setText(f"{n:,} files · {len(counts):,} folders")
         self.go.setText(f"Import {n:,} files")
         self.go.setEnabled(True)
@@ -565,6 +568,7 @@ class ImportView(QWidget):
                 # Done: don't invite importing the same card twice.
                 self.preview = []
                 self.table.setRowCount(0)
+                self._table_note()
                 self.go.setText("Imported ✓")
                 self.go.setEnabled(False)
                 # Only a memory card can be cleared - never a folder you imported from.

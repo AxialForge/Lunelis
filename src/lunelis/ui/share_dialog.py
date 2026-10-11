@@ -35,6 +35,8 @@ class ShareDialog(QDialog):
         form.addRow("", self.remove_pin)
         self.originals = QCheckBox("Allow downloading the original files")
         form.addRow("", self.originals)
+        from lunelis.ui.widgets import make_primary, tidy_form
+        tidy_form(form)
         v.addLayout(form)
         self.link = QLineEdit(readOnly=True)
         row = QHBoxLayout()
@@ -47,7 +49,7 @@ class ShareDialog(QDialog):
         self.note = QLabel(objectName="Help", wordWrap=True)
         v.addWidget(self.note)
         buttons = QDialogButtonBox()
-        self.share_b = buttons.addButton("Share", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.share_b = make_primary(buttons.addButton("Share", QDialogButtonBox.ButtonRole.AcceptRole))
         self.stop_b = buttons.addButton("Stop sharing", QDialogButtonBox.ButtonRole.DestructiveRole)
         buttons.addButton(QDialogButtonBox.StandardButton.Close)
         self.share_b.clicked.connect(self.do_share)

@@ -88,6 +88,16 @@ class AlbumTile(QWidget):
             p.restore()
         else:
             p.fillPath(path, qcolor(t.tile_placeholder))
+            # No picture to show: the tile says which album it is, and that it is
+            # empty, instead of looking like a cover that failed to load (0.55).
+            p.setPen(qcolor(t.text_muted))
+            p.setFont(self._title)
+            p.drawText(r.adjusted(12, 12, -12, -12 - (22 if not self.album.count else 0)),
+                       Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, self.album.name)
+            if not self.album.count:
+                p.setFont(self._sub)
+                p.drawText(QRect(12, TILE // 2 + 14, TILE - 24, 20), Qt.AlignmentFlag.AlignHCenter,
+                           "Nothing here yet")
         if self._hover:
             p.fillPath(path, qcolor("rgba(0,0,0,0.12)"))
         if self.hasFocus():
@@ -172,12 +182,13 @@ class NewAlbumTile(QWidget):
     # A dashed square the size of a cover: "+ New album".
     clicked = Signal()
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, text: str = "New album") -> None:
         super().__init__(parent)
+        self.text = text                                       # the same tile wherever something is made (0.55)
         self.setFixedSize(TILE, TILE + 46)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)       # Tab reaches it; Enter / Space make an album (0.54)
-        self.setAccessibleName("New album")
+        self.setAccessibleName(text)
         self._hover = False
         self._font = QFont(self.font())
         self._font.setPixelSize(14)
@@ -193,7 +204,7 @@ class NewAlbumTile(QWidget):
         p.drawRoundedRect(QRectF(1.5, 1.5, TILE - 3, TILE - 3), 10, 10)
         p.setPen(qcolor(t.text if lit else t.text_muted))
         p.setFont(self._font)
-        p.drawText(QRect(0, 0, TILE, TILE), Qt.AlignmentFlag.AlignCenter, "+\nNew album")
+        p.drawText(QRect(0, 0, TILE, TILE), Qt.AlignmentFlag.AlignCenter, f"+\n{self.text}")
 
     def enterEvent(self, e) -> None:
         self._hover = True
@@ -289,15 +300,10 @@ class AlbumsView(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        hl = QHBoxLayout(head)
-        hl.setContentsMargins(24, 0, 24, 0)
-        title = QLabel("Albums", objectName="PageTitle")
-        hl.addWidget(title)
-        hl.addStretch(1)
-        self.count = QLabel(objectName="Count")
-        hl.addWidget(self.count)
+        from lunelis.ui.page_header import page_header
+        head, hl = page_header("Albums")
+        self.count = QLabel(objectName="Count")        # beside the title, as on every page (0.55)
+        hl.insertWidget(head.LEFT, self.count)
         outer.addWidget(head)
 
         scroll = QScrollArea(objectName="SettingsScroll")
@@ -323,11 +329,8 @@ class AlbumsView(QWidget):
         self.events = TileFlow()
         v.addWidget(self.events)
         v.addSpacing(16)
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Smart albums", objectName="SectionTitle"))
-        row.addStretch(1)
-        row.addWidget(QPushButton("New smart album…", clicked=self._new_smart))
-        v.addLayout(row)
+        # Made with the same dashed tile as an album (0.55: a button at the far right).
+        v.addWidget(QLabel("Smart albums", objectName="SectionTitle"))
         self.smart_help = QLabel(objectName="Help")
         self.smart_help.setWordWrap(True)
         v.addWidget(self.smart_help)
@@ -371,15 +374,21 @@ class AlbumsView(QWidget):
         if self._smart is not None:
             self._show_smart(self._smart)
         else:
+            self.smart.set_widgets([self._new_smart_tile()])
             self.smart_help.setText("Counting your smart albums…")
         if self._auto is not None:
             self.auto.set_widgets([self._tile(a) for a in self._auto])
         self._load_auto()
 
+    def _new_smart_tile(self) -> NewAlbumTile:
+        new = NewAlbumTile(text="New smart album")
+        new.clicked.connect(self._new_smart)
+        return new
+
     def _show_smart(self, smarts: list) -> None:
-        self.smart.set_widgets([self._tile(a) for a in smarts])
-        self.smart_help.setText("Saved rules that keep themselves up to date - e.g. ISO above 3200, 5 stars and "
-                                "one lens." if not smarts else "Kept up to date by their rules.")
+        self.smart.set_widgets([self._new_smart_tile()] + [self._tile(a) for a in smarts])
+        self.smart_help.setText("None yet. Saved rules that keep themselves up to date - e.g. ISO above 3200, "
+                                "5 stars and one lens." if not smarts else "Kept up to date by their rules.")
 
     def _load_auto(self) -> None:
         if self._thread is not None:

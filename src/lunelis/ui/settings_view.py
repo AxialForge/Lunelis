@@ -16,7 +16,7 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QThread, QUrl, Signal
+from PySide6.QtCore import QObject, QPoint, Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QHBoxLayout,
@@ -30,7 +30,7 @@ from lunelis.catalog import backup
 from lunelis.importers.scan import exclude_folder, excluded_folders, include_folder
 from lunelis.importing.templates import PRESETS, Context, TemplateError, render
 from lunelis.settings import Settings
-from lunelis.ui.widgets import plain
+from lunelis.ui.widgets import plain, section_label
 
 SIDECAR_CHOICES = (
     ("central", "In Lunelis's own sidecar folder",
@@ -135,8 +135,23 @@ class SettingsView(QWidget):
     report_problem = Signal()
     install_update = Signal(object)  # a staged update folder: swap it in and restart
 
-    TABS = ("General", "Appearance", "Library", "Import", "Edit", "Ratings & sidecars", "Duplicates & jobs",
-            "Backups", "darktable", "Updates", "Advanced")
+    # Library was one 2,400 px column of six unrelated cards: recognition and the
+    # autopilot have their own tab. darktable and Updates were one short card
+    # each: they sit with the sidecars and under Advanced (0.55).
+    TABS = ("General", "Appearance", "Library", "Recognition & autopilot", "Import", "Edit", "Ratings & sidecars",
+            "Duplicates & jobs", "Backups", "Advanced")
+    # Names show_tab() also takes: the tabs that were merged away, and single
+    # cards other pages lead to. name -> (tab, the card to scroll to).
+    ROUTES = {
+        "darktable": ("Ratings & sidecars", "_darktable"),
+        "Updates": ("Advanced", "_updates"),
+        "Scene tags": ("Recognition & autopilot", "_scene_tags"),
+        "Faces": ("Recognition & autopilot", "_faces"),
+        "Places": ("Recognition & autopilot", "_places"),
+        "Autopilot": ("Recognition & autopilot", "_helpers"),
+        "Sources": ("Library", "_sources"),
+        "Thumbnails": ("Library", "_thumbnails"),
+    }
     THUMB_PRESETS = (("Small", 120), ("Medium", 180), ("Large", 260), ("Extra large", 360))
 
     def __init__(self, conn, parent=None) -> None:
@@ -168,7 +183,7 @@ class SettingsView(QWidget):
         # is styled away instead (theme.py, #SettingsTabs).
         self.tabs.setDocumentMode(False)
         self.tabs.tabBar().setExpanding(False)
-        # At 1024 px eleven tabs don't fit: whole names with scroll arrows, never
+        # At 1024 px the tabs don't all fit: whole names with scroll arrows, never
         # "Ac" for Advanced (0.48).
         self.tabs.tabBar().setElideMode(Qt.TextElideMode.ElideNone)
         self.tabs.tabBar().setUsesScrollButtons(True)
@@ -178,19 +193,25 @@ class SettingsView(QWidget):
             "General": [self._startup, self._tray],
             "Edit": [self._editing, self._lens_profiles, self._ai_models, self._edit_caches],
             "Appearance": [self._appearance, self._library_view],
-            "Library": [self._sources, self._thumbnails, self._scene_tags, self._faces, self._places,
-                        self._helpers],
+            "Library": [self._sources, self._thumbnails],
+            "Recognition & autopilot": [self._scene_tags, self._faces, self._places, self._helpers],
             "Import": [self._import],
-            "Ratings & sidecars": [self._sidecars],
+            "Ratings & sidecars": [self._sidecars, self._darktable],
             "Duplicates & jobs": [self._duplicates_and_jobs],
             "Backups": [self._backups],
-            "darktable": [self._darktable],
-            "Updates": [self._updates],
-            "Advanced": [self._lunelis_folder, self._data_folder, self._logs],
+            # Updates first: it's the card people are sent here for.
+            "Advanced": [self._updates, self._lunelis_folder, self._data_folder, self._logs],
         }
+        self._cards: dict[str, QWidget] = {}         # builder name -> its card, for show_tab()
+        self._reveal_card: QWidget | None = None
         for name in self.TABS:
+            built = []
+            for build in cards[name]:
+                card = build()
+                self._cards[build.__name__] = card
+                built.append(card)
             # '&' marks a keyboard shortcut in Qt labels; '&&' is a literal ampersand.
-            self.tabs.addTab(self._tab_page([build() for build in cards[name]]), name.replace('&', '&&'))
+            self.tabs.addTab(self._tab_page(built), name.replace('&', '&&'))
         outer.addWidget(self.tabs, 1)
         self.refresh()
 
@@ -229,8 +250,31 @@ class SettingsView(QWidget):
         return scroll
 
     def show_tab(self, name: str) -> None:
-        if name in self.TABS:
-            self.tabs.setCurrentIndex(self.TABS.index(name))
+        """Open a tab by its name - or by a name in ROUTES: a tab that was merged
+        into another ("darktable", "Updates") or one card ("Faces"), which is
+        then scrolled into view (0.55)."""
+        tab, card = self.ROUTES.get(name, (name, None))
+        if tab not in self.TABS:
+            return
+        self.tabs.setCurrentIndex(self.TABS.index(tab))
+        self._reveal_card = self._cards.get(card) if card else None
+        if self._reveal_card is not None:
+            self._reveal()
+            # Again once the page has been laid out: a tab that was never shown
+            # has nothing to scroll yet. Bound methods, so a closed page drops them.
+            QTimer.singleShot(0, self._reveal)
+            QTimer.singleShot(150, self._reveal)
+
+    def _reveal(self) -> None:
+        card, scroll = self._reveal_card, self.tabs.currentWidget()
+        if card is None or not isinstance(scroll, QScrollArea):
+            return
+        holder = scroll.widget()
+        if holder is None or not holder.isAncestorOf(card):
+            return
+        if holder.layout() is not None:
+            holder.layout().activate()
+        scroll.verticalScrollBar().setValue(max(0, card.mapTo(holder, QPoint(0, 0)).y() - 16))
 
     # --- new cards (v0.3.0) ------------------------------------------------------------
 
@@ -395,7 +439,7 @@ class SettingsView(QWidget):
         self._row(v, "While dragging a slider", self.live)
         unfold = QPushButton("Unfold every section", clicked=lambda: self._set("edit_sections_closed", []))
         self._row(v, "Edit panel", unfold, help="Sections you fold stay folded; this opens them all again.")
-        v.addWidget(QLabel("Colour", objectName="SubTitle"))
+        v.addWidget(section_label("Colour"))
         self.monitor = QComboBox()
         self.monitor.addItem("Off - show sRGB as it is", "off")
         self.monitor.addItem("Use Windows' display profile", "system")
@@ -467,7 +511,8 @@ class SettingsView(QWidget):
                   help="Sony S-Log3 clips look flat and grey until they're graded. Lunelis shows them through a "
                        "look in the player and the thumbnails - the files are never changed. A .cube LUT of your "
                        "own should take S-Log3 as its input.")
-        v.addWidget(QLabel("Autopilot after an import (tick Autopilot on the Import page)", objectName="SubTitle"))
+        v.addWidget(section_label("Autopilot after an import"))
+        v.addWidget(QLabel("Runs when Autopilot is ticked on the Import page.", objectName="Help"))
         from lunelis.importing.autopilot import STAGES, TITLES
         self.autopilot_stages: dict[str, QCheckBox] = {}
         for stage in STAGES:
@@ -1145,13 +1190,20 @@ class SettingsView(QWidget):
         return card, v
 
     @staticmethod
-    def _row(v: QVBoxLayout, label: str, *widgets, help: str | None = None) -> QLabel | None:
+    def _row(v: QVBoxLayout, label: str, *widgets, help: str | None = None,
+             into: list | None = None) -> QLabel | None:
+        """A label, its field(s) and an optional help line. `into` collects
+        every widget of the row, for rows that are shown or hidden as one."""
         h = QHBoxLayout()
         h.setSpacing(8)
         lab = QLabel(label)
         lab.setFixedWidth(200)
         lab.setWordWrap(True)
-        h.addWidget(lab, 0, Qt.AlignmentFlag.AlignTop)
+        # Centred on its field: top-aligned, the text sat about 8 px above the
+        # middle of a 34 px field (0.55).
+        h.addWidget(lab, 0, Qt.AlignmentFlag.AlignVCenter)
+        if into is not None:
+            into.extend((lab, *widgets))
         for w in widgets:
             h.addWidget(w, 1 if isinstance(w, (QLineEdit, QComboBox)) else 0)
         if not any(isinstance(w, (QLineEdit, QComboBox)) for w in widgets):
@@ -1162,6 +1214,8 @@ class SettingsView(QWidget):
             hl.setWordWrap(True)
             hl.setContentsMargins(208, 0, 0, 0)
             v.addWidget(hl)
+            if into is not None:
+                into.append(hl)
             return hl
         return None
 
@@ -1212,6 +1266,9 @@ class SettingsView(QWidget):
             "everything back, ratings included.")
         self.roots = QTableWidget(0, 4)
         self.roots.setHorizontalHeaderLabels(["On", "Folder", "Photos & videos", "Last scanned"])
+        # Headers are left-aligned like their text (theme.py); a column of
+        # right-aligned numbers says so for its own header (0.55).
+        self.roots.horizontalHeaderItem(2).setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.roots.verticalHeader().hide()
         self.roots.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.roots.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -1233,7 +1290,7 @@ class SettingsView(QWidget):
         buttons.addStretch(1)
         v.addLayout(buttons)
 
-        v.addWidget(QLabel("Skipped folders", objectName="SubTitle"))
+        v.addWidget(section_label("Skipped folders"))
         help = QLabel("Folders Lunelis leaves alone - export folders, editing caches, anything you don't "
                       "want in the library. Files already cataloged there are hidden, with their ratings "
                       "kept in case you stop skipping the folder.", objectName="Help")
@@ -1357,20 +1414,27 @@ class SettingsView(QWidget):
         self._row(v, "Keep the copy in", self.prefer,
                   help="When copies are identical, the one in this source is the keeper. Otherwise the "
                        "copy in the shallowest folder, and never a Google Takeout copy if there's another.")
-        v.addWidget(QLabel("New jobs start with", objectName="SubTitle"))
+        v.addWidget(section_label("New jobs start with"))
         self.when = QComboBox()
         for key, label in WHEN_CHOICES:
             self.when.addItem(label, key)
         self.when.currentIndexChanged.connect(lambda _: self._set("job_default_when", self.when.currentData()))
         self._row(v, "When to run", self.when)
-        self._row(v, "Idle means no input for", self._spin("job_idle_minutes", 1, 24 * 60, " min"))
+        # Each of these belongs to one "When to run" choice and shows only with
+        # it - both used to sit there under "Straight away" (0.55).
+        self._when_rows: dict[str, list[QWidget]] = {"idle": [], "window": []}
+        self._row(v, "Idle means no input for", self._spin("job_idle_minutes", 1, 24 * 60, " min"),
+                  into=self._when_rows["idle"])
         start = self._spin("job_window_start_hour", 0, 23, ":00")
         end = self._spin("job_window_end_hour", 0, 23, ":00")
         self._row(v, "Set hours", QLabel("from"), start, QLabel("to"), end,
-                  help="Hours can run past midnight (22:00 to 06:00 is overnight).")
+                  help="Hours can run past midnight (22:00 to 06:00 is overnight).",
+                  into=self._when_rows["window"])
+        self.when.currentIndexChanged.connect(self._show_when_rows)
+        self._show_when_rows()
         self._row(v, "Speed limit", self._spin("job_mb_per_s", 0, 100_000, " MB/s", special="No limit"),
                   help="Caps how fast jobs read, so the NAS stays usable for everything else.")
-        v.addWidget(QLabel("Regular file checks", objectName="SubTitle"))
+        v.addWidget(section_label("Regular file checks"))
         self.integrity_every = QComboBox()
         for key, label in (("week", "Every week"), ("month", "Every month"), ("off", "Off")):
             self.integrity_every.addItem(label, key)
@@ -1383,6 +1447,12 @@ class SettingsView(QWidget):
         self.integrity_state = QLabel(objectName="Help")
         v.addWidget(self.integrity_state)
         return card
+
+    def _show_when_rows(self, _index: int = 0) -> None:
+        chosen = self.when.currentData()
+        for key, widgets in self._when_rows.items():
+            for w in widgets:
+                w.setVisible(key == chosen)
 
     def _load_integrity(self) -> None:
         from lunelis.jobs import rolling
@@ -1588,6 +1658,7 @@ class SettingsView(QWidget):
             self.store.setText(s.get("sidecar_store_dir") or "")
             self.store.setPlaceholderText(f"Default: {paths.SIDECAR_STORE}")
             self.when.setCurrentIndex(max(0, self.when.findData(s.get("job_default_when"))))
+            self._show_when_rows()
             for key, spin in self._spins.items():
                 spin.setValue(s.get(key) if isinstance(spin, QDoubleSpinBox) else int(s.get(key)))
             self.backup_folder.setText(s.get("catalog_backup_dir") or "")

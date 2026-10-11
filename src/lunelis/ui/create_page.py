@@ -42,7 +42,10 @@ from lunelis.ui.library import Filter, LibraryIndex
 from lunelis.ui.widgets import plain
 
 STRIP_MAX = 400                      # photos shown in the strip (a batch can take more)
-THUMB = 96
+THUMB = 72                           # a strip thumbnail's height; its cell is 3:2 around it
+CELL = QSize(THUMB * 3 // 2 + 8, THUMB + 8)
+FORM_W = 560                         # a tool's options card when there's no preview beside it
+SIDE_W = 380                         # ...and the options column when there is
 
 SOURCES = (
     ("selection", "Selected in the library"),
@@ -104,8 +107,15 @@ class PhotoPicker(QWidget):
         self.strip.setViewMode(QListWidget.ViewMode.IconMode)
         self.strip.setFlow(QListWidget.Flow.LeftToRight)
         self.strip.setWrapping(False)
-        self.strip.setIconSize(QSize(THUMB, THUMB))
-        self.strip.setFixedHeight(THUMB + 28)
+        self.strip.setIconSize(QSize(THUMB * 3 // 2, THUMB))
+        # As tall as its thumbnails (plus the scroll bar's room), each tick box
+        # inside its picture's corner (0.55: the box was half as tall again as the
+        # pictures, and every tick hung off its thumbnail under the next one).
+        from lunelis.ui.scene_review import TickThumb
+        self.strip.setItemDelegate(TickThumb(self.strip))
+        self.strip.setSpacing(0)
+        self.strip.setFixedHeight(CELL.height() + 2 * self.strip.frameWidth() + 14)
+        self.strip.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.strip.setMovement(QListWidget.Movement.Snap)
         self.strip.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.strip.setDefaultDropAction(Qt.DropAction.MoveAction)
@@ -196,7 +206,7 @@ class PhotoPicker(QWidget):
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsDragEnabled)
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDropEnabled)
             item.setCheckState(Qt.CheckState.Checked)
-            item.setSizeHint(QSize(THUMB + 12, THUMB + 30))
+            item.setSizeHint(CELL)
             self.strip.addItem(item)
             self._pending.append(item)
         self.strip.blockSignals(False)
@@ -216,7 +226,7 @@ class PhotoPicker(QWidget):
                 continue
             pm = QPixmap(str(paths.THUMBNAIL_CACHE / rel))
             if not pm.isNull():
-                item.setIcon(QIcon(pm.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatio,
+                item.setIcon(QIcon(pm.scaled(THUMB * 3 // 2, THUMB, Qt.AspectRatioMode.KeepAspectRatio,
                                              Qt.TransformationMode.SmoothTransformation)))
 
     def _counted(self) -> None:
@@ -278,15 +288,15 @@ class Tool(QWidget):
         super().__init__(parent)
         self.conn = conn
         self._thread: QThread | None = None
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(24, 12, 24, 16)
-        head = QHBoxLayout()
+        top = QVBoxLayout(self)
+        top.setContentsMargins(0, 0, 0, 0)
+        top.setSpacing(0)
+        # The same banded header as every page (0.55), with the way back before the title.
+        from lunelis.ui.page_header import page_header
+        bar, head = page_header(self.title_text)
         b = QPushButton("‹ Create", clicked=lambda: self.back.emit())
         b.setFlat(True)
-        head.addWidget(b)
-        t = QLabel(self.title_text, objectName="PageTitle")
-        head.addWidget(t)
-        head.addStretch(1)
+        head.insertWidget(0, b)
         # Step by step (0.44): pick photos > options > check > make, one at a time.
         from lunelis.settings import Settings
         self.steps_cb = QCheckBox("Step by step")
@@ -294,7 +304,11 @@ class Tool(QWidget):
         self.steps_cb.setChecked(bool(Settings(conn).get("create_step_by_step")))
         self.steps_cb.toggled.connect(self._steps_toggled)
         head.addWidget(self.steps_cb)
-        outer.addLayout(head)
+        top.addWidget(bar)
+        content = QWidget()
+        top.addWidget(content, 1)
+        outer = self._outer = QVBoxLayout(content)
+        outer.setContentsMargins(24, 12, 24, 16)
         self.step_label = QLabel(objectName="SectionTitle")
         outer.addWidget(self.step_label)
         help_ = QLabel(self.blurb, objectName="Help")
@@ -304,27 +318,88 @@ class Tool(QWidget):
         outer.addWidget(self.picker)
         self.body_w = QWidget()
         self.body = QHBoxLayout(self.body_w)
-        self.body.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(self.body_w, 1)
+        self.body.setContentsMargins(0, 8, 0, 0)
+        self.body.setSpacing(16)
+        outer.addWidget(self.body_w)
         self.check_view = QLabel(objectName="Help", wordWrap=True)
         self.check_view.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        outer.addWidget(self.check_view, 1)
+        outer.addWidget(self.check_view)
+        # Back / Next / Make and what was made, as one block that sits directly
+        # under whatever is on screen: the options when they show, else the
+        # photos or the check (0.55: Make was in the far corner from the form).
+        self.actions_w = QWidget()
+        av = QVBoxLayout(self.actions_w)
+        av.setContentsMargins(0, 8, 0, 0)
+        av.setSpacing(8)
         foot = QHBoxLayout()
-        self.result = QLabel(objectName="Help")
-        self.result.setWordWrap(True)
-        self.result.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
-        self.result.linkActivated.connect(lambda href: QDesktopServices.openUrl(QUrl.fromLocalFile(href)))
-        foot.addWidget(self.result, 1)
         self.back_b = QPushButton("Back", clicked=lambda: self.go_step(self.step - 1))
         self.next_b = QPushButton("Next", objectName="Primary", clicked=lambda: self.go_step(self.step + 1))
         foot.addWidget(self.back_b)
         foot.addWidget(self.next_b)
         self.make_b = QPushButton("Make", objectName="Primary", clicked=self.make)
         foot.addWidget(self.make_b)
-        outer.addLayout(foot)
+        foot.addStretch(1)
+        av.addLayout(foot)
+        self.result = QLabel(objectName="Help")
+        self.result.setWordWrap(True)
+        self.result.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
+        self.result.linkActivated.connect(lambda href: QDesktopServices.openUrl(QUrl.fromLocalFile(href)))
+        av.addWidget(self.result)
+        self._foot_slot = QVBoxLayout()
+        self._foot_slot.setContentsMargins(0, 0, 0, 0)
+        self._foot_slot.addWidget(self.actions_w)
+        outer.addLayout(self._foot_slot)
+        outer.addStretch(1)
+        self._side_slot: QVBoxLayout | None = None      # under the options, once set_options has run
+        self._actions_in = self._foot_slot
+        self._preview = False
         self.picker.changed.connect(self._enable)
         self.step = 0
         self._steps_toggled(self.steps_cb.isChecked())
+
+    def set_options(self, box: QWidget, preview: bool = False) -> None:
+        """Put a tool's options on the page (0.55). With a preview beside them
+        they are a column at the left (the tool adds its preview to `self.body`
+        afterwards); without one they sit in a card of a sensible width in the
+        middle of the page, not a thin column at its far left. Either way Make
+        comes straight under them."""
+        self._preview = preview
+        side = QWidget()
+        col = QVBoxLayout(side)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(0)
+        if preview:
+            side.setMaximumWidth(SIDE_W)
+            col.addWidget(box)
+        else:
+            side.setMaximumWidth(FORM_W)
+            card = QFrame(objectName="Card")
+            cv = QVBoxLayout(card)
+            cv.setContentsMargins(20, 16, 20, 16)
+            cv.addWidget(box)
+            col.addWidget(card)
+            self.body.addStretch(1)
+        self._side_slot = QVBoxLayout()
+        self._side_slot.setContentsMargins(0, 0, 0, 0)
+        col.addLayout(self._side_slot)
+        col.addStretch(1)
+        self.body.addWidget(side, 0 if preview else 4)
+        if not preview:
+            self.body.addStretch(1)
+        self.go_step(self.step)
+
+    def _dock_actions(self) -> None:
+        """Make and its neighbours go under the options while those show, and
+        under the photos or the check otherwise."""
+        want = self._side_slot if (self._side_slot is not None and not self.body_w.isHidden()) else self._foot_slot
+        if want is not self._actions_in:
+            self._actions_in.removeWidget(self.actions_w)
+            want.addWidget(self.actions_w)
+            self._actions_in = want
+        # A preview takes the spare height; otherwise it gathers under the page.
+        grow = self._preview and not self.body_w.isHidden()
+        self._outer.setStretchFactor(self.body_w, 1 if grow else 0)
+        self._outer.setStretch(self._outer.count() - 1, 0 if grow else 1)
 
     STEPS = ("1. Pick the photos", "2. Options", "3. Check", "4. Make")
 
@@ -348,6 +423,7 @@ class Tool(QWidget):
         self.back_b.setVisible(on and i > 0)
         self.next_b.setVisible(on and i < 3)
         self.make_b.setVisible(not on or i == 3)
+        self._dock_actions()
         if on and i == 0:
             self.next_b.setEnabled(len(self.picker.ids()) >= self.minimum)
         elif on:
@@ -463,8 +539,7 @@ class AnimationTool(Tool):
         self.kind.currentIndexChanged.connect(self._kind_changed)
         box = QWidget()
         box.setLayout(form)
-        box.setMaximumWidth(380)
-        self.body.addWidget(box)
+        self.set_options(box, preview=True)
         self.preview = QLabel(alignment=Qt.AlignmentFlag.AlignCenter)
         self.preview.setMinimumSize(240, 160)
         self.preview.setObjectName("CreatePreview")
@@ -751,8 +826,7 @@ class CollageTool(Tool):
         form.addRow("Save as", self.format)
         box = QWidget()
         box.setLayout(form)
-        box.setMaximumWidth(380)
-        self.body.addWidget(box)
+        self.set_options(box, preview=True)
         self.canvas = CollageCanvas(self)
         self.body.addWidget(self.canvas, 1)
         self.layout_box.currentIndexChanged.connect(self._options_changed)
@@ -902,9 +976,7 @@ class BatchTool(Tool):
         form.addRow("Colour", self.wm_color)
         box = QWidget()
         box.setLayout(form)
-        box.setMaximumWidth(460)
-        self.body.addWidget(box)
-        self.body.addStretch(1)
+        self.set_options(box)
         self.load_presets()
 
     def load_presets(self) -> None:
@@ -986,9 +1058,7 @@ class ContactSheetTool(Tool):
         form.addRow("", self.pages_note)
         box = QWidget()
         box.setLayout(form)
-        box.setMaximumWidth(460)
-        self.body.addWidget(box)
-        self.body.addStretch(1)
+        self.set_options(box)
         for w in (self.columns,):
             w.valueChanged.connect(self._note)
         for w in (self.page, self.format):
@@ -1050,9 +1120,7 @@ class TimelapseTool(Tool):
         form.addRow("", self.length)
         box = QWidget()
         box.setLayout(form)
-        box.setMaximumWidth(460)
-        self.body.addWidget(box)
-        self.body.addStretch(1)
+        self.set_options(box)
         self.fps.valueChanged.connect(self._length)
         self.picker.changed.connect(self._length)
         self.deflicker.toggled.connect(self.smooth_over.setEnabled)
@@ -1114,9 +1182,7 @@ class SlideshowTool(Tool):
         form.addRow("", self.length)
         box = QWidget()
         box.setLayout(form)
-        box.setMaximumWidth(520)
-        self.body.addWidget(box)
-        self.body.addStretch(1)
+        self.set_options(box)
         self.seconds.valueChanged.connect(self._length)
         self.picker.changed.connect(self._length)
 
@@ -1182,9 +1248,7 @@ class BeforeAfterTool(Tool):
         form.addRow("Size", self.edge)
         box = QWidget()
         box.setLayout(form)
-        box.setMaximumWidth(460)
-        self.body.addWidget(box)
-        self.body.addStretch(1)
+        self.set_options(box)
         self.layout_box.currentIndexChanged.connect(lambda _i: self.kind.setEnabled(self.layout_box.currentData() == "slider"))
         self.kind.setEnabled(False)
 
@@ -1231,9 +1295,7 @@ class PrintTool(Tool):
         form.addRow("", self.note)
         box = QWidget()
         box.setLayout(form)
-        box.setMaximumWidth(520)
-        self.body.addWidget(box)
-        self.body.addStretch(1)
+        self.set_options(box)
         for w in (self.size, self.paper):
             w.currentIndexChanged.connect(self._note)
         self.copies.valueChanged.connect(self._note)
@@ -1348,9 +1410,7 @@ class StackTool(Tool):
         form.addRow("Save as", self.fmt)
         box = QWidget()
         box.setLayout(form)
-        box.setMaximumWidth(460)
-        self.body.addWidget(box)
-        self.body.addStretch(1)
+        self.set_options(box)
 
     def make(self) -> None:
         ids = self.picker.ids()
@@ -1397,8 +1457,7 @@ class MergeTool(Tool):
         super().__init__(conn, parent)
         note = QLabel("The merge asks how to blend and where to save, then adds the result to the library.",
                       objectName="Help", wordWrap=True)
-        self.body.addWidget(note)
-        self.body.addStretch(1)
+        self.set_options(note)
         self.make_b.setText("Merge…")
 
     def make(self) -> None:
@@ -1465,8 +1524,6 @@ class CreatePage(QWidget):
         home = QWidget()
         h = QVBoxLayout(home)
         h.setContentsMargins(24, 16, 24, 16)
-        title = QLabel("Create", objectName="PageTitle")
-        h.addWidget(title)
         intro = QLabel("New files made from your photos, with their edits. Your photos are only read - everything "
                        "made here is a new file in one folder.", objectName="Help")
         intro.setWordWrap(True)
@@ -1498,7 +1555,16 @@ class CreatePage(QWidget):
         home_scroll = QScrollArea(widgetResizable=True, frameShape=QFrame.Shape.NoFrame)
         home_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         home_scroll.setWidget(home)                       # more tools than the window is tall: it scrolls
-        self.stack.addWidget(home_scroll)
+        # The banded header every page has (0.55), above the cards rather than scrolling with them.
+        from lunelis.ui.page_header import page_header
+        bar, _row = page_header("Create")
+        front = QWidget()
+        fv = QVBoxLayout(front)
+        fv.setContentsMargins(0, 0, 0, 0)
+        fv.setSpacing(0)
+        fv.addWidget(bar)
+        fv.addWidget(home_scroll, 1)
+        self.stack.addWidget(front)
         # Each tool scrolls up and down on a short window; its width follows
         # the window, so its text wraps instead of pushing things off-screen.
         self._scrolls: dict[str, QScrollArea] = {}

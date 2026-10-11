@@ -34,15 +34,10 @@ class AutopilotView(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        h = QHBoxLayout(head)
-        h.setContentsMargins(24, 0, 24, 0)
-        h.addWidget(QLabel("Review your shoot", objectName="PageTitle"))
-        h.addSpacing(12)
+        from lunelis.ui.page_header import page_header
+        head, h = page_header("Review your shoot")
         self.info = QLabel(objectName="Count")
-        h.addWidget(self.info)
-        h.addStretch(1)
+        h.insertWidget(head.LEFT, self.info)
         self.show_b = QPushButton("Show the photos", clicked=self._show_photos)
         self.done_b = QPushButton("Done reviewing", objectName="Primary", clicked=self._finish)
         h.addWidget(self.show_b)
@@ -74,11 +69,14 @@ class AutopilotView(QWidget):
         r = ap.get(self.conn, self.run_id) if self.run_id else None
         self.show_b.setEnabled(bool(r and r["file_ids"]))
         self.done_b.setEnabled(bool(r and r["state"] == "review"))
+        self.rows.setStretch(self.rows.count() - 1, 0 if r is None else 1)    # an empty page's line: mid-page
         if r is None:
             self.info.setText("")
-            self.rows.insertWidget(0, QLabel("No shoot waiting for review. Tick Autopilot on the Import page and "
-                                             "the next import is sorted out for you to look over here.",
-                                             objectName="Help", wordWrap=True))
+            note = QLabel("No shoot waiting for review.\n\nTick Autopilot on the Import page and the next import "
+                          "is sorted out for you to look over here.", objectName="EmptyNote", wordWrap=True)
+            note.setAlignment(Qt.AlignmentFlag.AlignCenter)        # centred, like every empty page (0.55)
+            note.setContentsMargins(48, 24, 48, 24)
+            self.rows.insertWidget(0, note, 1)
             return
         n = len(r["file_ids"])
         self.info.setText(f"{n:,} photo{'s' if n != 1 else ''} imported {r['created_at'][:10]}"
@@ -112,7 +110,8 @@ class AutopilotView(QWidget):
                     b["undo"] = QPushButton("Undo", clicked=lambda _=False, s=stage: self._undo(s))
                 elif st["status"] == "waiting":
                     label = "Apply" if stage == "edits" else "Make it"
-                    b["go"] = QPushButton(label, objectName="Primary", clicked=lambda _=False, s=stage: self._go(s))
+                    # Plain: "Done reviewing" is the page's one filled button (0.55: three were).
+                    b["go"] = QPushButton(label, clicked=lambda _=False, s=stage: self._go(s))
                     b["skip"] = QPushButton("Skip", clicked=lambda _=False, s=stage: self._skip(s))
             for w in b.values():
                 row.addWidget(w)

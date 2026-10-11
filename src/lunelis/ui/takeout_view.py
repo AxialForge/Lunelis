@@ -35,16 +35,13 @@ class TakeoutView(QWidget):
         self.items: list[tr.Item] = []
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        h = QHBoxLayout(head)
-        h.setContentsMargins(24, 0, 24, 0)
-        h.addWidget(QLabel("Google Takeout", objectName="PageTitle"))
-        h.addSpacing(12)
+        outer.setSpacing(0)
+        from lunelis.ui.page_header import page_header
+        head, h = page_header("Google Takeout")
         self.summary = QLabel(objectName="Count")
         from PySide6.QtWidgets import QSizePolicy
         self.summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)   # shrinks, never widens the page
-        h.addWidget(self.summary, 1)
+        h.insertWidget(head.LEFT, self.summary, 4)
         self.filter = QComboBox()
         for label, key in FILTERS:
             self.filter.addItem(label, key)

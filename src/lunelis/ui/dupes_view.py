@@ -255,9 +255,11 @@ class DuplicatesView(QWidget):
         steps.setSpacing(10)
         for n, (title, text) in enumerate((
                 ("Found", "The same file in more than one place - same size, matching samples."),
-                ("Verified", "Every byte of every copy compared. Only verified copies can be set aside."),
-                ("Set aside", f"Extra copies move to a '{QUARANTINE_DIR}' folder on the same drive. "
-                              "Nothing is deleted; the Quarantine page puts them back.")), 1):
+                ("Verified", "Every byte of every copy compared. Only verified copies can be moved to "
+                             "Quarantine."),
+                # One name for it everywhere: the page is Quarantine, so the verb is too (0.55).
+                ("Moved to Quarantine", f"Extra copies move to a '{QUARANTINE_DIR}' folder on the same drive. "
+                                        "Nothing is deleted; the Quarantine page puts them back.")), 1):
             card, cv = _card()
             cv.addWidget(QLabel(f"{n}  {title}", objectName="SectionTitle"))
             t = QLabel(text, objectName="Help")
@@ -267,9 +269,17 @@ class DuplicatesView(QWidget):
         v.addLayout(steps)
 
         top = QHBoxLayout()
+        # One short bold line, the verified / likely split as a quiet second
+        # line (0.55: it was one bold sentence that wrapped mid-phrase).
+        words = QVBoxLayout()
+        words.setSpacing(2)
         self.summary = QLabel(objectName="SectionTitle")
         self.summary.setWordWrap(True)
-        top.addWidget(self.summary, 1)
+        words.addWidget(self.summary)
+        self.summary_detail = QLabel(objectName="Help")
+        self.summary_detail.setWordWrap(True)
+        words.addWidget(self.summary_detail)
+        top.addLayout(words, 1)
         self.show_box = QComboBox()
         self.show_box.addItem("All groups", "all")
         self.show_box.addItem("Verified only", "verified")
@@ -279,8 +289,8 @@ class DuplicatesView(QWidget):
         top.addWidget(self.show_box)
         self.verify_b = QPushButton("Verify all likely groups…", clicked=lambda: self.start_verify.emit())
         self.verify_b.setToolTip("A background job compares every byte (Jobs, Ctrl+J) - it can pause and run at night")
-        self.quarantine_b = QPushButton("Set aside all verified extras…", objectName="Primary",
-                                        clicked=self._quarantine_all)
+        # Not filled: the one filled button is the chosen group's own action (0.55).
+        self.quarantine_b = QPushButton("Move all verified extras to Quarantine…", clicked=self._quarantine_all)
         top.addWidget(self.verify_b)
         top.addWidget(self.quarantine_b)
         v.addLayout(top)
@@ -345,6 +355,7 @@ class DuplicatesView(QWidget):
         self._bg()
         if not self._all:
             self.summary.setText("Loading duplicate groups…")
+            self.summary_detail.setText("")
         self.bg.run("groups", lambda c: load_groups(c, preferred), self._show_groups,
                     error=lambda e: self.summary.setText(f"Couldn't load the duplicates: {e}"))
 
@@ -358,13 +369,16 @@ class DuplicatesView(QWidget):
         verified = [g for g in groups if g.verified]
         likely = len(groups) - len(verified)
         if not groups:
-            self.summary.setText("No duplicates found. Library > Find duplicates… looks for copies of the same "
-                                 "file across your sources.")
+            self.summary.setText("No duplicates found")
+            self.summary_detail.setText("Library > Find duplicates… looks for copies of the same file across "
+                                        "your sources.")
         else:
-            self.summary.setText(
-                f"{len(groups):,} files have copies · {_gb(sum(g.extra_bytes for g in groups))} could be freed  "
-                f"({len(verified):,} verified, {_gb(sum(g.extra_bytes for g in verified))} ready to set aside · "
-                f"{likely:,} likely, still to verify)")
+            n = len(groups)
+            self.summary.setText(f"{n:,} file{'s have' if n != 1 else ' has'} copies · "
+                                 f"{_gb(sum(g.extra_bytes for g in groups))} can be freed")
+            self.summary_detail.setText(
+                f"{len(verified):,} verified, {_gb(sum(g.extra_bytes for g in verified))} ready to move to "
+                f"Quarantine · {likely:,} likely, still to verify")
         self.verify_b.setEnabled(likely > 0)
         self.quarantine_b.setEnabled(bool(verified) and self._thread is None)
         self._apply_show()
@@ -424,7 +438,7 @@ class DuplicatesView(QWidget):
             f"✓ Verified - every byte of all {len(g.members)} copies is the same. The extra copies take "
             f"{_gb(g.extra_bytes)}." if g.verified else
             f"Likely the same - {len(g.members)} copies of the same size whose spot checks match. Verify to "
-            "compare every byte before anything is set aside.", objectName="Help")
+            "compare every byte before anything is moved to Quarantine.", objectName="Help")
         status.setWordWrap(True)
         self.detail_v.addWidget(status)
 
@@ -434,7 +448,8 @@ class DuplicatesView(QWidget):
         self.detail_v.addWidget(card)
 
         card, cv = _card()
-        cv.addWidget(QLabel("Extra copies" + (" - set aside together" if g.verified else ""), objectName="SubTitle"))
+        cv.addWidget(QLabel("Extra copies" + (" - moved to Quarantine together" if g.verified else ""),
+                            objectName="SubTitle"))
         for m in g.members:
             if m[0] != g.keeper:
                 cv.addWidget(self._copy_row(g, m, kept=False))
@@ -442,8 +457,8 @@ class DuplicatesView(QWidget):
 
         act = QHBoxLayout()
         if g.verified:
-            b = QPushButton(f"Set aside {len(g.members) - 1} extra cop{'y' if len(g.members) == 2 else 'ies'}",
-                            objectName="Primary", clicked=lambda: self._quarantine_one(g))
+            b = QPushButton(f"Move {len(g.members) - 1} extra cop{'y' if len(g.members) == 2 else 'ies'} to "
+                            "Quarantine", objectName="Primary", clicked=lambda: self._quarantine_one(g))
             b.setToolTip(f"Moved into '{QUARANTINE_DIR}' on the same drive - the Quarantine page puts them back")
         else:
             b = QPushButton("Verify this group", objectName="Primary", clicked=lambda: self._verify_one(g))
@@ -504,18 +519,18 @@ class DuplicatesView(QWidget):
     def _quarantine_one(self, g: Group) -> None:
         others = [m[0] for m in g.members if m[0] != g.keeper]
         if self._bg().busy("aside-one"):
-            self.summary.setText("Still setting the last group aside - try again in a moment")
+            self.summary.setText("Still moving the last group to Quarantine - try again in a moment")
             return
         if QMessageBox.question(
-                self, "Set aside", f"Set aside {len(others)} extra cop{'y' if len(others) == 1 else 'ies'} of "
-                f"{g.name} ({_gb(g.extra_bytes)})? They move into '{QUARANTINE_DIR}' on the same drive; "
+                self, "Move to Quarantine", f"Move {len(others)} extra cop{'y' if len(others) == 1 else 'ies'} of "
+                f"{g.name} ({_gb(g.extra_bytes)}) to Quarantine? They go into '{QUARANTINE_DIR}' on the same drive; "
                 "the Quarantine page can put them back.") != QMessageBox.StandardButton.Yes:
             return
         # On a worker with its own connection, like "set aside all" (0.54: the
         # catalog snapshot and the moves froze the window).
         gid = g.id
-        self.summary.setText(f"Setting aside {len(others)} extra cop{'y' if len(others) == 1 else 'ies'} of "
-                             f"{g.name}…")
+        self.summary.setText(f"Moving {len(others)} extra cop{'y' if len(others) == 1 else 'ies'} of "
+                             f"{g.name} to Quarantine…")
         self.detail.setEnabled(False)                  # no second click on the same group meanwhile
         self._bg().run("aside-one", lambda c: quarantine(c, gid, others, backup_dir=_snapshot_dir(c)),
                        self._aside_one_done, error=self._aside_one_failed)
@@ -527,7 +542,7 @@ class DuplicatesView(QWidget):
 
     def _aside_one_failed(self, e) -> None:
         self.detail.setEnabled(True)
-        QMessageBox.warning(self, "Set aside", f"Nothing was moved: {e}")
+        QMessageBox.warning(self, "Move to Quarantine", f"Nothing was moved: {e}")
         self.refresh()
 
     # --- set aside everything verified ---------------------------------------------------
@@ -536,9 +551,10 @@ class DuplicatesView(QWidget):
         verified = [g for g in self._all if g.verified]
         n = sum(len(g.members) - 1 for g in verified)
         answer = QMessageBox.question(
-            self, "Set aside all verified extras",
-            f"Set aside {n:,} extra copies ({_gb(sum(g.extra_bytes for g in verified))}) from "
-            f"{len(verified):,} verified groups? Each moves into a '{QUARANTINE_DIR}' folder on the same drive.\n\n"
+            self, "Move all verified extras to Quarantine",
+            f"Move {n:,} extra copies ({_gb(sum(g.extra_bytes for g in verified))}) from "
+            f"{len(verified):,} verified groups to Quarantine? Each goes into a '{QUARANTINE_DIR}' folder on the "
+            "same drive.\n\n"
             "Nothing is deleted: one copy of every file stays where it is, and the catalog is backed up "
             "first. The Quarantine page (sidebar > Keep safe) puts copies back, or empties it once you're happy.")
         if answer != QMessageBox.StandardButton.Yes:
@@ -554,16 +570,16 @@ class DuplicatesView(QWidget):
         self._thread.start()
 
     def _quarantine_progress(self, i: int, t: int) -> None:
-        self.summary.setText(f"Setting aside… {i:,} / {t:,} groups")
+        self.summary.setText(f"Moving to Quarantine… {i:,} / {t:,} groups")
 
     def _quarantine_done(self, moved: int, freed: int, errors: list) -> None:
         self._thread.quit()
         self._thread.wait()
         self._thread = None
-        msg = f"Set aside {moved:,} extra copies ({_gb(freed)})."
+        msg = f"Moved {moved:,} extra copies ({_gb(freed)}) to Quarantine."
         if errors:
             msg += f"\n\n{len(errors):,} groups were skipped:\n" + "\n".join(errors[:8])
-        QMessageBox.information(self, "Set aside", msg)
+        QMessageBox.information(self, "Move to Quarantine", msg)
         self.refresh()
 
 

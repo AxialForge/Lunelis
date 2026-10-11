@@ -52,6 +52,8 @@ class MergeDialog(QDialog):
         else:
             form.addRow("", self.half)
             form.addRow("", self.crop)
+        from lunelis.ui.widgets import make_primary, tidy_form
+        tidy_form(form)
         v.addLayout(form)
         limit = HDR_MAX if kind == "hdr" else PANO_MAX
         self.error = QLabel(objectName="Help")
@@ -60,7 +62,8 @@ class MergeDialog(QDialog):
             self.error.setText(f"Select 2 to {limit} photos.")
         v.addWidget(self.error)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
-        self.go = buttons.addButton("Choose where to save…", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.go = make_primary(buttons.addButton("Choose where to save…",
+                                                 QDialogButtonBox.ButtonRole.AcceptRole))
         self.go.setEnabled(2 <= count <= limit)
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)

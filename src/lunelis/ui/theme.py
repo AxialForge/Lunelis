@@ -62,9 +62,10 @@ _LABELS = (("Red", "#d0453b"), ("Yellow", "#f2c230"), ("Green", "#2e8b57"),
 GRAPHITE = Theme(
     name="graphite", title="Graphite (light)", dark=False,
     sidebar_bg="#18181a", sidebar_text="#e8e8ea", sidebar_muted="#a5a5a8", sidebar_active_bg="#2c2c2e",
-    sidebar_footer="#8e8e92", sidebar_divider="#2c2c2e",
+    sidebar_footer="#9c9ca0", sidebar_divider="#2c2c2e",
     surface="#ffffff", surface_alt="#f7f7f8", canvas="#f2f2f2", border="#d9d9dc",
-    text="#141414", text_muted="#55555a", text_faint="#6e6e73", field_bg="#eeeeef",
+    # text_faint was #6e6e73: 4.4:1 on a field, under the 4.5:1 that 12 px text needs (0.55).
+    text="#141414", text_muted="#55555a", text_faint="#66666b", field_bg="#eeeeef",
     tile_placeholder="#d9dbde", tile_unavailable="#c9ccd1",
     badge_bg="rgba(20,20,20,0.65)", badge_text="#ffffff",
     selection="#141414", rating="#a8841c", reject_veil="rgba(242,242,242,0.62)",
@@ -73,10 +74,12 @@ GRAPHITE = Theme(
 
 MIDNIGHT = Theme(
     name="midnight", title="Midnight (dark)", dark=True,
-    sidebar_bg="#0d0d10", sidebar_text="#ececf0", sidebar_muted="#9d9da6", sidebar_active_bg="#23232a",
-    sidebar_footer="#8c8c95", sidebar_divider="#23232a",
+    # The muted greys are one step lighter than they were (#b0b0b8 / #9a9aa3, sidebar
+    # #9d9da6 / #8c8c95): 12 px helper text was hard to read on the dark surfaces (0.55).
+    sidebar_bg="#0d0d10", sidebar_text="#ececf0", sidebar_muted="#aeaeb6", sidebar_active_bg="#23232a",
+    sidebar_footer="#a2a2ab", sidebar_divider="#23232a",
     surface="#1a1a1f", surface_alt="#202026", canvas="#131317", border="#34343c",
-    text="#ececf0", text_muted="#b0b0b8", text_faint="#9a9aa3", field_bg="#27272e",
+    text="#ececf0", text_muted="#bdbdc5", text_faint="#a9a9b2", field_bg="#27272e",
     tile_placeholder="#2a2a31", tile_unavailable="#34343c",
     badge_bg="rgba(0,0,0,0.62)", badge_text="#ffffff",
     selection="#e6e6ec", rating="#e0b84a", reject_veil="rgba(19,19,23,0.66)",
@@ -160,8 +163,21 @@ def apply_palette(app: QApplication, t: Theme | None = None) -> None:
     for role, value in roles.items():
         pal.setColor(role, qcolor(value))
     for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
-        pal.setColor(QPalette.ColorGroup.Disabled, role, qcolor(t.text_faint))
+        pal.setColor(QPalette.ColorGroup.Disabled, role, qcolor(disabled_text(t)))
     app.setPalette(pal)
+
+
+def disabled_text(t: Theme | None = None) -> str:
+    """Text on a control that can't be used: the faint grey sunk halfway into
+    the surface, so it reads as "off" and not as a dimmer button (0.55 - it
+    used to be text_faint itself, which helper text also uses)."""
+    t = t or _current
+    return _mix(t.text_faint, t.surface, 0.55)
+
+
+def disabled_border(t: Theme | None = None) -> str:
+    t = t or _current
+    return _mix(t.border, t.surface, 0.5)
 
 
 def label_color(name: str | None, t: Theme | None = None) -> str | None:
@@ -252,6 +268,10 @@ def _stylesheet(t: Theme | None = None) -> str:
     check = _check_icon(t)
     down, up = _arrow_icon(t, False), _arrow_icon(t, True)
     red = dict(t.labels)["Red"]
+    off_text, off_border = disabled_text(t), disabled_border(t)
+    # One selected-row look for every table, tree and list (0.55): the accent
+    # sunk into the surface. Solid colours - see _mix for why not rgba().
+    row_on, row_on_idle = _mix(t.accent, t.surface, 0.22), _mix(t.accent, t.surface, 0.12)
     return f"""
     QMainWindow, QWidget#Main {{ background: {t.canvas}; }}
     QToolTip {{ background: {t.surface}; color: {t.text}; border: 1px solid {t.border}; padding: 4px 6px; }}
@@ -271,7 +291,7 @@ def _stylesheet(t: Theme | None = None) -> str:
     QLabel#AppName {{ color: {t.sidebar_text}; font-size: 18px; font-weight: 700; }}
     QPushButton#NavSection {{
         color: {t.sidebar_footer}; background: transparent; border: none; text-align: left;
-        font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 14px 12px 4px 12px;
+        font-size: 12px; font-weight: 700; letter-spacing: 1px; padding: 14px 12px 4px 12px;
     }}
     QPushButton#NavSection:hover {{ color: {t.sidebar_text}; }}
     QPushButton#NavItem {{
@@ -307,6 +327,9 @@ def _stylesheet(t: Theme | None = None) -> str:
     QLineEdit#Search:disabled {{ color: {t.text_faint}; }}
     QLabel#ToolLabel {{ color: {t.text_muted}; font-size: 13px; }}
     QLabel#PageTitle {{ color: {t.text}; font-size: 18px; font-weight: 700; }}
+    /* page_header(): the count beside a page's title and the line under it (0.55). */
+    QLabel#PageCount {{ color: {t.text_muted}; font-size: 13px; padding-top: 3px; }}
+    QLabel#PageDescription {{ color: {t.text_muted}; font-size: 13px; }}
     QComboBox#Sort {{
         color: {t.text_muted}; font-size: 13px; border: none; background: transparent; padding: 4px 6px;
     }}
@@ -324,7 +347,7 @@ def _stylesheet(t: Theme | None = None) -> str:
     QTabWidget#SettingsTabs::tab-bar {{ alignment: center; }}
     QTabWidget#SettingsTabs::pane {{ border: none; border-top: 1px solid {t.border}; top: -1px; }}
     QPushButton#SectionHeader {{
-        text-align: left; font-size: 11px; font-weight: 600; color: {t.text_muted};
+        text-align: left; font-size: 12px; font-weight: 600; color: {t.text_muted};
         background: {t.surface_alt}; border: none; border-radius: 6px; padding: 7px 8px; margin-top: 6px;
     }}
     QPushButton#SectionHeader:hover {{ color: {t.text}; }}
@@ -349,11 +372,21 @@ def _stylesheet(t: Theme | None = None) -> str:
     QTableView, QTableWidget, QListWidget, QListView, QTreeView {{
         background: {t.surface}; alternate-background-color: {t.surface_alt}; color: {t.text};
         gridline-color: {t.border}; border: 1px solid {t.border}; border-radius: 8px;
-        selection-background-color: {t.selection}; selection-color: {t.chip_text}; outline: 0;
+        selection-background-color: {row_on}; selection-color: {t.text}; outline: 0;
     }}
-    QTableView, QTableWidget, QTreeView {{
-        selection-background-color: {_mix(t.accent, t.surface, 0.22)}; selection-color: {t.text};
+    /* Tables (0.55): room either side of the text, a line under each row and no
+       lines between columns. A stylesheet can't hide only the vertical grid
+       lines, so the grid is switched off (qproperty sets the widget's own
+       showGrid when the style is applied) and each cell draws its bottom edge. */
+    QTableView, QTableWidget {{ qproperty-showGrid: false; }}
+    QTableView::item, QTableWidget::item {{
+        padding: 0 10px; border: none; border-bottom: 1px solid {t.border};
     }}
+    QTreeView::item {{ padding: 3px 10px 3px 4px; }}
+    /* Header text starts where its column's text starts. "text-align" is
+       ignored by header sections, so this sets the header's own default; a
+       model that gives a column its own alignment (numbers, right) still wins. */
+    QHeaderView {{ qproperty-defaultAlignment: 'AlignLeft | AlignVCenter'; background: {t.surface_alt}; }}
     QListWidget::item, QListView::item {{ padding: 6px 4px; border-radius: 4px; }}
     QListWidget#CheckList::item {{ padding: 8px 4px; min-height: 28px; }}
     /* The Tags page (0.52): groups on the left, picture cards on the right. */
@@ -379,12 +412,20 @@ def _stylesheet(t: Theme | None = None) -> str:
     QToolButton#RailButton:checked {{ background: {t.accent}; border-color: {t.accent}; }}
     QPushButton#Segment:checked {{ background: {t.accent}; color: {t.accent_text}; border-color: {t.accent}; }}
     QListWidget::item:hover, QListView::item:hover, QTableView::item:hover {{ background: {t.field_bg}; color: {t.text}; }}
-    QListWidget::item:selected, QListView::item:selected {{ background: {t.selection}; color: {t.chip_text}; }}
-    QTableView::item:selected, QTreeView::item:selected {{ background: {_tint(t.accent, 0.22)}; color: {t.text}; }}
-    QTableView::item:selected:!active, QTreeView::item:selected:!active {{ background: {_tint(t.accent, 0.12)}; color: {t.text}; }}
+    /* A selected list row used to be the near-white "selection" bar with dark
+       text in the dark theme (Scene suggestions, Masks); lists now share the
+       tables' tinted row (0.55). */
+    QListWidget::item:selected, QListView::item:selected {{ background: {row_on}; color: {t.text}; }}
+    QListWidget::item:selected:!active, QListView::item:selected:!active {{ background: {row_on_idle}; color: {t.text}; }}
+    QTableView::item:selected {{ background: {row_on}; color: {t.text}; }}
+    QTableView::item:selected:!active {{ background: {row_on_idle}; color: {t.text}; }}
+    /* A tree paints the space left of a row (its arrow) in the view's selection
+       colour whether or not the window is active: one colour for both, or the
+       row came out in two tones (0.55). */
+    QTreeView::item:selected, QTreeView::item:selected:!active {{ background: {row_on}; color: {t.text}; }}
     QHeaderView::section {{
         background: {t.surface_alt}; color: {t.text_muted}; border: none;
-        border-bottom: 1px solid {t.border}; padding: 6px 8px; font-weight: 600;
+        border-bottom: 1px solid {t.border}; padding: 6px 12px; font-weight: 600;
     }}
     QTableCornerButton::section {{ background: {t.surface_alt}; border: none; }}
     QPushButton {{
@@ -393,13 +434,19 @@ def _stylesheet(t: Theme | None = None) -> str:
     }}
     QPushButton:hover {{ background: {t.field_bg}; border-color: {t.text_faint}; }}
     QPushButton:focus {{ border-color: {t.accent}; }}
-    QPushButton:disabled {{ color: {t.text_faint}; border-color: {t.border}; }}
+    /* A button that can't be pressed (0.55): fainter text AND border, and it
+       sets its own background so the hover rule above no longer lights it up. */
+    QPushButton:disabled, QPushButton:disabled:hover {{
+        color: {off_text}; border-color: {off_border}; background: {t.surface};
+    }}
     QPushButton:flat {{ border: none; background: transparent; }}
     QToolButton#MenuButton {{
         background: {t.surface}; color: {t.text}; border: 1px solid {t.border}; border-radius: 6px;
         padding: 6px 10px; min-height: 20px;
     }}
     QToolButton#MenuButton:hover {{ border-color: {t.accent}; }}
+    QToolButton#MenuButton:disabled, QToolButton#MenuButton:disabled:hover,
+    QToolButton#FilterMenu:disabled {{ color: {off_text}; border-color: {off_border}; }}
     QToolButton#MenuButton::menu-indicator {{ image: none; width: 0px; }}
     QFrame#CreateCard {{ background: {t.surface}; border: 1px solid {t.border}; border-radius: 10px; }}
     QFrame#CreateCard:hover, QFrame#CreateCard:focus {{ border-color: {t.accent}; }}
@@ -410,7 +457,9 @@ def _stylesheet(t: Theme | None = None) -> str:
         font-weight: 600; padding: 9px 18px;
     }}
     QPushButton#Primary:hover {{ background: {t.accent}; border-color: {t.accent}; color: {t.accent_text}; }}
-    QPushButton#Primary:disabled {{ background: {t.field_bg}; border-color: {t.border}; color: {t.text_muted}; }}
+    QPushButton#Primary:disabled, QPushButton#Primary:disabled:hover {{
+        background: {t.field_bg}; border-color: {off_border}; color: {off_text};
+    }}
     QComboBox {{
         background: {t.surface}; color: {t.text}; border: 1px solid {t.border};
         border-radius: 6px; padding: 5px 8px; min-height: 20px;
@@ -474,6 +523,15 @@ def _stylesheet(t: Theme | None = None) -> str:
     QFrame#Card QLabel {{ background: transparent; }}
     QLabel#SectionTitle {{ font-size: 15px; font-weight: 700; }}
     QLabel#SubTitle {{ font-weight: 600; padding-top: 6px; }}
+    /* A heading inside a Settings card (widgets.section_label): a small
+       uppercase label with air above it, like the Info panel's RATING / TAGS -
+       it used to look like one more field label (0.55). */
+    QLabel#CardSection {{
+        color: {t.text_muted}; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+        padding: 14px 0 2px 0;
+    }}
+    /* The bold first line of a small dialog (widgets.dialog_heading, 0.55). */
+    QLabel#DialogHeading {{ font-size: 15px; font-weight: 700; padding: 0 0 2px 0; }}
     QLabel#Help {{ color: {t.text_muted}; font-size: 12px; }}
     QLabel#EmptyNote {{ color: {t.text_muted}; font-size: 14px; }}
     QLabel#Example {{ color: {t.text_muted}; font-size: 12px; font-family: Consolas, monospace; }}
@@ -514,5 +572,43 @@ def _stylesheet(t: Theme | None = None) -> str:
                                     stop:0.55 {t.surface}, stop:1 {t.surface});
     }}
     QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{ background: {t.surface_alt}; }}
+
+    /* photo view and main window (0.55, stream B) */
+    /* A filter pill that is filtering: filled with the accent (it also shows its value). */
+    QToolButton#FilterMenu[on="true"], QToolButton#FilterMenu[on="true"]:hover {{
+        background: {t.accent}; color: {t.accent_text}; border-color: {t.accent}; font-weight: 600;
+    }}
+    /* A toggle that is on (Ask, Edit, Faces, Crop, Heal...): the accent, and only then. */
+    QPushButton#Ask:checked, QPushButton#Toggle:checked,
+    QPushButton#Ask:checked:hover, QPushButton#Toggle:checked:hover {{
+        background: {t.accent}; color: {t.accent_text}; border-color: {t.accent};
+    }}
+    QPushButton#Toggle:checked:disabled {{
+        background: {_mix(t.accent, t.surface, 0.30)}; color: {t.text_faint}; border-color: {t.border};
+    }}
+    /* The search box in Ask mode: the same box, with an accent edge. */
+    QLineEdit#Search[ask="true"] {{ border: 1px solid {t.accent}; }}
+    /* The photo view's tool rail stands on the viewer's background, dark in every
+       theme: hover and the divider are made from the sidebar's light greys, not
+       the page's (a white hover box in the light theme). On = accent with a light ring. */
+    QToolButton#RailButton:hover {{
+        background: {_mix(t.sidebar_text, t.viewer_bg, 0.14)}; border-color: {_mix(t.sidebar_text, t.viewer_bg, 0.30)};
+    }}
+    QToolButton#RailButton:checked, QToolButton#RailButton:checked:hover {{
+        background: {t.accent}; border: 1px solid {t.sidebar_text};
+    }}
+    QFrame#RailDivider {{ background: {_mix(t.sidebar_muted, t.viewer_bg, 0.45)}; border: none; }}
+    /* pages (0.55, stream C) */
+    /* A button that removes things for good (Quarantine's "Empty all..."): the
+       label red in the outline, filled red only under the pointer. */
+    QPushButton#Danger {{ color: {red}; border: 1px solid {red}; }}
+    QPushButton#Danger:hover {{ background: {red}; border-color: {red}; color: {t.accent_text}; }}
+    QPushButton#Danger:disabled, QPushButton#Danger:disabled:hover {{
+        color: {t.text_faint}; border-color: {t.border}; background: {t.surface};
+    }}
+    /* Library status > At a glance: the whole row is the link. It lies under
+       the row's two labels and shows itself on hover. */
+    QPushButton#GlanceRow {{ background: transparent; border: none; border-radius: 6px; padding: 0; min-height: 0; }}
+    QPushButton#GlanceRow:hover, QPushButton#GlanceRow:focus {{ background: {t.field_bg}; }}
     """
 

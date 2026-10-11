@@ -51,6 +51,16 @@ def world_to_lonlat(x: float, y: float, z: float) -> tuple[float, float]:
     return lon, lat
 
 
+def degrees(value: float, plus: str, minus: str, digits: int = 0) -> str:
+    """A grid line's name: 40° N, 81.5° W, 0° (0.55). Longitudes wrap at the date line."""
+    if plus == "E":
+        value = (value + 180.0) % 360.0 - 180.0
+    value = round(value, digits)
+    if value == 0:
+        return "0°"
+    return f"{abs(value):.{digits}f}° {plus if value > 0 else minus}"
+
+
 def clusters(points: list[tuple[int, float, float]], z: float, cell: int = CLUSTER_PX) -> list[tuple[float, float, list[int]]]:
     """(world x, world y, file ids): points binned by screen cell at zoom z."""
     bins: dict[tuple[int, int], list] = {}
@@ -271,15 +281,27 @@ class MapCanvas(QWidget):
         step = 30 if self.z < 4 else 10 if self.z < 7 else 1 if self.z < 11 else 0.1
         lon0, lat1 = world_to_lonlat(ox, oy, self.z)
         lon1, lat0 = world_to_lonlat(ox + self.width(), oy + self.height(), self.z)
+        # Each line says which it is (0.55: a bare grid gave no idea where the dots were).
+        lines = QPen(QColor(t.border), 1)
+        words = QColor(t.text_muted)
+        digits = 1 if step < 1 else 0
+        fm = p.fontMetrics()
         lon = math.floor(lon0 / step) * step
         while lon <= lon1:
             x, _ = lonlat_to_world(lon, 0, self.z)
+            p.setPen(lines)
             p.drawLine(QPointF(x - ox, 0), QPointF(x - ox, self.height()))
+            p.setPen(words)
+            p.drawText(QPointF(x - ox + 4, self.height() - 6), degrees(lon, "E", "W", digits))
             lon += step
         lat = math.floor(lat0 / step) * step
         while lat <= lat1:
             _, y = lonlat_to_world(0, lat, self.z)
+            p.setPen(lines)
             p.drawLine(QPointF(0, y - oy), QPointF(self.width(), y - oy))
+            if fm.height() + 2 < y - oy < self.height() - 2 * fm.height():   # clear of the longitudes' row
+                p.setPen(words)
+                p.drawText(QPointF(6, y - oy - 4), degrees(lat, "N", "S", digits))
             lat += step
 
     # --- mouse -----------------------------------------------------------------------------
@@ -376,15 +398,10 @@ class MapView(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        h = QHBoxLayout(head)
-        h.setContentsMargins(24, 0, 24, 0)
-        h.addWidget(QLabel("Map", objectName="PageTitle"))
-        h.addSpacing(12)
+        from lunelis.ui.page_header import page_header
+        head, h = page_header("Map")
         self.count = QLabel(objectName="Count")
-        h.addWidget(self.count)
-        h.addStretch(1)
+        h.insertWidget(head.LEFT, self.count)
         self.online_b = QPushButton("Show map tiles (online)")
         self.online_b.setToolTip("Map pictures come from OpenStreetMap over the internet. Only tile numbers are "
                                  "asked for - nothing about your photos is sent.")
@@ -491,7 +508,7 @@ class MapView(QWidget):
         self.online_b.setText("Hide map tiles" if on else "Show map tiles (online)")
         self.note.setText("" if on else "Dots on a plain grid of latitude and longitude. Map pictures come from "
                                         "OpenStreetMap over the internet - nothing is fetched until you turn them "
-                                        "on (here, or Settings > Library > Places).")
+                                        "on (here, or Settings > Recognition & autopilot > Places).")
         self.note_row.setVisible(not on)
 
     def _tiles_failed(self, error: str) -> None:

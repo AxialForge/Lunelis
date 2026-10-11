@@ -624,6 +624,11 @@ class DevelopPanel(QScrollArea):
     brush_changed = Signal()
     lens_changed = Signal(str, object, bool)   # key, value, final
 
+    NO_MASKS = "No masks yet. Add one with the buttons above to change only part of the photo."
+    # Sections open for someone who has never folded one: the two used on nearly
+    # every photo. The rest (Filters, Crop, Retouch...) pushed them screens down (0.55).
+    OPEN_BY_DEFAULT = ("Light", "Color")
+
     @staticmethod
     def _wrap_row(*widgets) -> QWidget:
         """Buttons side by side that wrap onto a second line when the panel is
@@ -650,7 +655,9 @@ class DevelopPanel(QScrollArea):
         head = QHBoxLayout()
         t = QLabel("Edit", objectName="SectionTitle")
         head.addWidget(t, 1)
-        self.done_b = QPushButton("Done", clicked=lambda: self.done.emit())
+        # The one filled button while editing in the photo view (0.55). The Edit
+        # page hides it: its own main action is Export all.
+        self.done_b = QPushButton("Done", objectName="Primary", clicked=lambda: self.done.emit())
         self.done_b.setToolTip("Back to the photo's info (E)")
         head.addWidget(self.done_b)
         v.addLayout(head)
@@ -662,10 +669,10 @@ class DevelopPanel(QScrollArea):
         self.auto_b.setToolTip("A starting point from the photo's histogram")
         self.reset_b = QPushButton("Reset", clicked=lambda: self.reset.emit())
         self.reset_b.setToolTip("Back to the original (Ctrl+Z undoes it)")
-        self.before_b = QPushButton("Before", checkable=True)
+        self.before_b = QPushButton("Before", objectName="Toggle", checkable=True)
         self.before_b.setToolTip("Show the original (\\ key)")
         self.before_b.toggled.connect(self.before.emit)
-        self.proof_b = QPushButton("Proof", checkable=True)
+        self.proof_b = QPushButton("Proof", objectName="Toggle", checkable=True)
         self.proof_b.setToolTip("Soft proof: how it prints with the profile chosen in Settings > Edit; colours "
                                 "it can't print show magenta")
         self.proof_b.toggled.connect(self.proof.emit)
@@ -743,7 +750,7 @@ class DevelopPanel(QScrollArea):
             b.setToolTip(tip)
             b.setFixedWidth(40)
             row.addWidget(b)
-        self.crop_b = QPushButton("Crop", checkable=True)
+        self.crop_b = QPushButton("Crop", objectName="Toggle", checkable=True)
         self.crop_b.setToolTip("Drag the corners or edges; Enter when done (R)")
         self.crop_b.toggled.connect(self.crop_mode.emit)
         row.addWidget(self.crop_b, 1)
@@ -785,7 +792,7 @@ class DevelopPanel(QScrollArea):
                                           "camera's own setting for a RAW; other files don't record theirs, "
                                           "so they're shown from 5,500 K daylight with an ≈.")
                         # White balance picker (0.46): click something that should be grey.
-                        self.wb_pick_b = QPushButton("Pick white balance", checkable=True)
+                        self.wb_pick_b = QPushButton("Pick white balance", objectName="Toggle", checkable=True)
                         self.wb_pick_b.setToolTip("Then click something in the photo that should be neutral "
                                                   "grey or white - Temperature and Tint are set from it")
                         self.wb_pick_b.toggled.connect(lambda on: self.retouch_tool.emit("wb" if on else None))
@@ -806,7 +813,7 @@ class DevelopPanel(QScrollArea):
         for kind, label, tip in (("heal", "Heal", "Click a spot to blend it away with what's around it"),
                                  ("clone", "Clone", "Alt+click where to copy from, then click where to paint"),
                                  ("redeye", "Red-eye", "Click each red eye")):
-            b = QPushButton(label, checkable=True)
+            b = QPushButton(label, objectName="Toggle", checkable=True)      # on = the accent colour (0.55)
             b.setToolTip(tip)
             b.toggled.connect(lambda on, k=kind: self._retouch_toggled(k, on))
             self.retouch_buttons[kind] = b
@@ -867,9 +874,14 @@ class DevelopPanel(QScrollArea):
         for r in rows:
             v.addLayout(r)
         self.mask_list = QListWidget()
-        self.mask_list.setFixedHeight(92)
         self.mask_list.currentRowChanged.connect(self.mask_select.emit)
-        v.addWidget(self.mask_list)
+        # With no masks the box says what to do, instead of standing blank (0.55).
+        from lunelis.ui.empty_state import EmptyStack
+        self.mask_stack = EmptyStack(self.mask_list)
+        self.mask_stack.note.setContentsMargins(12, 6, 12, 6)      # a small box: the page-sized margins don't fit
+        self.mask_stack.setFixedHeight(92)
+        self.mask_stack.empty(self.NO_MASKS)
+        v.addWidget(self.mask_stack)
         self.mask_box = QWidget()
         mv = QVBoxLayout(self.mask_box)
         mv.setContentsMargins(0, 0, 0, 0)
@@ -961,6 +973,7 @@ class DevelopPanel(QScrollArea):
             self.mask_list.addItem(n + (" (inverted)" if m.invert else ""))
         self.mask_list.setCurrentRow(current)
         self.mask_list.blockSignals(False)
+        self.mask_stack.empty(None if masks else self.NO_MASKS)
         self.mask_box.setVisible(0 <= current < len(masks))
         if 0 <= current < len(masks):
             m = masks[current]
@@ -1023,7 +1036,13 @@ class DevelopPanel(QScrollArea):
     def restore_sections(self, conn) -> None:
         from lunelis.settings import Settings
         self._conn_for_sections = conn
-        closed = set(Settings(conn).get("edit_sections_closed") or [])
+        # Only a choice the user made is kept as it is. With nothing saved the
+        # panel opens with just Light and Color unfolded (0.55) - the setting's
+        # own default can't say "never chosen", so the catalog is asked directly.
+        if conn.execute("SELECT 1 FROM settings WHERE key = 'edit_sections_closed'").fetchone() is None:
+            closed = set(self.sections) - set(self.OPEN_BY_DEFAULT)
+        else:
+            closed = set(Settings(conn).get("edit_sections_closed") or [])
         for title, sec in self.sections.items():
             sec.set_open(title not in closed)
 
@@ -1032,7 +1051,10 @@ class DevelopPanel(QScrollArea):
             return
         from lunelis.settings import Settings
         s = Settings(self._conn_for_sections)
-        closed = set(s.get("edit_sections_closed") or [])
+        # What is on screen is what's remembered: the first fold by someone with
+        # nothing saved must keep the other sections as they see them, not as
+        # the setting's default lists them (0.55).
+        closed = {t for t, sec in self.sections.items() if not sec.header.isChecked()}
         (closed.discard if open_ else closed.add)(title)
         s.set("edit_sections_closed", sorted(closed))
 

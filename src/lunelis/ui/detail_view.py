@@ -1064,7 +1064,7 @@ class DetailView(QWidget):
                         (self.prev_b, "chevron_left"), (self.next_b, "chevron_right")):
             b.setIcon(icons.icon(name, t.text, t.text, TOOL_ICON))
         for name, b in getattr(self, "tool_b", {}).items():
-            b.setIcon(icons.icon(name, t.text_muted, t.accent_text, TOOL_ICON))
+            b.setIcon(icons.icon(name, *self._rail_colours(t), TOOL_ICON))
         if hasattr(self, "faces_menu_b"):
             self.faces_menu_b.setIcon(icons.icon("chevron_down", t.text, size=14))
 
@@ -1079,6 +1079,14 @@ class DetailView(QWidget):
              ("histogram", "Histogram - red, green, blue and brightness"),
              ("guides", "Guides - click again for the next: thirds, golden ratio, centre, level"))
     GUIDES = ("thirds", "golden", "centre", "level")
+
+    @staticmethod
+    def _rail_colours(t) -> tuple[str, str]:
+        """A rail icon's colour off and on. The rail stands on the viewer's
+        background, which is dark in every theme - so off is the sidebar's light
+        grey, not the page's muted text (dark grey on near-black in the light
+        theme, 0.55). On, the button is filled with the accent."""
+        return t.sidebar_muted, t.accent_text
 
     def _tool_rail(self) -> QWidget:
         from PySide6.QtWidgets import QFrame, QScrollArea, QToolButton
@@ -1103,12 +1111,18 @@ class DetailView(QWidget):
             self.tool_b[name] = b
             v.addWidget(b)
             if name == "zones":
-                v.addSpacing(8)
+                # A thin line parts the overlays painted over the photo (only one
+                # at a time) from the histogram and guides, which add to it (0.55).
+                line = self.rail_divider = QFrame(objectName="RailDivider")
+                line.setFixedHeight(1)
+                v.addSpacing(4)
+                v.addWidget(line)
+                v.addSpacing(4)
         v.addStretch(1)
         from lunelis.ui import icons, theme
         t = theme.current()
         for name, b in self.tool_b.items():
-            b.setIcon(icons.icon(name, t.text_muted, t.accent_text, TOOL_ICON))
+            b.setIcon(icons.icon(name, *self._rail_colours(t), TOOL_ICON))
         return rail
 
     def toggle_tool(self, name: str) -> None:
@@ -1187,18 +1201,21 @@ class DetailView(QWidget):
         self.name.setStyleSheet("font-weight: 600;")
         h.addWidget(self.name)
         self.summary = QLabel(objectName="Count", textFormat=Qt.TextFormat.PlainText)
-        # The details line gives way on narrow windows (it's all in the Info panel
-        # and the tooltip too) instead of forcing the window wider.
+        self._summary_line = ""
+        # The details line (date, camera, lens, exposure) repeats the Info panel
+        # beside it, so it shows only while that panel doesn't - with the Edit
+        # panel open. It is always the file name's tooltip (0.55).
+        # It gives way on narrow windows instead of forcing the window wider.
         self.summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.summary.setMinimumWidth(0)
         h.addWidget(self.summary, 1)
         self.stars = QLabel()
         h.addWidget(self.stars)
-        self.edit_b = QPushButton("Edit", checkable=True)
+        self.edit_b = QPushButton("Edit", objectName="Toggle", checkable=True)     # on = the accent colour (0.55)
         self.edit_b.setToolTip("Edit this photo (E) - the original is never changed")
         self.edit_b.toggled.connect(self.set_editing)
         h.addWidget(self.edit_b)
-        self.faces_b = QPushButton("Faces", checkable=True)
+        self.faces_b = QPushButton("Faces", objectName="Toggle", checkable=True)
         self.faces_b.setToolTip("Show the faces in this photo and who they are (F). Click a face to name or "
                                 "correct it; Ctrl+drag draws one Lunelis missed.")
         self.faces_b.toggled.connect(self.set_faces_overlay)
@@ -1367,6 +1384,8 @@ class DetailView(QWidget):
             # under the rating keys (0.54: a star key still rated it).
             for label in (self.name, self.summary, self.stars):
                 label.setText("")
+            self._summary_line = ""
+            self._show_summary()
             self.canvas.faces = []
             self.edit_b.setEnabled(False)
             self.nothing_shown.emit()
@@ -1387,6 +1406,7 @@ class DetailView(QWidget):
             # editing picks up again on the next photo.
             can_edit = not self.info.is_video and self._movie is None
             self.side.setCurrentWidget(self.develop if can_edit else self.panel)
+            self._show_summary()
             if can_edit:
                 self.edit.start(self.info)
         self.edit_b.setEnabled(not self.info.is_video and self._movie is None)
@@ -1443,6 +1463,7 @@ class DetailView(QWidget):
             return
         self.editing = on
         self.side.setCurrentWidget(self.develop if on else self.panel)
+        self._show_summary()
         self.canvas.show_faces = self.faces_b.isChecked() and not on     # editing: the edit tools own the canvas
         if on:
             self.edit.start(self.info)
@@ -1460,6 +1481,14 @@ class DetailView(QWidget):
             self._show_image()
         self.edited.emit(file_id)
 
+    def _show_summary(self) -> None:
+        """The bar's details line: there only while the Info panel isn't (0.55)."""
+        side = getattr(self, "side", None)                 # the bar is built before the side panel
+        info_shown = side is not None and side.currentWidget() is self.panel and not side.isHidden()
+        self.summary.setText("" if info_shown else self._summary_line)
+        self.summary.setToolTip(self._summary_line)
+        self.name.setToolTip(self._summary_line)
+
     def refresh_info(self) -> None:
         """After a rating change: re-read and redraw the panel and header."""
         if self.pos < 0:
@@ -1469,8 +1498,8 @@ class DetailView(QWidget):
             return
         i = self.info
         self.name.setText(i.filename)
-        self.summary.setText("  ·  ".join(x for x in (i.when(), i.camera(), i.lens or "", i.exposure()) if x))
-        self.summary.setToolTip(self.summary.text())
+        self._summary_line = "  ·  ".join(x for x in (i.when(), i.camera(), i.lens or "", i.exposure()) if x)
+        self._show_summary()
         self.stars.setText("★" * i.stars + "☆" * (5 - i.stars) if i.stars else "")
         self.stars.setStyleSheet(f"color: {themes.current().rating}; font-size: 15px;")
         self.panel.show_info(i)

@@ -85,3 +85,71 @@ class ElidedLabel(QLabel):
     def _elide(self) -> None:
         super().setText(self.fontMetrics().elidedText(self._full, Qt.TextElideMode.ElideMiddle,
                                                       max(40, self.width())))
+
+
+# --- one look for dialogs and form headings (0.55) --------------------------------------------
+
+def make_primary(button, text: str | None = None):
+    """Make `button` the dialog's one filled button, named after what it does
+    ("Export", not "OK") and pressed by Enter. OK and Cancel used to be two
+    identical outlines (0.55). Works for a QDialogButtonBox button too: the
+    "Primary" rule in theme.py goes by the object name."""
+    if text:
+        button.setText(text)
+    button.setObjectName("Primary")
+    button.setAutoDefault(True)
+    button.setDefault(True)
+    return button
+
+
+def dialog_heading(layout, text: str) -> QLabel:
+    """A small dialog's bold first line, with 16 px of air above it - the text
+    used to start at the window's top edge with nothing saying what the
+    dialog is for (0.55)."""
+    left, top, right, bottom = layout.getContentsMargins()
+    layout.setContentsMargins(max(left, 16), max(top, 16), max(right, 16), max(bottom, 14))
+    head = QLabel(text, objectName="DialogHeading")
+    head.setWordWrap(True)
+    head.setIndent(0)           # a label with style-sheet padding is set in by half a letter otherwise
+    layout.addWidget(head)
+    return head
+
+
+def section_label(text: str) -> QLabel:
+    """A heading inside a card ("NEW JOBS START WITH"): small, uppercase, with
+    space above (theme.py, #CardSection) so it doesn't read as one more field
+    label. The words as written stay as its accessible name (0.55)."""
+    lab = QLabel(text.upper(), objectName="CardSection")
+    lab.setIndent(0)            # in line with the field labels (see dialog_heading)
+    lab.setAccessibleName(text)
+    return lab
+
+
+def tidy_form(form) -> None:
+    """A QFormLayout with one left and one right edge for every field, and each
+    label centred on its field (0.55). Call it after the last addRow(): fields
+    all grow to the same right edge, a row of several controls loses the
+    margin that set it in from the others, and a label is made as tall as its
+    field so its text sits in the middle of it - it used to hang about 8 px
+    high beside a 34 px field."""
+    from PySide6.QtWidgets import QFormLayout, QWidget
+    form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+    form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+    form.setHorizontalSpacing(12)
+    form.setVerticalSpacing(10)
+    for row in range(form.rowCount()):
+        label = form.itemAt(row, QFormLayout.ItemRole.LabelRole)
+        field = form.itemAt(row, QFormLayout.ItemRole.FieldRole)
+        holder = field.widget() if field is not None else None
+        if holder is None:
+            continue
+        if holder.layout() is not None:
+            holder.layout().setContentsMargins(0, 0, 0, 0)
+        # The app stylesheet sets the fields' real height; it's only applied
+        # once a widget is polished, which otherwise happens at show().
+        for w in (holder, *holder.findChildren(QWidget)):
+            w.ensurePolished()
+        lab = label.widget() if label is not None else None
+        if isinstance(lab, QLabel) and lab.text():
+            lab.setMinimumHeight(holder.sizeHint().height())
+            lab.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)

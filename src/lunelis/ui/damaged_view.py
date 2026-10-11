@@ -98,6 +98,7 @@ class DamagedView(QWidget):
             t.setWordWrap(False)
             t.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.table.setColumnWidth(3, 110)
+        self.table.verticalHeader().setDefaultSectionSize(42)      # room for the row's button (0.55: it overhung)
         self.table.currentCellChanged.connect(lambda r, *_: self._show(r))
         from lunelis.ui.empty_state import EmptyStack
         self.table_box = EmptyStack(self.table)
@@ -108,14 +109,17 @@ class DamagedView(QWidget):
         self.detail.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.detail.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.detail.setColumnWidth(1, 260)
-        self.detail.setColumnWidth(2, 150)
+        self.detail.setColumnWidth(2, 170)
+        self.detail.verticalHeader().setDefaultSectionSize(42)
         self.detail.setWordWrap(False)
         self.detail.setTextElideMode(Qt.TextElideMode.ElideMiddle)
-        self.guide = QLabel(UNTRUNC_GUIDE, wordWrap=True, objectName="Hint")
+        self.guide = QLabel(UNTRUNC_GUIDE, wordWrap=True, objectName="Help")
         self.guide.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.guide.hide()
         v.addWidget(self.guide)
-        split.addWidget(self.detail)
+        # Says why it is blank rather than standing empty under its header (0.55).
+        self.detail_box = EmptyStack(self.detail)
+        split.addWidget(self.detail_box)
         split.setSizes([500, 220])
         v.addWidget(split, 1)
         self._rows: list[tuple] = []
@@ -159,17 +163,18 @@ class DamagedView(QWidget):
         if self._rows:
             self.table.selectRow(0)
         else:
-            self.detail.clearContents()
-            self.detail.setRowCount(0)
+            self._show(-1)
 
     def _show(self, row: int) -> None:
         self.detail.clearContents()
         self.detail.setRowCount(0)
         self.guide.hide()
         if row < 0 or row >= len(self._rows):
+            self.detail_box.empty("Intact copies of the file chosen above are listed here.")
             return
         self.guide.setVisible(self._rows[row][5] == NO_MOOV)
         copies = self._copies.get(self._rows[row][0], [])
+        self.detail_box.empty(None if copies else "No intact copy of this file was found in the library.")
         self.detail.setRowCount(len(copies))
         for i, (_, full, why) in enumerate(copies):
             self.detail.setItem(i, 0, QTableWidgetItem(full))

@@ -152,7 +152,10 @@ def test_selected_table_rows_are_a_soft_tint():
     from lunelis.ui import theme
     for t in theme.THEMES.values():
         css = theme.stylesheet(t)
-        assert "QTableView::item:selected" in css and "rgba(" in css
+        # 0.55: the tint is a solid mix of the accent into the surface (lists
+        # share it), no longer an rgba() laid over the selection colour.
+        tint = theme._mix(t.accent, t.surface, 0.22)
+        assert f"QTableView::item:selected {{ background: {tint}" in css
 
 
 def test_sizes_never_say_0_mb():

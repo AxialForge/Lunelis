@@ -203,6 +203,7 @@ class TrimBar(QWidget):
 
 class VideoPlayer(QWidget):
     trimmed = Signal(str)               # the new file's path
+    IN_TEXT, OUT_TEXT = "Start here", "End here"      # the trim buttons before a flag is set
 
     def __init__(self, conn, parent=None) -> None:
         super().__init__(parent)
@@ -264,14 +265,18 @@ class VideoPlayer(QWidget):
         th = QHBoxLayout(trim)
         th.setContentsMargins(12, 0, 12, 6)
         th.setSpacing(8)
-        self.in_b = QPushButton("Start here", clicked=self.set_in)
+        # The row says what it is for: "Start here ×  End here ×" alone gave no
+        # hint that these buttons trim the clip (0.55).
+        self.trim_l = QLabel("Trim:", objectName="ToolLabel")
+        self.trim_l.setToolTip("Mark a start and an end, then save what's between them as a new file")
+        self.in_b = QPushButton(self.IN_TEXT, clicked=self.set_in)
         self.in_b.setToolTip("Put the green start flag at the playhead (I)")
         self.clear_in_b = QPushButton("×", clicked=lambda: self._marks_dragged(None, self.mark_out))
-        self.clear_in_b.setToolTip("Remove the start flag")
-        self.out_b = QPushButton("End here", clicked=self.set_out)
+        self.clear_in_b.setToolTip("Remove the start flag - the copy then starts at the beginning of the clip")
+        self.out_b = QPushButton(self.OUT_TEXT, clicked=self.set_out)
         self.out_b.setToolTip("Put the red end flag at the playhead (O)")
         self.clear_out_b = QPushButton("×", clicked=lambda: self._marks_dragged(self.mark_in, None))
-        self.clear_out_b.setToolTip("Remove the end flag")
+        self.clear_out_b.setToolTip("Remove the end flag - the copy then runs to the end of the clip")
         for b in (self.clear_in_b, self.clear_out_b):
             b.setMinimumWidth(30)
         self.save_b = QPushButton("Save trimmed copy", clicked=self.save_trim)
@@ -280,7 +285,7 @@ class VideoPlayer(QWidget):
         self.log_b.setToolTip("Show the clip as recorded (flat S-Log), without the preview look")
         self.log_b.toggled.connect(self._show_log)
         self.log_b.hide()
-        for b in (self.in_b, self.clear_in_b, self.out_b, self.clear_out_b):
+        for b in (self.trim_l, self.in_b, self.clear_in_b, self.out_b, self.clear_out_b):
             th.addWidget(b)
         th.addStretch(1)
         th.addWidget(self.log_b)
@@ -450,6 +455,10 @@ class VideoPlayer(QWidget):
         self.slider.update()
         self.clear_in_b.setEnabled(self.mark_in is not None)
         self.clear_out_b.setEnabled(self.mark_out is not None)
+        # A set flag shows its time on its button, so the choice can be read
+        # without finding the flag on the bar (0.55).
+        self.in_b.setText(self.IN_TEXT if self.mark_in is None else f"Start: {clock(self.mark_in)}")
+        self.out_b.setText(self.OUT_TEXT if self.mark_out is None else f"End: {clock(self.mark_out)}")
         a, b = self._span()
         marked = self.mark_in is not None or self.mark_out is not None
         self.save_b.setEnabled(bool(self.path) and marked and b - a >= 100 and not self.busy)

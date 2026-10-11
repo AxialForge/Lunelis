@@ -197,7 +197,7 @@ def _catalog_ok(backup) -> bool:
             return True
         except schema.NewerCatalog as e:
             log.LOG.error("%s", e)
-            QMessageBox.critical(None, "Lunelis", f"{e}\n\nInstall the newest Lunelis from Settings > Updates "
+            QMessageBox.critical(None, "Lunelis", f"{e}\n\nInstall the newest Lunelis from Settings > Advanced > Updates "
                                  "or github.com/AxialForge/Lunelis/releases. Your catalog is unchanged.")
             return False
         except Exception as e:

@@ -100,6 +100,10 @@ class SmartAlbumDialog(QDialog):
         self.error.setWordWrap(True)
         v.addWidget(self.error)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        # The filled button says what happens (0.55): a new album is created, an old one saved.
+        from lunelis.ui.widgets import make_primary
+        self.save_b = make_primary(buttons.button(QDialogButtonBox.StandardButton.Save),
+                                   "Save changes" if name else "Create smart album")
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         v.addWidget(buttons)

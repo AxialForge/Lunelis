@@ -124,17 +124,21 @@ class PeopleView(QWidget):
         from lunelis.ui.notice import Notice
         self.note = Notice()               # what the last action did, kept in front of the counts (0.54)
         self.person: int | None = None
-        v = QVBoxLayout(self)
-        v.setContentsMargins(24, 20, 24, 16)
-        head = QHBoxLayout()
-        title = QLabel("People", objectName="PageTitle")
-        head.addWidget(title)
-        head.addStretch(1)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        # The banded header every page has (0.55).
+        from lunelis.ui.page_header import page_header
+        bar, head = page_header("People")
+        outer.addWidget(bar)
+        body = QWidget()
+        outer.addWidget(body, 1)
+        v = QVBoxLayout(body)
+        v.setContentsMargins(24, 12, 24, 16)
         self.find_b = QPushButton("Find faces in the library…", clicked=lambda: self.find_faces.emit())
         self.settings_b = QPushButton("Turn on faces…", objectName="Primary", clicked=lambda: self.open_settings.emit())
         head.addWidget(self.find_b)
         head.addWidget(self.settings_b)
-        v.addLayout(head)
         self.summary = QLabel(objectName="Help")
         self.summary.setWordWrap(True)
         v.addWidget(self.summary)
@@ -175,7 +179,8 @@ class PeopleView(QWidget):
         self.person_name = QLabel(objectName="SectionTitle")
         top.addWidget(self.person_name)
         top.addStretch(1)
-        top.addWidget(QPushButton("Show photos", objectName="Primary", clicked=self._show_person_photos))
+        # Plain: this view's filled button is "Yes, it's them" below (0.55: two were filled).
+        top.addWidget(QPushButton("Show photos", clicked=self._show_person_photos))
         top.addWidget(QPushButton("Rename…", clicked=self._rename))
         merge = QPushButton("Merge with…", clicked=self._merge)
         merge.setToolTip("The same person under two names: move all these faces to the other one")
@@ -336,7 +341,7 @@ class PeopleView(QWidget):
         row.addStretch(1)
         self.sort_b = QPushButton("Find animals among the faces", clicked=self._sort_animals)
         self.sort_b.setToolTip("Look through every unnamed face with the scene model and mark the animals "
-                               "(Settings > Library > Scene tags installs it)")
+                               "(Settings > Recognition & autopilot > Scene tags installs it)")
         row.addWidget(self.sort_b)
         v.addLayout(row)
         return w
@@ -458,7 +463,7 @@ class PeopleView(QWidget):
         self.people_box.empty(None if people else
                               "Nobody named yet.\n\nOpen the Unnamed tab to name the faces Lunelis has grouped, or "
                               "click a face in any photo (the Faces button in the photo view). Not looking for faces "
-                              "yet? Settings > Library > Faces.")
+                              "yet? Settings > Recognition & autopilot > Faces.")
 
     def open_person(self, pid) -> None:
         if pid is None:

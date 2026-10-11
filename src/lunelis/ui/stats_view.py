@@ -30,6 +30,7 @@ from lunelis.ui.background import Background
 
 PAGE_MAX = 1120              # px: wider than this, the page centres instead of stretching
 FOCAL_GROUP_OVER = 16        # a lens with more focal lengths than this shows ranges
+KEEPER_NOTE = "A keeper is a photo you flagged Pick (P)."
 
 
 class BarChart(QWidget):
@@ -187,13 +188,9 @@ class StatsView(QWidget):
         self.has_keepers = False
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        hl = QHBoxLayout(head)
-        hl.setContentsMargins(24, 0, 24, 0)
-        hl.addWidget(QLabel("Stats", objectName="PageTitle"))
-        hl.addStretch(1)
-        hl.addWidget(QLabel("A keeper is a photo you flagged Pick (P).", objectName="Help"))
+        outer.setSpacing(0)
+        from lunelis.ui.page_header import page_header
+        head, _hl = page_header("Stats")
         outer.addWidget(head)
         scroll = QScrollArea(widgetResizable=True, frameShape=QFrame.Shape.NoFrame)
         holder = QWidget()
@@ -201,7 +198,12 @@ class StatsView(QWidget):
         hh.setContentsMargins(0, 0, 0, 0)
         page = QWidget()
         page.setMaximumWidth(PAGE_MAX)
-        hh.addWidget(page, 1, Qt.AlignmentFlag.AlignHCenter)
+        # As wide as the window allows, up to PAGE_MAX, then centred. (0.55: an
+        # alignment flag here pinned the page to its 620 px size hint, with wide
+        # empty margins beside it on any window.)
+        hh.addStretch(1)
+        hh.addWidget(page, 1000)
+        hh.addStretch(1)
         v = QVBoxLayout(page)
         v.setContentsMargins(32, 20, 32, 32)
         v.setSpacing(16)
@@ -289,6 +291,10 @@ class StatsView(QWidget):
         val.setWordWrap(True)
         cv.addWidget(val)
         cv.addWidget(QLabel(label, objectName="Help"))
+        if label == "Keepers":
+            # What the word means, where the word is (0.55: it sat alone in the header's far corner).
+            cv.addWidget(QLabel(KEEPER_NOTE, objectName="Help", wordWrap=True))
+        cv.addStretch(1)
         return card
 
     def _glance_cols(self) -> int:

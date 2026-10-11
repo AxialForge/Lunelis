@@ -18,10 +18,11 @@ from __future__ import annotations
 import sqlite3
 
 from PySide6.QtCore import QSize, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from lunelis.ui.detail_view import DetailView
 from lunelis.ui.library import Filter, LibraryIndex
+from lunelis.ui.page_header import PageHeader
 
 SOURCES = (
     ("selection", "Selected in the library"),
@@ -33,22 +34,33 @@ SOURCES = (
 )
 
 
-class _FoldingBar(QWidget):
-    """The page's bar. Its full labels need ~1,000 px; below that it folds:
-    the "Photos:" label and the count go, the buttons get short names (the
-    full one stays as the tooltip). It never asks for more than its folded
-    width, so the window still goes down to its 900 px minimum."""
+class _FoldingBar(PageHeader):
+    """The page's bar: the header every page has (page_header.py - title, a
+    muted count beside it, actions on the right; 0.55), which also folds. Its
+    full labels need ~1,000 px; below that the "Photos:" label and the count
+    go, the buttons get short names (the full one stays as the tooltip). It
+    never asks for more than its folded width, so the window still goes down
+    to its 900 px minimum."""
 
-    def __init__(self) -> None:
-        super().__init__(objectName="Toolbar")
+    def __init__(self, title: str) -> None:
+        super().__init__(title)
+        # 56 px, not the header's 64: this page has the photo view's own bar
+        # right under it, and the two must fit the 350 px smallest window.
+        self.setFixedHeight(56)
         self.folding: list[tuple[QWidget, str | None, str | None]] = []   # widget, full text, short text
         self._folded = False
+        self._count_text = ""
 
     def fold_with(self, w: QWidget, short: str | None = None) -> None:
         self.folding.append((w, w.text() if short else None, short))
 
+    def set_count(self, text) -> None:
+        """The count stays away while the bar is folded, whatever it's set to."""
+        self._count_text = "" if text is None else str(text)
+        super().set_count("" if getattr(self, "_folded", False) else self._count_text)
+
     def _full_width(self) -> int:
-        lay = self.layout()
+        lay = self.row
         m = lay.contentsMargins()
         items = [lay.itemAt(i) for i in range(lay.count())]
         return (m.left() + m.right() + lay.spacing() * max(0, len(items) - 1)
@@ -72,6 +84,7 @@ class _FoldingBar(QWidget):
                 w.setVisible(not on)
             else:
                 w.setText(short if on else full)
+        self.set_count(self._count_text)
 
 
 class EditPage(QWidget):
@@ -90,15 +103,10 @@ class EditPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        bar = self.bar = _FoldingBar()
-        bar.setFixedHeight(56)
-        h = QHBoxLayout(bar)
-        h.setContentsMargins(16, 0, 16, 0)
+        bar = self.bar = _FoldingBar("Edit")
+        h = bar.row                                   # title, count, stretch - the buttons land on the right
         h.setSpacing(10)
-        h.addWidget(QLabel("Edit", objectName="PageTitle"))
-        h.addSpacing(10)
         photos = QLabel("Photos:", objectName="ToolLabel")
-        h.addWidget(photos)
         self.source = QComboBox()
         self.source.setToolTip("Which photos to work through")
         # Sized to a short label, not the longest one ("What the library shows now").
@@ -107,10 +115,10 @@ class EditPage(QWidget):
         for key, label in SOURCES:
             self.source.addItem(label, key)
         self.source.currentIndexChanged.connect(lambda _i: self.load())
-        h.addWidget(self.source)
-        self.count = QLabel(objectName="Count")
-        h.addWidget(self.count)
-        h.addStretch(1)
+        # Beside the title and its count: which photos the page works through.
+        h.insertWidget(bar.LEFT, photos)
+        h.insertWidget(bar.LEFT + 1, self.source)
+        self.count = bar.count_label                  # "12 photos", set in load()
         self.copy_b = QPushButton("Copy this edit", clicked=self._copy)
         self.copy_b.setToolTip("Copy this photo's edit settings (Ctrl+Shift+C)")
         self.paste_b = QPushButton("Paste to all", clicked=lambda: self.paste_all.emit(self.ids()))
@@ -120,8 +128,7 @@ class EditPage(QWidget):
                                     clicked=lambda: self.export_all.emit(self.ids()))
         for b in (self.copy_b, self.paste_b, self.reset_b, self.export_b):
             h.addWidget(b)
-        bar.fold_with(photos)
-        bar.fold_with(self.count)
+        bar.fold_with(photos)                         # the count folds with it (set_count)
         for b, short in ((self.copy_b, "Copy"), (self.paste_b, "Paste"), (self.reset_b, "Reset…"),
                          (self.export_b, "Export…")):
             bar.fold_with(b, short)
@@ -167,7 +174,7 @@ class EditPage(QWidget):
         idx = LibraryIndex()
         idx.load(self.conn, self._sort, flt)
         n = len(idx)
-        self.count.setText(f"{n:,} photo{'s' if n != 1 else ''}")
+        self.bar.set_count(f"{n:,} photo{'s' if n != 1 else ''}")
         for b in (self.copy_b, self.paste_b, self.reset_b, self.export_b):
             b.setEnabled(n > 0)
         self.view.setVisible(n > 0)

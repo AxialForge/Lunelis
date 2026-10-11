@@ -6,11 +6,11 @@ photos), or accept everything above a confidence you trust.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtCore import QEvent, QPointF, QRect, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QSlider, QSplitter,
-    QVBoxLayout, QWidget,
+    QStyle, QStyledItemDelegate, QVBoxLayout, QWidget,
 )
 from lunelis.ui.round_slider import RoundSlider  # noqa: E402  true circles (0.52)
 
@@ -20,6 +20,87 @@ from lunelis.recognize import scenes
 from lunelis.ui.background import Background
 
 THUMB = 120
+TICK = 18                               # the tick box drawn inside a thumbnail's corner
+PAD = 4                                 # room around a thumbnail in its cell
+
+
+class TickThumb(QStyledItemDelegate):
+    """A thumbnail with its tick box INSIDE the picture's corner and, with
+    `caption`, the item's text directly under the picture. Qt's own icon-mode
+    drawing hangs the box off the thumbnail's left edge, where the next
+    thumbnail clips it, and floats the text at the bottom of the cell (0.55).
+
+    `click_ticks`: a click on the box flips it here. Leave it off when the list
+    already flips the item on any click (a second flip would undo the first)."""
+
+    def __init__(self, parent, caption: bool = False, click_ticks: bool = True) -> None:
+        super().__init__(parent)
+        self.caption, self.click_ticks = caption, click_ticks
+
+    def _caption_height(self, option) -> int:
+        return option.fontMetrics.height() + 4 if self.caption else 0
+
+    def picture_rect(self, option, index) -> QRect:
+        """Where the thumbnail is drawn inside its cell."""
+        area = option.rect.adjusted(PAD, PAD, -PAD, -PAD - self._caption_height(option))
+        icon = index.data(Qt.ItemDataRole.DecorationRole)
+        size = icon.actualSize(area.size()) if isinstance(icon, QIcon) and not icon.isNull() else area.size()
+        return QRect(area.x() + (area.width() - size.width()) // 2,
+                     area.y() + (area.height() - size.height()) // 2, size.width(), size.height())
+
+    def tick_rect(self, option, index) -> QRect:
+        pic = self.picture_rect(option, index)
+        return QRect(pic.x() + 4, pic.y() + 4, TICK, TICK)
+
+    def paint(self, p: QPainter, option, index) -> None:
+        from lunelis.ui import theme
+        t = theme.current()
+        p.save()
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pic = self.picture_rect(option, index)
+        icon = index.data(Qt.ItemDataRole.DecorationRole)
+        if isinstance(icon, QIcon) and not icon.isNull():
+            icon.paint(p, pic)
+        else:
+            p.fillRect(pic, theme.qcolor(t.tile_placeholder))        # its thumbnail hasn't been read yet
+        if option.state & QStyle.StateFlag.State_Selected:
+            p.setPen(QPen(theme.qcolor(t.accent), 2))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(QRectF(pic).adjusted(1, 1, -1, -1))
+        state = index.data(Qt.ItemDataRole.CheckStateRole)
+        if state is not None:
+            on = Qt.CheckState(state) == Qt.CheckState.Checked
+            box = QRectF(self.tick_rect(option, index)).adjusted(0.75, 0.75, -0.75, -0.75)
+            p.setPen(QPen(theme.qcolor(t.chip_bg if on else t.text_muted), 1.5))
+            p.setBrush(theme.qcolor(t.chip_bg if on else t.surface))
+            p.drawRoundedRect(box, 4, 4)
+            if on:
+                path = QPainterPath(QPointF(box.x() + 4, box.y() + box.height() * 0.52))
+                path.lineTo(box.x() + box.width() * 0.42, box.bottom() - 4.5)
+                path.lineTo(box.right() - 3.5, box.y() + 4.5)
+                p.setPen(QPen(theme.qcolor(t.chip_text), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
+                              Qt.PenJoinStyle.RoundJoin))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawPath(path)
+        if self.caption:
+            p.setPen(theme.qcolor(t.text_muted))
+            p.drawText(QRect(option.rect.x(), pic.bottom() + 3, option.rect.width(), option.fontMetrics.height()),
+                       Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+                       str(index.data(Qt.ItemDataRole.DisplayRole) or ""))
+        p.restore()
+
+    def editorEvent(self, event, model, option, index) -> bool:
+        # The box is where WE drew it, not where the style would have put it.
+        if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease,
+                            QEvent.Type.MouseButtonDblClick):
+            if not self.click_ticks or index.data(Qt.ItemDataRole.CheckStateRole) is None                     or not self.tick_rect(option, index).contains(event.position().toPoint()):
+                return False
+            if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+                on = Qt.CheckState(index.data(Qt.ItemDataRole.CheckStateRole)) == Qt.CheckState.Checked
+                model.setData(index, Qt.CheckState.Unchecked if on else Qt.CheckState.Checked,
+                              Qt.ItemDataRole.CheckStateRole)
+            return True
+        return super().editorEvent(event, model, option, index)       # Space still ticks from the keyboard
 
 
 class SceneReview(QWidget):
@@ -49,6 +130,9 @@ class SceneReview(QWidget):
         self.photos.setMovement(QListWidget.Movement.Static)
         self.photos.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.photos.itemClicked.connect(self._flip)
+        # The tick inside each thumbnail, its percentage directly under the picture (0.55).
+        self.photos.setItemDelegate(TickThumb(self.photos, caption=True, click_ticks=False))
+        self.photos.setSpacing(4)
         rv.addWidget(self.photos, 1)
         row = QHBoxLayout()
         self.accept_b = QPushButton("Accept ticked", objectName="Primary", clicked=self.accept_ticked)
@@ -101,10 +185,10 @@ class SceneReview(QWidget):
         total = sum(n for _, n, _ in rows)
         from lunelis.recognize import clip
         if not clip.available():
-            self.summary.setText("Scene tags are off. Settings > Library > Scene tags downloads the model (about "
+            self.summary.setText("Scene tags are off. Settings > Recognition & autopilot > Scene tags downloads the model (about "
                                  "155 MB) - it runs only on this PC.")
         elif not rows:
-            self.summary.setText(self._note().prefix() + "No suggestions waiting. Settings > Library > Scene tags > Tag the library looks "
+            self.summary.setText(self._note().prefix() + "No suggestions waiting. Settings > Recognition & autopilot > Scene tags > Tag the library looks "
                                  "through your photos (their thumbnails) in the background.")
         else:
             self.summary.setText(self._note().prefix() + f"{total:,} suggestions for {len(rows):,} scene tags. Only accepted ones become "
@@ -130,7 +214,9 @@ class SceneReview(QWidget):
             it.setData(Qt.ItemDataRole.UserRole, fid)
             it.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
             it.setCheckState(Qt.CheckState.Checked if conf * 100 >= self.threshold.value() else Qt.CheckState.Unchecked)
-            it.setSizeHint(QSize(THUMB + 16, THUMB + 34))
+            # A cell the size of the picture plus its percentage; the delegate puts
+            # the percentage straight under the picture, wide or upright (0.55).
+            it.setSizeHint(QSize(THUMB + 2 * PAD, THUMB + 2 * PAD + self.photos.fontMetrics().height() + 4))
             self.photos.addItem(it)
             self._thumbs.append(it)
         self._thumb_timer.start()

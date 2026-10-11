@@ -108,16 +108,10 @@ class MigrateView(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        hl = QHBoxLayout(head)
-        hl.setContentsMargins(24, 0, 24, 0)
-        title = QLabel("Migrate & consolidate")
-        title.setObjectName("PageTitle")
-        hl.addWidget(title)
-        hl.addStretch(1)
-        self.headline = QLabel(objectName="Count")
-        hl.addWidget(self.headline)
+        from lunelis.ui.page_header import page_header
+        head, hl = page_header("Migrate & consolidate")
+        self.headline = QLabel(objectName="Count")     # beside the title, as on every page (0.55)
+        hl.insertWidget(head.LEFT, self.headline)
         outer.addWidget(head)
 
         split = QSplitter(Qt.Orientation.Horizontal)
@@ -235,12 +229,19 @@ class MigrateView(QWidget):
         self.archived_only.setToolTip("Archived photos move to the target; they stay archived and in "
                                       "Albums > Archive, and everything else stays where it is.")
         v.addWidget(self.archived_only)
+        # Said once, where the word is offered (0.55): Archive is not Quarantine.
+        h = QLabel("The Archive is where photos you archived go (Photo > Archive): out of the everyday library, "
+                   "still catalogued, listed under Albums > Archive. It is not Quarantine - nothing in it was "
+                   "set aside by Lunelis.", objectName="Help")
+        h.setWordWrap(True)
+        h.setContentsMargins(24, 0, 0, 0)
+        v.addWidget(h)
         self.mode = QButtonGroup(self)
         keep = QRadioButton("Keep the originals until I've reviewed the new library")
         keep.setMinimumWidth(0)
         keep.setChecked(True)
         move = QRadioButton("Move each original aside once its copy is verified")
-        move.setToolTip("To the Lunelis folder's Trash, or quarantine on its own drive - as soon as its copy is verified")
+        move.setToolTip("To the Lunelis folder's Trash, or Quarantine on its own drive - as soon as its copy is verified")
         self.mode.addButton(keep, 0)
         self.mode.addButton(move, 1)
         v.addWidget(keep)
@@ -249,8 +250,8 @@ class MigrateView(QWidget):
                    "drive, and the catalog is backed up before anything moves.", objectName="Help")
         h.setWordWrap(True)
         v.addWidget(h)
+        # Not filled: the page's one filled button is the wizard at the top (0.55).
         self.preview_b = QPushButton("Preview - nothing is moved", clicked=self._preview)
-        self.preview_b.setObjectName("Primary")
         v.addWidget(self.preview_b)
         v.addStretch(1)
         scroll.setWidget(page)
@@ -274,7 +275,9 @@ class MigrateView(QWidget):
         self.folders = QTableWidget(0, 3)
         self.folders.setHorizontalHeaderLabels(["Top folder", "Files", "Size"])
         self._setup(self.folders)
-        v.addWidget(self.folders, 1)
+        from lunelis.ui.empty_state import EmptyStack
+        self.folders_box = EmptyStack(self.folders)
+        v.addWidget(self.folders_box, 1)
         v.addWidget(QLabel("WORTH A LOOK", objectName="FilterLabel"))
         self.notes = QTableWidget(0, 3)
         self.notes.setHorizontalHeaderLabels(["File", "What happens", "Status"])
@@ -282,7 +285,9 @@ class MigrateView(QWidget):
         self.notes.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.notes.setColumnWidth(0, 420)
         self.notes.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        v.addWidget(self.notes, 2)
+        self.notes_box = EmptyStack(self.notes)
+        v.addWidget(self.notes_box, 2)
+        self._table_notes(False)
         row = QHBoxLayout()
         self.discard_b = QPushButton("Discard this plan", clicked=self._discard)
         row.addWidget(self.discard_b)
@@ -298,10 +303,19 @@ class MigrateView(QWidget):
                                   "else quarantine) - only once every source file is accounted for")
         row.addWidget(self.release_b)
         self.start_b = QPushButton("Start migration…", clicked=self._start)
-        self.start_b.setObjectName("Primary")
         row.addWidget(self.start_b)
         v.addLayout(row)
         return w
+
+    def _table_notes(self, planned: bool) -> None:
+        """A line in each table while it has no rows (0.55: blank boxes under a header)."""
+        self.folders_box.empty(None if self.folders.rowCount() else
+                               "This plan makes no folders." if planned else
+                               "Preview to see the folders the new library would have.")
+        self.notes_box.empty(None if self.notes.rowCount() else
+                             "Nothing in this plan needs a second look." if planned else
+                             "Files worth a second look - name clashes, damaged files, anything that fails - "
+                             "are listed here after a preview.")
 
     @staticmethod
     def _setup(t: QTableWidget) -> None:
@@ -425,6 +439,7 @@ class MigrateView(QWidget):
         if data is None or data[0].migration_id != self.migration_id:
             self._summary = None
             self.headline.setText("")
+            self._table_notes(False)
             self._buttons()
             return
         s, rows = data
@@ -475,6 +490,7 @@ class MigrateView(QWidget):
             self.notes.setItem(i, 0, _item(os.path.join(root, *rel.split("/"))))
             self.notes.setItem(i, 1, _item(err or note or ""))
             self.notes.setItem(i, 2, _item(STATE_TEXT.get(st, st)))
+        self._table_notes(True)
         self._buttons()
 
     # --- actions -------------------------------------------------------------------------------------

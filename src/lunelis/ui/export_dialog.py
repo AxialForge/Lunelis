@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from lunelis.edit.export import ExportOptions, export_one
 from lunelis.settings import Settings
+from lunelis.ui.widgets import make_primary, tidy_form
 
 
 # Ready-made sets (the folder stays whatever you chose). Yours are added with Save as preset.
@@ -128,12 +129,13 @@ class ExportDialog(QDialog):
         form.addRow("File names", self.pattern)
         hint = QLabel("{name}  {date}  {n} - an existing file is never overwritten.", objectName="Help")
         form.addRow("", hint)
+        tidy_form(form)                 # one left edge, one right edge, labels centred (0.55)
         v.addLayout(form)
         self.error = QLabel(objectName="Help")
         self.error.setObjectName("Error")                 # the theme's error colour
         v.addWidget(self.error)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
-        self.go = buttons.addButton("Export", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.go = make_primary(buttons.addButton("Export", QDialogButtonBox.ButtonRole.AcceptRole))
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         v.addWidget(buttons)

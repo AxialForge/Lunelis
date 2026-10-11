@@ -75,6 +75,23 @@ NAV = [
     ("Keep safe", ["Library status", "Backups", "Quarantine"]),
 ]
 BOTTOM_NAV = ["Settings"]
+# Pages with no sidebar entry of their own, and the entry that stands for them
+# (0.55): opened from a status-bar link, Review your shoot left the highlight on
+# whatever page you happened to be on.
+NAV_PARENT = {"Events": "Albums", "Review your shoot": "Import"}
+# The Photo menu, top to bottom, in groups with a line between them (0.55: it
+# was 22 entries in the order they were written). Named by their text as built.
+PHOTO_MENU_GROUPS = (
+    ("&Undo", "&Redo"),
+    ("&Rating", "&Label", "&Flag"),
+    ("&Tags", "&Album", "&Event"),
+    ("E&dit", "Rotate &left", "Rotate &right"),
+    ("&Stack", "Collapse into a &timelapse", "Collapse into a &burst"),
+    ("C&reate", "&Merge", "E&xport…"),
+    ("Se&lect", "C&ull full screen…", "Find &similar photos"),
+    ("Set &location on the map…", "Remove the pinned location", "Mark unnamed &faces as strangers"),
+    ("Arc&hive",),
+)
 
 
 # The library worker's steps, in order: the status strip shows "Step n of 9".
@@ -402,6 +419,15 @@ def _divider() -> QFrame:
     return f
 
 
+def warning_colour(t=None) -> str:
+    """The colour for "something needs a look" in text (0.55): the theme's gold,
+    pulled a quarter of the way to the text colour so small text stays readable
+    on the light theme too. A theme that names its own `warning` wins."""
+    from lunelis.ui import theme
+    t = t or theme.current()
+    return getattr(t, "warning", None) or theme._mix(t.text, t.rating, 0.25)
+
+
 def catalog_busy(exc_type, exc) -> bool:
     """'database is locked': a background job held the catalog past the wait -
     shown as a plain 'try again', not as a crash (0.49)."""
@@ -421,24 +447,39 @@ class StatusLabel(QLabel):
             logging.getLogger("lunelis.status").info(plain_text)
         super().setText(text)
         self.setToolTip(plain_text)              # the whole message, when a narrow window cuts it off
+        self._links = None                       # a plain message; set_link / set_links put theirs back
 
-    def set_link(self, before: str, link: str, page: str) -> None:
+    @staticmethod
+    def _anchor(text: str, page: str, warn: bool = False) -> str:
+        """A link to a page. `warn` is for something wrong (damaged files): the
+        warning colour and heavier, so it doesn't read as one more link (0.55)."""
         from lunelis.ui import theme
-        self.setText(f'{before}<a href="page:{page}" style="color:{theme.current().accent}">{link}</a>')
+        style = f"color:{warning_colour()}; font-weight:600" if warn else f"color:{theme.current().accent}"
+        return f'<a href="page:{page}" style="{style}">{text}</a>'
+
+    def _html(self) -> str:
+        before, parts = self._links
+        return before + " · ".join(self._anchor(*part) for part in parts)
+
+    def _show_links(self, before: str, parts: list[tuple]) -> None:
+        links = (before, list(parts))
+        self._links = links
+        self.setText(self._html())
+        self._links = links                      # setText forgot them: kept for retheme()
+
+    def set_link(self, before: str, link: str, page: str, warn: bool = False) -> None:
+        self._show_links(before, [(link, page, warn)])
 
     def retheme(self) -> None:
-        """After a theme switch: links in the message take the new accent (0.48)."""
-        import re
-        from lunelis.ui import theme
-        text = self.text()
-        if 'href="page:' in text:
-            QLabel.setText(self, re.sub(r'style="color:[^"]*"', f'style="color:{theme.current().accent}"', text))
+        """After a theme switch: links in the message take the new colours (0.48).
+        Built again from what they were, since a warning link has its own (0.55)."""
+        if getattr(self, "_links", None) is not None:
+            QLabel.setText(self, self._html())
 
-    def set_links(self, parts: list[tuple[str, str]]) -> None:
-        """Several (text, page) links, separated by dots."""
-        from lunelis.ui import theme
-        c = theme.current().accent
-        self.setText(" · ".join(f'<a href="page:{page}" style="color:{c}">{text}</a>' for text, page in parts))
+    def set_links(self, parts: list[tuple]) -> None:
+        """Several (text, page) links - or (text, page, True) for a warning -
+        separated by dots."""
+        self._show_links("", parts)
 
 
 class SpringLoad(QObject):
@@ -570,12 +611,9 @@ class MainWindow(QMainWindow):
         col.addWidget(self.toolbar)
         self.filter_bar = self._build_filter_bar()
         col.addWidget(self.filter_bar)
-        from lunelis.ui.ask_bar import AskBar
-        self.ask_bar = AskBar(self.conn)
+        # Ask lives in the toolbar now (built there): no second row under the filters (0.55).
         self.ask_bar.asked.connect(self._ask)
         self.ask_bar.closed.connect(self._ask_closed)
-        self.ask_bar.hide()
-        col.addWidget(self.ask_bar)
         # The grid's pictures get the larger share of memory (0.54: caches are bound by size).
         self.thumbs = ThumbCache(paths.THUMBNAIL_CACHE, self, budget_mb=GRID_CACHE_MB)
         self.grid = PhotoGrid(self.thumbs)
@@ -949,8 +987,9 @@ class MainWindow(QMainWindow):
         self.photo_menu.addAction(a)
         self.addAction(a)
         self.photo_menu.addAction(QAction("Remove the pinned location", self, triggered=self.clear_location))
-        self.photo_menu.addAction(QAction("Unnamed &faces in these photos are strangers", self,
-                                          triggered=self.rest_are_strangers))
+        a = QAction("Mark unnamed &faces as strangers", self, triggered=self.rest_are_strangers)
+        a.setToolTip("The faces in these photos that have no name are strangers: Lunelis stops asking who they are")
+        self.photo_menu.addAction(a)
         help_menu = self.menuBar().addMenu("&Help")
         a = QAction("&Keyboard shortcuts", self, shortcut="?", triggered=self.show_shortcuts)
         help_menu.addAction(a)
@@ -1024,6 +1063,30 @@ class MainWindow(QMainWindow):
             a = QAction(text, self, shortcut=key, triggered=lambda _=False, f=flag: self.rate(flag=f))
             flags.addAction(a)
             self.addAction(a)
+        self._group_photo_menu()
+
+    def _group_photo_menu(self) -> None:
+        """Put the Photo menu in PHOTO_MENU_GROUPS' order, a line between groups
+        (0.55). Nothing is dropped: an entry the table doesn't name goes in a
+        last group of its own, and no action or shortcut changes."""
+        m = self.photo_menu
+        have: dict[str, QAction] = {}
+        for a in m.actions():
+            m.removeAction(a)                        # takes it out; never deletes it
+            if a.isSeparator():
+                a.deleteLater()
+            else:
+                have[a.text()] = a
+        groups = [[have.pop(text) for text in group if text in have] for group in PHOTO_MENU_GROUPS]
+        groups.append(list(have.values()))
+        first = True
+        for group in groups:
+            if not group:
+                continue
+            if not first:
+                m.addSeparator()
+            first = False
+            m.addActions(group)
 
     def _build_sidebar(self) -> QWidget:
         from PySide6.QtGui import QPixmap
@@ -1063,6 +1126,7 @@ class MainWindow(QMainWindow):
         nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
         nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         nav_scroll.setWidget(nav_box)
+        self._nav_scroll = nav_scroll
         v.addWidget(nav_scroll, 1)
         group = QButtonGroup(side)
         self._nav: dict[str, QPushButton] = {}
@@ -1286,10 +1350,27 @@ class MainWindow(QMainWindow):
         self._search_completer_ready = False
         self.search.setMaximumWidth(520)
         h.addWidget(self.search, 3)                       # the search box takes the spare width
-        ask_b = QPushButton("Ask", objectName="Ask", clicked=self.open_ask)
-        ask_b.setToolTip("Ask your library in a sentence - \"sunset on a beach, 2024\" (Ctrl+Shift+F)")
-        h.addWidget(ask_b)
-        h.addStretch(1)
+        # Ask is a mode of this one box (0.55; it was a second full-width row).
+        # The button switches it on: the Ask box stands where the search box
+        # stood, and what came back - how the sentence was read, how many
+        # matches - shows beside the button.
+        from lunelis.ui.ask_bar import AskBar
+        self.ask_bar = AskBar(self.conn)
+        self.ask_bar.hide()
+        h.addWidget(self.ask_bar.box, 3)
+        self.ask_b = QPushButton("Ask", objectName="Ask", checkable=True)
+        self.ask_b.clicked.connect(lambda on: self.open_ask() if on else self.ask_bar.close_bar())
+        self.ask_b.setToolTip("Ask your library in a sentence - \"sunset on a beach, 2024\" (Ctrl+Shift+F).\n"
+                              "Click again, or press Esc in the box, to go back to searching.")
+        h.addWidget(self.ask_b)
+        # The answer sits in the spare width that was a plain stretch: the same
+        # share whether Ask is on or off, so the Ask box is exactly as wide as
+        # the search box it replaces.
+        spare = self._ask_spare = QWidget()
+        sl = QHBoxLayout(spare)
+        sl.setContentsMargins(0, 0, 0, 0)
+        sl.addWidget(self.ask_bar)
+        h.addWidget(spare, 1)
         h.addWidget(QLabel("Sort:", objectName="ToolLabel"))
         from lunelis.settings import Settings
         s = Settings(self.conn)
@@ -1343,6 +1424,7 @@ class MainWindow(QMainWindow):
         from lunelis.ui.tag_editor import TagFilter
         self.tag_filter = TagFilter(self.conn)
         self.tag_filter.chosen.connect(self.show_tag)
+        self._pills["tag"] = (self.tag_filter, "Tag")
         h.addWidget(self.tag_filter)
         # Active filters as chips, flowing with the rest.
         chips_box = QWidget(objectName="ChipBox")
@@ -1487,8 +1569,21 @@ class MainWindow(QMainWindow):
 
     # --- import, cards & tray ----------------------------------------------------
 
+    def _nav_button(self, name: str):
+        """The sidebar entry that stands for a page: its own, or its parent's."""
+        return getattr(self, "_nav", {}).get(NAV_PARENT.get(name, name))
+
+    def _reveal_nav(self) -> None:
+        """Scroll the sidebar to the highlighted entry. On a window too short for
+        every entry the last ones (Backups, Quarantine) sat below the fold, so
+        the page on screen had no visible entry at all (0.55)."""
+        b = self._nav_button(getattr(self, "_page_name", "Library"))
+        if b is not None and hasattr(self, "_nav_scroll") and self._nav_scroll.isAncestorOf(b) \
+                and not b.isHidden():
+            self._nav_scroll.ensureWidgetVisible(b, 0, 56)     # room for its section's heading above it
+
     def open_page(self, name: str) -> None:
-        b = self._nav.get(name)
+        b = self._nav_button(name)
         if b is not None:
             b.setChecked(True)
             b.setVisible(True)
@@ -1795,7 +1890,7 @@ class MainWindow(QMainWindow):
             self._update_button.setObjectName("Primary")
             self.statusBar().addPermanentWidget(self._update_button)
         self._update_button.setText(f"Update to {rel.version}")
-        self.status.setText(f"Lunelis {rel.version} is available - Settings > Updates")
+        self.status.setText(f"Lunelis {rel.version} is available - Settings > Advanced > Updates")
 
     def _install_update(self, staged) -> None:
         from lunelis import updater
@@ -2714,7 +2809,7 @@ class MainWindow(QMainWindow):
         if name == "Create" and prev != "Create" and hasattr(self, "create_page"):
             self.create_page.home()                    # a fresh visit starts at the tools, not the last one
         self._page_name = name
-        b = getattr(self, "_nav", {}).get(name)
+        b = self._nav_button(name)                     # a sub-page highlights its parent (0.55)
         if b is not None and not b.isChecked():
             b.setChecked(True)                         # the sidebar shows the page on screen
         if name in getattr(self, "_nav", {}) and name != "Settings":
@@ -2724,6 +2819,7 @@ class MainWindow(QMainWindow):
                 pass
         for refold in getattr(self, "_section_toggles", []):
             refold(flip=False)                     # a folded section hides the page you just left
+        self._later(0, self._reveal_nav)           # once the sidebar has laid itself out
         library = name == "Library"
         self.toolbar.setVisible(library)
         self.filter_bar.setVisible(library)
@@ -2895,7 +2991,7 @@ class MainWindow(QMainWindow):
 
     def _open_faces_settings(self) -> None:
         self.open_page("Settings")
-        self.settings_page.show_tab("Library")
+        self.settings_page.show_tab("Faces")
 
     def _open_suggestions(self) -> None:
         self.open_page("Tags")
@@ -2903,10 +2999,21 @@ class MainWindow(QMainWindow):
 
     def open_ask(self) -> None:
         self.open_page("Library")
+        self.search.hide()                         # one box: the Ask box takes its place
+        self.ask_b.setChecked(True)
+        # While asking, the answer's chips get as much of the bar as the box.
+        self.toolbar.layout().setStretchFactor(self._ask_spare, 3)
         self.ask_bar.open()
 
     def _ask_closed(self) -> None:
-        """Closing the Ask bar takes its answer off the Library, ranked or not."""
+        """Closing Ask puts the search box back and takes its answer off the
+        Library, ranked or not."""
+        had_keys = self.ask_bar.box.hasFocus()
+        self.ask_b.setChecked(False)
+        self.toolbar.layout().setStretchFactor(self._ask_spare, 1)
+        self.search.show()
+        if had_keys:
+            self.search.setFocus()
         if self.filter.ranked or (self.filter.scope_name or "").startswith("Asked: "):
             self.set_filter(Filter())
 
@@ -3440,7 +3547,39 @@ class MainWindow(QMainWindow):
             menu.addAction(label, lambda v=value: self.set_filter(
                 Filter(**{**self.filter.__dict__, attr: v})))
         b.setMenu(menu)
+        self._pills = getattr(self, "_pills", {})
+        self._pills[attr] = (b, text)
         return b
+
+    @staticmethod
+    def pill_values(f: Filter) -> dict[str, str]:
+        """What each filter pill that is ON shows after its name: "Rating: 4+"."""
+        on: dict[str, str] = {}
+        if f.min_stars == UNRATED:
+            on["min_stars"] = "Unrated"
+        elif f.min_stars:
+            on["min_stars"] = str(f.min_stars) + ("+" if f.min_stars < 5 else "")
+        if f.label:
+            on["label"] = f.label
+        if f.flag:
+            on["flag"] = "Picks" if f.flag == "pick" else "Rejects"
+        if f.backup:
+            on["backup"] = "Backed up" if f.backup == "ok" else "Not backed up"
+        if f.tag:
+            on["tag"] = f.tag.replace("|", " › ")
+        return on
+
+    def _update_pills(self, f: Filter) -> None:
+        """A pill that is filtering is filled with the accent and says its value;
+        off, it is the plain outline with its name (0.55: on and off looked the same)."""
+        values = self.pill_values(f)
+        for attr, (b, name) in getattr(self, "_pills", {}).items():
+            value = values.get(attr)
+            b.setText(f"{name}: {value} ▾" if value else f"{name} ▾")
+            if bool(b.property("on")) != bool(value):
+                b.setProperty("on", bool(value))
+                b.style().unpolish(b)              # the stylesheet reads the property again
+                b.style().polish(b)
 
     def set_filter(self, f: Filter) -> None:
         self.filter = f
@@ -3454,17 +3593,11 @@ class MainWindow(QMainWindow):
         self._update_scope_bar()
         while self.chips.count():
             self.chips.takeAt(0).widget().deleteLater()
+        self._update_pills(f)
+        # Rating, Label, Flag and Backup show on their own pills now (0.55), which
+        # also take them off ("Any rating"): no second chip saying the same.
+        # Tag keeps its chip - its pill only picks a tag, the chip removes it.
         parts = []
-        if f.min_stars == UNRATED:
-            parts.append(("Unrated", "min_stars", 0))
-        elif f.min_stars:
-            parts.append(("★ " + str(f.min_stars) + ("+" if f.min_stars < 5 else ""), "min_stars", 0))
-        if f.label:
-            parts.append((f.label, "label", None))
-        if f.flag:
-            parts.append(("Picks" if f.flag == "pick" else "Rejects", "flag", None))
-        if f.backup:
-            parts.append(("Backed up" if f.backup == "ok" else "Not backed up", "backup", None))
         if f.event_id is not None:
             parts.append((f"Event: {f.event_name or f.event_id}", "event_id", None))
         if f.album_id is not None:
@@ -3648,7 +3781,7 @@ class MainWindow(QMainWindow):
         if getattr(self, "_backup_thread", None) is not None:
             return                                    # one already running
         if now:
-            self.status.setText("Backing up the catalog…")
+            self.status.setText("Saving a copy of the catalog…")
         self._backup_thread = QThread(self)
         self._backup_worker = CatalogBackup(now)
         self._backup_worker.moveToThread(self._backup_thread)
@@ -3663,10 +3796,12 @@ class MainWindow(QMainWindow):
         self._backup_thread.deleteLater()
         self._backup_worker.deleteLater()
         self._backup_thread = None
+        # "Catalog saved", not "backed up" (0.55): beside photos marked "Not
+        # backed up" it read as if the photos had been backed up.
         if isinstance(result, Exception):
-            self.status.setText(f"Catalog backup failed: {result}")
+            self.status.setText(f"Couldn't save a copy of the catalog: {result}")
         elif result is not None:
-            self.status.setText(f"Catalog backed up ({result.stat().st_size / 1e6:.0f} MB)")
+            self.status.setText(f"Catalog saved ({result.stat().st_size / 1e6:.0f} MB)")
         if self.pages.currentWidget() is self.settings_page:
             self.settings_page.refresh()
 
@@ -4033,7 +4168,8 @@ class MainWindow(QMainWindow):
         n = self.conn.execute("SELECT COUNT(*) FROM damaged d JOIN files f ON f.id = d.file_id"
                               " WHERE d.dismissed = 0 AND f.missing_since IS NULL").fetchone()[0]
         self.library_state.set_links([(f"Last scanned {when}", "Library status")]
-                                     + ([(f"{n:,} damaged file{'s' if n != 1 else ''}", "Damaged files")] if n else []))
+                                     + ([(f"{n:,} damaged file{'s' if n != 1 else ''}", "Damaged files", True)]
+                                        if n else []))
 
     def _scan_step(self, i: int, done: int, total: int) -> None:
         self.scan_step.set_link("", f"Step {i + 1} of {len(SCAN_STEPS)} · {SCAN_STEPS[i]}", "Library status")
@@ -4053,12 +4189,13 @@ class MainWindow(QMainWindow):
         last = self._scan_note().prefix()               # the last result stays readable beside it (0.54)
         if n:
             self.status.set_link(f"{last}Up to date - {n:,} damaged file{'s' if n != 1 else ''}: ",
-                                 "see Damaged files", "Damaged files")
+                                 "see Damaged files", "Damaged files", warn=True)
         else:
             self.status.setText(f"{last}Up to date")
         self._scan_state_said = True
         self.library_state.set_links([(f"Library up to date ({when})", "Library status")]
-                                     + ([(f"{n:,} damaged file{'s' if n != 1 else ''}", "Damaged files")] if n else []))
+                                     + ([(f"{n:,} damaged file{'s' if n != 1 else ''}", "Damaged files", True)]
+                                        if n else []))
 
     @unless_closed
     def _on_finished(self) -> None:

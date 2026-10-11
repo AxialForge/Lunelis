@@ -6,6 +6,58 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-10-11
+
+The look-and-feel pass from the 10 October review, a migration wizard that
+says how far the copy is, and a PC that stays awake while a job runs.
+
+### Added
+
+- **The migration wizard shows progress:** the Run step has a progress bar,
+  files and size copied of the total, folders done, the measured speed, a
+  rough time left and the folder being copied, and says plainly when the
+  copy is paused, waiting for the NAS or queued. It refreshes by itself.
+- **The PC stays awake while a background job runs.** Windows put a PC to
+  sleep in the middle of a long migration; sleep is now held back for as
+  long as a job is running (the screen may still turn off).
+- **Open the report folder** on the wizard's Release step.
+
+### Changed
+
+- **The Release step answers first:** "Every source file is accounted for"
+  or "N files need attention", then the counts in plain groups, and the
+  file list only when something needs attention. A line says why Release is
+  off whenever it is.
+- **One page header and one filled button per page**, named after what it
+  does; dialogs fill and name their confirming button.
+- **Settings:** Library is split into "Library" and "Recognition &
+  autopilot"; darktable moved into Ratings & sidecars and Updates into
+  Advanced; labels are centred on their fields; rows that only apply to one
+  choice show only with it.
+- **Tables and lists:** more cell padding, no column lines, one tinted
+  selected row everywhere, and a line of text instead of a blank box when
+  empty.
+- **Library:** a filter that is on is filled and says its value; Ask is a
+  mode of the search box; the photo menu is grouped.
+- **Photo view and Edit:** the top bar leaves the details to the Info
+  panel; the tool rail shows which tool is on; the Edit panel opens with
+  only Light and Color unfolded (your own choice of sections is kept); the
+  video trim row is labelled and shows its times.
+- **Pages:** Import is one aligned row ending in Import; Near-duplicates is
+  a list with pictures beside its detail; Create tools are a centred card;
+  Library status folds its steps when idle; Quarantine, Sensor dust, On
+  this day, Map, Stats, Albums and Scene suggestions were tidied.
+- **Readability:** disabled buttons look off, muted text has more contrast
+  and nothing is smaller than 12 px.
+
+### Fixed
+
+- **The Release step opened during the copy listed every file not copied
+  yet as "UNACCOUNTED".** It now says the copy is still running and checks
+  once it has finished.
+- **A sub-page highlights its parent in the sidebar**, and the status bar
+  says the catalog snapshot is "saved", not "backed up".
+
 ## [0.54.0] - 2026-10-10
 
 The rest of the issues from the 10 October review: 80 fixes, each with a

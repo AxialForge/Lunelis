@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import os
 
-from PySide6.QtCore import QObject, Qt, QThread, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QObject, QSize, Qt, QThread, Signal
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QSplitter,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
@@ -29,9 +29,25 @@ from lunelis.ui.background import unless_closed
 from lunelis.ui.widgets import sharp
 
 
+THUMB = 44                              # a group's picture in the list, as on Exact copies
+
+
 def _size(n) -> str:
     from lunelis.ui.sizes import human
     return human(n)
+
+
+def _source(root: str) -> str:
+    """A source's short name: the last part of its path (the share or folder name)."""
+    return os.path.basename(root.rstrip("\\/")) or root
+
+
+def _folder(rel: str) -> str:
+    return rel.rsplit("/", 1)[0].replace("/", " › ") if "/" in rel else "(top folder)"
+
+
+def _name(rel: str) -> str:
+    return rel.rsplit("/", 1)[-1]
 
 
 class SimilarWorker(QObject):
@@ -78,7 +94,7 @@ class SimilarWorker(QObject):
                         freed += g.extra_bytes
                     except (QuarantineRefused, OSError) as e:
                         errors.append(f"group {g.id}: {e}")
-                    self.progress.emit(f"Setting copies aside… {i:,} / {len(self.groups):,} groups")
+                    self.progress.emit(f"Moving copies to Quarantine… {i:,} / {len(self.groups):,} groups")
                 result = (moved, freed, errors)
         finally:
             conn.close()
@@ -100,41 +116,67 @@ class NearView(QWidget):
         self.summary.setWordWrap(True)
         top.addWidget(self.summary, 1)
         self.find_b = QPushButton("Find again", clicked=lambda: self._run("find"))
-        self.group_b = QPushButton("Set aside ticked copies", clicked=self._aside_group)
-        self.all_b = QPushButton("Set aside all suggested…", clicked=self._aside_all)
+        # The page is Quarantine, so that is the verb here too (0.55); the chosen
+        # group's action is the one filled button, as on Exact copies.
+        self.group_b = QPushButton("Move ticked copies to Quarantine", objectName="Primary",
+                                   clicked=self._aside_group)
+        self.all_b = QPushButton("Move all suggested to Quarantine…", clicked=self._aside_all)
         self.stop_b = QPushButton("Stop", clicked=lambda: self._worker.cancel())   # direct: sets a flag
         self.stop_b.hide()
-        for b in (self.find_b, self.group_b, self.all_b, self.stop_b):
+        for b in (self.find_b, self.all_b, self.stop_b):
             top.addWidget(b)
         v.addLayout(top)
         note = QLabel("The same photo saved as another file - resized, re-compressed, re-encoded by "
                       "Google Takeout or exported. The best copy (not damaged, most pixels, not a "
                       "Takeout re-encode) is kept, and edited exports are never suggested. Copies you "
-                      "set aside go to the quarantine folder, not the bin.")
-        note.setObjectName("Hint")
+                      "move to Quarantine go to the quarantine folder, not the bin.")
+        note.setObjectName("Help")
         note.setWordWrap(True)
         v.addWidget(note)
-        split = QSplitter(Qt.Orientation.Vertical)
+        # The groups on the left, the chosen group's copies on the right - the
+        # same shape as Exact copies (0.55: two stacked tables of full paths).
+        from lunelis.ui.empty_state import EmptyStack
+        split = QSplitter(Qt.Orientation.Horizontal)
         self.list = QTableWidget(0, 3)
-        self.list.setHorizontalHeaderLabels(["Copies", "Suggested", "Kept copy"])
+        self.list.setHorizontalHeaderLabels(["Photo", "Copies", "Suggested"])
         self.list.verticalHeader().hide()
-        self.list.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.list.verticalHeader().setDefaultSectionSize(THUMB + 10)
+        self.list.setIconSize(QSize(THUMB, THUMB))
+        self.list.setShowGrid(False)
+        self.list.setAlternatingRowColors(True)
+        hh = self.list.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.list.setWordWrap(False)
         self.list.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.list.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.list.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.list.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.list.currentCellChanged.connect(self._current_changed)
-        split.addWidget(self.list)
+        self.list_box = EmptyStack(self.list)
+        split.addWidget(self.list_box)
+        right = QWidget()
+        rv = QVBoxLayout(right)
+        rv.setContentsMargins(12, 0, 0, 0)
         self.detail = QTableWidget(0, 4)
-        self.detail.setHorizontalHeaderLabels(["", "Location", "Size", ""])
+        self.detail.setHorizontalHeaderLabels(["", "Where", "Size", ""])
         self.detail.verticalHeader().hide()
+        self.detail.setShowGrid(False)
         self.detail.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.detail.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.detail.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self.detail.setWordWrap(False)                  # UNC paths wrap at backslashes (CLAUDE.md)
         self.detail.setTextElideMode(Qt.TextElideMode.ElideMiddle)
-        split.addWidget(self.detail)
-        split.setSizes([300, 420])
+        self.detail_box = EmptyStack(self.detail)
+        rv.addWidget(self.detail_box, 1)
+        act = QHBoxLayout()
+        act.addWidget(self.group_b)
+        act.addStretch(1)
+        rv.addLayout(act)
+        split.addWidget(right)
+        split.setStretchFactor(0, 2)
+        split.setStretchFactor(1, 3)
         v.addWidget(split, 1)
 
     # --- data ----------------------------------------------------------------
@@ -149,7 +191,7 @@ class NearView(QWidget):
         n = sum(len(g.extras) for g in self.groups)
         if self.groups:
             self.summary.setText(
-                f"{len(self.groups):,} groups · {n:,} copies suggested to set aside "
+                f"{len(self.groups):,} groups · {n:,} copies suggested for Quarantine "
                 f"({_size(sum(g.extra_bytes for g in self.groups))}) · {done:,} of {total:,} photos compared")
         elif done:
             self.summary.setText(f"No near-duplicates among {done:,} photos.")
@@ -159,11 +201,17 @@ class NearView(QWidget):
         self.list.setRowCount(len(self.groups))
         for i, g in enumerate(self.groups):
             keep = next(m for m in g.members if m[0] == g.keeper)
-            self.list.setItem(i, 0, QTableWidgetItem(str(len(g.members))))
-            self.list.setItem(i, 1, QTableWidgetItem(str(len(g.extras))))
-            self.list.setItem(i, 2, QTableWidgetItem(os.path.join(keep[1], *keep[2].split("/"))))
-        self.list.setColumnWidth(0, 70)
-        self.list.setColumnWidth(1, 90)
+            # The kept copy's picture, name and source - its full path is the tooltip (0.55).
+            first = QTableWidgetItem(f"{_name(keep[2])}\n{_source(keep[1])} · {_folder(keep[2])}")
+            first.setToolTip(os.path.join(keep[1], *keep[2].split("/")))
+            pm = QPixmap(str(paths.THUMBNAIL_CACHE / (keep[3] or cache_rel_path(keep[0]))))
+            if not pm.isNull():
+                first.setIcon(QIcon(pm.scaled(THUMB, THUMB, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                                              Qt.TransformationMode.SmoothTransformation)))
+            self.list.setItem(i, 0, first)
+            self.list.setItem(i, 1, QTableWidgetItem(f"{len(g.members)} copies"))
+            self.list.setItem(i, 2, QTableWidgetItem(f"{len(g.extras)} to move" if g.extras else "Keep all"))
+        self.list_box.empty(None if self.groups else self.summary.text())
         if self.groups:
             self.list.selectRow(0)
         else:
@@ -185,6 +233,8 @@ class NearView(QWidget):
         self.detail.clearContents()
         self.detail.setRowCount(0)
         self._checks = []
+        self.detail_box.empty(None if 0 <= row < len(self.groups) else
+                              "Choose a group on the left to see its copies side by side.")
         if 0 <= row < len(self.groups):
             g = self.groups[row]
             self.detail.setRowCount(len(g.members))
@@ -194,8 +244,8 @@ class NearView(QWidget):
                 if not pm.isNull():
                     pic.setPixmap(sharp(pm, 120, pic))
                 self.detail.setCellWidget(i, 0, pic)
-                where = QTableWidgetItem(os.path.join(root, *rel.split("/")))
-                where.setToolTip(where.text())
+                where = QTableWidgetItem(f"{_name(rel)}\n{_source(root)} · {_folder(rel)}")
+                where.setToolTip(os.path.join(root, *rel.split("/")))
                 self.detail.setItem(i, 1, where)
                 dims = f"{w:,} × {h:,}\n" if w and h else ""
                 self.detail.setItem(i, 2, QTableWidgetItem(dims + _size(size or 0)))
@@ -204,7 +254,8 @@ class NearView(QWidget):
                 elif similar.is_edit(rel):
                     self.detail.setItem(i, 3, QTableWidgetItem("Edit - kept"))
                 else:
-                    box = QCheckBox("Set aside")
+                    box = QCheckBox("Move")
+                    box.setToolTip("Tick to move this copy to Quarantine")
                     box.setChecked(fid in g.extras)
                     box.toggled.connect(self._toggled)
                     self.detail.setCellWidget(i, 3, box)
@@ -212,7 +263,7 @@ class NearView(QWidget):
                 self.detail.setRowHeight(i, 126)
             self.detail.setColumnWidth(0, 130)
             self.detail.setColumnWidth(2, 130)
-            self.detail.setColumnWidth(3, 110)
+            self.detail.setColumnWidth(3, 100)
         self._buttons()
 
     def _toggled(self, _checked: bool) -> None:
@@ -227,7 +278,7 @@ class NearView(QWidget):
             return
         g = self.groups[row]
         answer = QMessageBox.question(
-            self, "Set copies aside",
+            self, "Move copies to Quarantine",
             f"Move {len(picked)} cop{'y' if len(picked) == 1 else 'ies'} of this photo into the "
             f"'{QUARANTINE_DIR}' folder on the same drive?\n\nThe kept copy stays where it is and "
             "gets their ratings, labels and albums. Nothing is deleted.")
@@ -238,7 +289,7 @@ class NearView(QWidget):
         todo = [g for g in self.groups if g.extras]
         n = sum(len(g.extras) for g in todo)
         answer = QMessageBox.question(
-            self, "Set aside all suggested copies",
+            self, "Move all suggested copies to Quarantine",
             f"Move {n:,} suggested copies ({_size(sum(g.extra_bytes for g in todo))}) from "
             f"{len(todo):,} groups into a '{QUARANTINE_DIR}' folder on the same drive?\n\n"
             "Nothing is deleted. The best copy of every photo stays where it is and gets the "
@@ -266,7 +317,7 @@ class NearView(QWidget):
         self._thread = None
         if isinstance(result, tuple):
             moved, freed, errors = result
-            msg = f"Set aside {moved:,} copies ({_size(freed)}) in the quarantine folder."
+            msg = f"Moved {moved:,} copies ({_size(freed)}) to Quarantine."
             if errors:
                 msg += f"\n\n{len(errors):,} groups were skipped:\n" + "\n".join(errors[:8])
             QMessageBox.information(self, "Near-duplicates", msg)

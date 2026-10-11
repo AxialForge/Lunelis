@@ -105,12 +105,10 @@ class CalendarView(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        h = QHBoxLayout(head)
-        h.setContentsMargins(24, 0, 24, 0)
-        h.addWidget(QLabel("On this day", objectName="PageTitle"))
-        h.addSpacing(16)
+        from lunelis.ui.page_header import page_header
+        head, h = page_header("On this day")
+        self.summary = QLabel(objectName="Count")      # beside the title, as on every page (0.55)
+        h.insertWidget(head.LEFT, self.summary)
         self.prev_b = QPushButton("‹", clicked=lambda: self.set_day(self.day - timedelta(days=1)))
         self.prev_b.setToolTip("The day before")
         self.picker = QDateEdit(calendarPopup=True)
@@ -124,11 +122,7 @@ class CalendarView(QWidget):
         self.week_cb = QCheckBox("Within 3 days")
         self.week_cb.setToolTip("The week around the date, not just the day")
         self.week_cb.toggled.connect(lambda _: self.refresh())
-        h.addSpacing(12)
         h.addWidget(self.week_cb)
-        h.addStretch(1)
-        self.summary = QLabel(objectName="Count")
-        h.addWidget(self.summary)
         outer.addWidget(head)
         scroll = QScrollArea(widgetResizable=True, frameShape=QFrame.Shape.NoFrame)
         body = QWidget()
@@ -197,8 +191,26 @@ class CalendarView(QWidget):
         total = sum(len(ids) for _, ids, _ in rows)
         self.summary.setText(f"{total:,} photo{'s' if total != 1 else ''} from {len(rows)} year{'s' if len(rows) != 1 else ''}"
                              if rows else "")
+        # An empty page's line takes the whole height, so it lands in the middle.
+        self.rows.setStretch(self.rows.count() - 1, 1 if rows else 0)
         if not rows:
-            self.rows.insertWidget(0, QLabel(f"No photos from {span} in any year yet.", objectName="Help"))
+            # In the middle of the page, with the wider look one click away
+            # (0.55: one small line in the top corner).
+            box = QWidget()
+            bv = QVBoxLayout(box)
+            bv.setContentsMargins(48, 24, 48, 24)
+            bv.setSpacing(14)
+            bv.addStretch(1)
+            note = QLabel(f"No photos from {span} in any year yet.", objectName="EmptyNote", wordWrap=True)
+            note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            bv.addWidget(note)
+            self.empty_week_b = None
+            if not self.week_cb.isChecked():
+                self.empty_week_b = QPushButton("Within 3 days", clicked=lambda: self.week_cb.setChecked(True))
+                self.empty_week_b.setToolTip("Look at the week around the date instead")
+                bv.addWidget(self.empty_week_b, 0, Qt.AlignmentFlag.AlignHCenter)
+            bv.addStretch(1)
+            self.rows.insertWidget(0, box, 1)
             return
         this_year = date.today().year
         for n, (year, ids, thumbs) in enumerate(rows):

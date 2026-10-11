@@ -222,7 +222,7 @@ class WelcomeDialog(QDialog):
         v.addWidget(self.summary)
         v.addWidget(QLabel(
             "Privacy: Lunelis has no accounts and no telemetry, and never sends your photos anywhere. Once a "
-            "day it asks GitHub whether a newer version is out (Settings > Updates can turn that off).",
+            "day it asks GitHub whether a newer version is out (Settings > Advanced > Updates can turn that off).",
             objectName="Help", wordWrap=True))
         v.addStretch(1)
         return w

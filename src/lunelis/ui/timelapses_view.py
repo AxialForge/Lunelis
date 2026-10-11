@@ -76,17 +76,11 @@ class TimelapsesView(QWidget):
         self.bg = Background(self, conn)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        h = QHBoxLayout(head)
-        h.setContentsMargins(24, 0, 24, 0)
-        h.addWidget(QLabel("Timelapses", objectName="PageTitle"))
-        h.addSpacing(12)
+        outer.setSpacing(0)
+        from lunelis.ui.page_header import page_header
+        head, h = page_header("Timelapses")
         self.summary = QLabel(objectName="Count")
-        from PySide6.QtWidgets import QSizePolicy
-        self.summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        h.addWidget(self.summary, 1)
-        h.addStretch(1)
+        h.insertWidget(head.LEFT, self.summary)
         self.auto_stack = QCheckBox()
         self.auto_stack.setToolTip("New timelapses this long show as one tile in the library as soon as they're found")
         self.auto_stack.toggled.connect(lambda on: Settings(self.conn).set("timelapse_auto_stack", on))
@@ -134,8 +128,12 @@ class TimelapsesView(QWidget):
         qs = [q for q in timelapses.all_sequences(self.conn, self.show_dismissed.isChecked()) if q.kind == "timelapse"]
         frames = sum(len(q.file_ids) for q in qs)
         self.summary.setText(f"{len(qs):,} timelapse{'s' if len(qs) != 1 else ''} · {frames:,} frames" if qs else "")
+        self.rows.setStretch(self.rows.count() - 1, 1 if qs else 0)    # an empty page's line: mid-page
         if not qs:
-            self.rows.insertWidget(0, QLabel("No timelapses found yet.", objectName="Help"))
+            note = QLabel("No timelapses found yet.", objectName="EmptyNote")      # centred, like every empty page (0.55)
+            note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            note.setContentsMargins(48, 24, 48, 24)
+            self.rows.insertWidget(0, note, 1)
             return
         for n, q in enumerate(qs):
             card = self._card(q)
@@ -168,7 +166,8 @@ class TimelapsesView(QWidget):
         h.addLayout(text, 1)
         buttons = QVBoxLayout()
         row1, row2 = QHBoxLayout(), QHBoxLayout()
-        b = QPushButton("Build timelapse…", objectName="Primary",
+        # Plain: a filled button on every card is no "main action" at all (0.55).
+        b = QPushButton("Build timelapse…",
                         clicked=lambda _=False, ids=q.file_ids: self.build.emit(list(ids)))
         row1.addWidget(b)
         row1.addWidget(QPushButton("Show photos", clicked=lambda _=False, q=q: self.show_ids.emit(

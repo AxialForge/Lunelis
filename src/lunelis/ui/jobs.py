@@ -78,7 +78,9 @@ class JobRunner(QObject):
                     def stop() -> bool:
                         pace.breathe(lambda: self._stop_current or self._quit)   # a video plays: wait
                         return self._stop_current or self._quit
-                    engine.run_job(conn, job, should_stop=stop)
+                    from lunelis.awake import awake
+                    with awake():                         # the PC doesn't sleep mid-job (0.55)
+                        engine.run_job(conn, job, should_stop=stop)
                 except Exception as e:
                     # One job's bug must not end every background job for the
                     # session: log it, mark that job failed, carry on with the rest.
@@ -262,6 +264,9 @@ class ScopeDialog(QDialog):
         speed.addStretch(1)
         v.addLayout(speed)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        # The filled button is named after the job ("Find duplicates"), not "OK" (0.55).
+        from lunelis.ui.widgets import make_primary
+        self.go = make_primary(buttons.button(QDialogButtonBox.StandardButton.Ok), title)
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         v.addWidget(buttons)

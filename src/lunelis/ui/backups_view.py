@@ -12,7 +12,7 @@ import shutil
 from datetime import datetime
 
 from lunelis.ui.widgets import plain, row_toggles
-from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtCore import QObject, QSize, Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton, QRadioButton,
@@ -65,7 +65,7 @@ class NewBackupDialog(QDialog):
         self.name = QLineEdit(placeholderText="e.g. Blue USB drive")
         v.addWidget(self.name)
         v.addWidget(QLabel("What to back up:"))
-        self.sources = QListWidget()
+        self.sources = QListWidget(objectName="CheckList")     # rows of a normal height (0.55: they touched)
         row_toggles(self.sources)
         for rid, path, n, size in conn.execute(
                 "SELECT r.id, r.path, COUNT(f.id), COALESCE(SUM(f.size_bytes), 0) FROM roots r"
@@ -74,7 +74,10 @@ class NewBackupDialog(QDialog):
             it = QListWidgetItem(f"{path}   ({n:,} files, {_gb(size)})")
             it.setData(Qt.ItemDataRole.UserRole, (rid, size))
             it.setCheckState(Qt.CheckState.Unchecked)
+            it.setSizeHint(QSize(0, 34))               # a normal row: the boxes used to touch (0.55)
             self.sources.addItem(it)
+        # As tall as its rows (up to six), not a tall box with two lines at the top.
+        self.sources.setMaximumHeight(34 * max(2, min(6, self.sources.count())) + 16)
         self.sources.itemChanged.connect(lambda _: self._update())
         v.addWidget(self.sources)
         self.auto = QCheckBox("Back up automatically whenever this drive is connected")
@@ -83,6 +86,11 @@ class NewBackupDialog(QDialog):
         self.space = QLabel(objectName="Help")
         v.addWidget(self.space)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        # The confirming button says what it does and is the filled one (0.55: "OK", like Cancel).
+        self.create_b = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.create_b.setText("Create backup")
+        self.create_b.setObjectName("Primary")
+        self.create_b.setDefault(True)
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         v.addWidget(buttons)
@@ -157,14 +165,9 @@ class BackupsView(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        hl = QHBoxLayout(head)
-        hl.setContentsMargins(24, 0, 24, 0)
-        title = QLabel("Backups")
-        title.setObjectName("PageTitle")
-        hl.addWidget(title)
-        hl.addStretch(1)
+        from lunelis.ui.page_header import page_header
+        head, hl = page_header("Backups")
+        self.header = head
         new = QPushButton("New backup…", clicked=self._new)
         new.setObjectName("Primary")
         hl.addWidget(new)
@@ -194,7 +197,9 @@ class BackupsView(QWidget):
         self.table.setColumnWidth(1, 380)
         hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.itemSelectionChanged.connect(self._buttons)
-        body.addWidget(self.table, 1)
+        from lunelis.ui.empty_state import EmptyStack
+        self.table_box = EmptyStack(self.table)
+        body.addWidget(self.table_box, 1)
         row = QHBoxLayout()
         self.backup_b = QPushButton("Back up now", clicked=lambda: self._job(False))
         self.verify_b = QPushButton("Verify", clicked=lambda: self._job(True))
@@ -226,6 +231,10 @@ class BackupsView(QWidget):
     def _fill(self, rows) -> None:
         keep = self._current()
         self.sets = [s for s, _st in rows]
+        n = len(self.sets)
+        self.header.set_count(f"{n:,} backup{'s' if n != 1 else ''}" if n else "")
+        self.table_box.empty(None if n else "No backups yet.\n\nNew backup… mirrors the sources you choose onto "
+                                            "a USB drive, stick or network folder.")
         self.table.setRowCount(len(self.sets))
         for i, (s, st) in enumerate(rows):
             where = st.dest or s.dest_path
@@ -319,6 +328,10 @@ class BackupsView(QWidget):
         note.setWordWrap(True)
         v.addWidget(note)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        go = buttons.button(QDialogButtonBox.StandardButton.Ok)        # named for the action, and filled (0.55)
+        go.setText("Restore")
+        go.setObjectName("Primary")
+        go.setDefault(True)
         buttons.accepted.connect(dlg.accept)
         buttons.rejected.connect(dlg.reject)
         v.addWidget(buttons)

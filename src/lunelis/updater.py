@@ -1,5 +1,5 @@
 """
-The built-in updater (Settings > Updates).
+The built-in updater (Settings > Advanced > Updates).
 
 Releases are read from the public source repository, AxialForge/Lunelis
 (until 0.16.0 they came from AxialForge/Lunelis-releases). Each release carries

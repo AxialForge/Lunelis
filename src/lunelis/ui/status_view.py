@@ -110,6 +110,9 @@ class _Reach(QRunnable):
             pass
 
 
+# At a glance figures that are trouble when they aren't nought (shown in the warning colour).
+GLANCE_PROBLEMS = ("Missing (not found at the last scan)", "Damaged", "Not backed up")
+
 NOTICED_SHOWN = 12                       # suggestions listed; the rest are counted
 NOTICED_THUMBS = 6
 BUILDABLE = {"hdr": "Build the HDR…", "panorama": "Build the panorama…", "timelapse": "Make the timelapse…",
@@ -152,18 +155,12 @@ class StatusView(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        hl = QHBoxLayout(head)
-        hl.setContentsMargins(24, 0, 24, 0)
-        title = QLabel("Library status", objectName="PageTitle")
-        hl.addWidget(title)
-        hl.addSpacing(12)
+        from lunelis.ui.page_header import page_header
+        head, hl = page_header("Library status")
         self.state = QLabel(objectName="Count")
         self.state.setMinimumWidth(self.state.fontMetrics().horizontalAdvance(
             max((f"Step 9 of 9 · {s}" for s in steps), key=len)) + 24)
-        hl.addWidget(self.state)
-        hl.addStretch(1)
+        hl.insertWidget(head.LEFT, self.state)
         self.rescan_b = QPushButton("Rescan everything (F5)", objectName="Primary",
                                     clicked=lambda: self.rescan.emit(None))
         self.stop_b = QPushButton("Stop", clicked=lambda: self.stop.emit())
@@ -177,7 +174,19 @@ class StatusView(QWidget):
         v.setSpacing(16)
         outer.addWidget(body, 1)
 
-        # Updating the library: one row per step.
+        # Idle, the nine steps fold to this one line so At a glance comes first
+        # (0.55: they took the top quarter of the page with nothing running).
+        self._last_scan: str | None = None
+        self.idle_card = QFrame(objectName="Card")
+        il = QHBoxLayout(self.idle_card)
+        il.setContentsMargins(20, 12, 20, 12)
+        il.addWidget(QLabel("Updating the library", objectName="SectionTitle"))
+        il.addSpacing(8)
+        self.idle_line = QLabel("Idle", objectName="Help")
+        il.addWidget(self.idle_line, 1)
+        v.addWidget(self.idle_card)
+
+        # Updating the library: one row per step, shown while a scan runs.
         card, cv = self._card("Updating the library",
                               "Every scan works through these steps in order. Files are only read: "
                               "nothing in your photo folders changes.")
@@ -198,13 +207,14 @@ class StatusView(QWidget):
             self.step_rows.append((mark, label, bar, detail))
         grid.setColumnStretch(3, 1)
         cv.addLayout(grid)
+        self.steps_card = card
         v.addWidget(card)
 
         # At a glance.
         card, cv = self._card("At a glance")
         self.glance = QGridLayout()
-        self.glance.setHorizontalSpacing(24)
-        self.glance.setVerticalSpacing(10)
+        self.glance.setHorizontalSpacing(8)
+        self.glance.setVerticalSpacing(2)
         cv.addLayout(self.glance)
         self._glance_cells: dict[str, QLabel] = {}
         v.addWidget(card)
@@ -255,6 +265,9 @@ class StatusView(QWidget):
 
     def set_running(self, running: bool) -> None:
         self._running = running
+        self.steps_card.setVisible(running)
+        self.idle_card.setVisible(not running)
+        self._idle_text()
         self.stop_b.setEnabled(running)
         self.rescan_b.setEnabled(not running)
         for i in range(self.sources.rowCount()):           # each source's Rescan waits for the scan too
@@ -273,6 +286,13 @@ class StatusView(QWidget):
                 bar.hide()
                 if mark.text() == "▸":            # the step that was running when it stopped
                     mark.setText("·")
+
+    def _idle_text(self, stopped: bool = False) -> None:
+        if stopped:
+            self.idle_line.setText("Stopped before the end · press Rescan to finish")
+        else:
+            self.idle_line.setText(f"Idle · last scan {_when(self._last_scan)}" if self._last_scan
+                                   else "Idle · not scanned yet")
 
     def step(self, i: int, done: int, total: int) -> None:
         if not self._running:
@@ -305,6 +325,7 @@ class StatusView(QWidget):
         self.set_running(False)
         self.state.setText("Stopped - press Rescan to finish" if cancelled
                            else f"Up to date ({clock(datetime.now())})")
+        self._idle_text(stopped=cancelled)
         self.refresh()
 
     # --- figures -----------------------------------------------------------------------------
@@ -346,7 +367,8 @@ class StatusView(QWidget):
             h.addWidget(text, 1)
             build_b = None
             if sug.kind in BUILDABLE:
-                build_b = QPushButton(BUILDABLE[sug.kind], objectName="Primary")
+                # Plain: the page's one filled button is Rescan (0.55: one more per suggestion).
+                build_b = QPushButton(BUILDABLE[sug.kind])
                 build_b.clicked.connect(lambda _=False, sid=sid, sug=sug: self.build.emit(sid, sug.kind, sug.file_ids))
                 h.addWidget(build_b)
             else:
@@ -374,24 +396,47 @@ class StatusView(QWidget):
             if w is not None:
                 w.deleteLater()
         from lunelis.ui import theme
-        accent = theme.current().accent
+        t = theme.current()
         for n, (name, value, page) in enumerate(cells):
             row, col = divmod(n, 2)
             key = QLabel(name, objectName="Help")
             val = QLabel()
             val.setObjectName("GlanceValue")
+            # A problem that isn't nought stands out (0.55: "1 damaged" looked like the zeros around it).
+            warn = name in GLANCE_PROBLEMS and value != "0"
+            look = f"color:{t.rating if warn else t.accent};" + ("font-weight:600;" if warn else "")
             if page:
-                val.setText(f'<a href="page:{page}" style="color:{accent}">{value}</a>')
-                val.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
+                val.setText(f'<a href="page:{page}" style="{look}">{value}</a>')
                 val.linkActivated.connect(lambda href: self.open_page.emit(href.split(":", 1)[1]))
+            elif warn:
+                val.setText(f'<span style="{look}">{value}</span>')
             else:
                 val.setText(value)
+            for w in (key, val):
+                w.setContentsMargins(8, 6, 8, 6)
             self.glance.addWidget(key, row, col * 2)
             self.glance.addWidget(val, row, col * 2 + 1)
+            if page:
+                # The whole row opens the page, not just the small figure (0.55):
+                # a flat button lies under both labels, which let the click through.
+                hit = QPushButton(objectName="GlanceRow", clicked=lambda _=False, p=page: self.open_page.emit(p))
+                hit.setCursor(Qt.CursorShape.PointingHandCursor)
+                hit.setAccessibleName(f"{name}: {value}")
+                hit.setToolTip(f"Open {page}")
+                from PySide6.QtWidgets import QSizePolicy
+                hit.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
+                self.glance.addWidget(hit, row, col * 2, 1, 2)
+                hit.lower()
+                for w in (key, val):
+                    w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.glance.setColumnStretch(1, 1)
         self.glance.setColumnStretch(3, 1)
         if not self._running and not self.state.text():
             self.state.setText("Idle")
+        scans = [r[3] for r in sources if r[3]]
+        self._last_scan = max(scans) if scans else None
+        if not self._running and not self.idle_line.text().startswith("Stopped"):
+            self._idle_text()
         self._load_sources(sources)
 
     def _load_sources(self, rows) -> None:
@@ -413,6 +458,11 @@ class StatusView(QWidget):
             self.sources.setCellWidget(i, 5, b)
             if enabled:
                 QThreadPool.globalInstance().start(_Reach(rid, path, self._reach))
+        if rows:
+            # Wide enough for the whole button: sized by its text, the column cut "Rescan" to "esca" (0.55).
+            hh = self.sources.horizontalHeader()
+            hh.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+            self.sources.setColumnWidth(5, self.sources.cellWidget(0, 5).sizeHint().width() + 28)
         self.sources.setFixedHeight(self.sources.horizontalHeader().height() + 4
                                     + sum(self.sources.rowHeight(i) for i in range(len(rows))))
 

@@ -138,6 +138,10 @@ class TagDialog(QDialog):
         self.setMinimumWidth(460)
         v = QVBoxLayout(self)
         n = len(self.file_ids)
+        # A bold first line and air above it: the text used to start at the
+        # window's top edge (0.55).
+        from lunelis.ui.widgets import dialog_heading
+        dialog_heading(v, "Tag photos")
         v.addWidget(QLabel(f"Tags on the {n:,} selected photo{'s' if n != 1 else ''}:"))
         self.box = TagBox(conn)
         self.box.added.connect(self._added)

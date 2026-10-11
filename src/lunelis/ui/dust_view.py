@@ -71,18 +71,17 @@ class DustView(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        head = QWidget(objectName="Toolbar")
-        head.setFixedHeight(64)
-        h = QHBoxLayout(head)
-        h.setContentsMargins(24, 0, 24, 0)
-        h.addWidget(QLabel("Sensor dust", objectName="PageTitle"))
-        h.addSpacing(12)
+        from lunelis.ui.page_header import page_header
+        head, h = page_header("Sensor dust")
+        # Says what the list is, and that it is empty rather than broken (0.55).
+        h.addWidget(QLabel("Camera:", objectName="ToolLabel"))
         self.camera = QComboBox()
+        self.camera.setMinimumContentsLength(16)
+        self.camera.setPlaceholderText("No cameras yet")
         self.camera.currentIndexChanged.connect(lambda _: self._show_saved())
         h.addWidget(self.camera)
         self.look_b = QPushButton("Look for dust", objectName="Primary", clicked=self.look)
         h.addWidget(self.look_b)
-        h.addStretch(1)
         outer.addWidget(head)
         body = QVBoxLayout()
         body.setContentsMargins(24, 16, 24, 24)
@@ -93,7 +92,10 @@ class DustView(QWidget):
         body.addWidget(self.sensor, 1)
         row = QHBoxLayout()
         self.show_b = QPushButton("Show the photos", clicked=self._show_photos)
-        self.heal_b = QPushButton("Heal", objectName="Primary", clicked=self.heal)
+        # Plain, and greyed until a look has found dust: the page's one filled
+        # button is "Look for dust" (0.55: Heal was lit with nothing to heal).
+        self.heal_b = QPushButton("Heal", clicked=self.heal)
+        self.heal_b.setToolTip("Look for dust first - Heal adds heal spots to the photos the dust shows in")
         self.undo_b = QPushButton("Undo the last heal", clicked=self.undo)
         for b in (self.show_b, self.heal_b, self.undo_b):
             row.addWidget(b)
@@ -113,6 +115,7 @@ class DustView(QWidget):
         self.camera.setCurrentIndex(max(0, self.camera.findData(current)))
         self.camera.blockSignals(False)
         self.look_b.setEnabled(self.camera.count() > 0)
+        self.camera.setEnabled(self.camera.count() > 0)
         if not self.camera.count():
             self.text.setText("No photos at f/8 or narrower with thumbnails yet - dust shows best on those.")
         self._show_saved()

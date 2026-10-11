@@ -140,6 +140,7 @@ class ShortcutSheet(QDialog):
         hh.sectionResized.connect(lambda *_: self.table.resizeRowsToContents())
         v.addWidget(self.table, 1)
         box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        box.button(QDialogButtonBox.StandardButton.Close).setDefault(True)     # Enter closes (0.55)
         box.rejected.connect(self.reject)
         v.addWidget(box)
         self.rows = rows

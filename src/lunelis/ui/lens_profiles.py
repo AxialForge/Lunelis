@@ -67,6 +67,7 @@ class GuideDialog(QDialog):
         t.setHtml(GUIDE)
         v.addWidget(t, 1)
         b = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        b.button(QDialogButtonBox.StandardButton.Close).setDefault(True)       # Enter closes (0.55)
         b.rejected.connect(self.reject)
         v.addWidget(b)
 

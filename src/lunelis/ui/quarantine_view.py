@@ -161,7 +161,9 @@ class ConfirmEmpty(QDialog):
         self.agree.setVisible(bool(net))
         v.addWidget(self.agree)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
-        self.go = buttons.addButton("Empty", QDialogButtonBox.ButtonRole.DestructiveRole)
+        # Named after what it does and coloured as the one thing here that can't be undone (0.55).
+        self.go = buttons.addButton("Empty quarantine", QDialogButtonBox.ButtonRole.DestructiveRole)
+        self.go.setObjectName("Danger")
         self.go.clicked.connect(self.accept)
         buttons.rejected.connect(self.reject)
         self.go.setEnabled(not net)
@@ -177,13 +179,12 @@ class QuarantineView(QWidget):
         self.conn = conn
         self.items: list[manage.Entry] = []
         self._thread = None
-        v = QVBoxLayout(self)
-        v.setContentsMargins(24, 16, 24, 16)
-        top = QHBoxLayout()
-        top.addWidget(QLabel("Quarantine", objectName="SectionTitle"))
-        self.summary = QLabel(objectName="Count")
-        self.summary.setWordWrap(True)
-        top.addWidget(self.summary, 1)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        # The banded header every page has (0.55): title, how much is here, the filter on the right.
+        from lunelis.ui.page_header import page_header
+        self.header, top = page_header("Quarantine")
         top.addWidget(QLabel("Show:"))
         self.reason = QComboBox()
         self.reason.addItem("Everything", None)
@@ -191,11 +192,18 @@ class QuarantineView(QWidget):
             self.reason.addItem(label, key)
         self.reason.currentIndexChanged.connect(lambda _: self._fill())
         top.addWidget(self.reason)
-        v.addLayout(top)
+        outer.addWidget(self.header)
+        body = QWidget()
+        outer.addWidget(body, 1)
+        v = QVBoxLayout(body)
+        v.setContentsMargins(24, 12, 24, 16)
+        self.summary = QLabel(objectName="Count")
+        self.summary.setWordWrap(True)
+        v.addWidget(self.summary)
         hint = QLabel("Files Lunelis set aside instead of deleting: duplicate copies, near-duplicates, and "
                       "originals of migrated photos. Each sits in a “_Lunelis Quarantine” folder on its own "
                       "drive. Restore puts one back; Empty removes it for good - only when the copy that was "
-                      "kept is still there.", objectName="Hint")
+                      "kept is still there.", objectName="Help")
         hint.setWordWrap(True)
         v.addWidget(hint)
         self.table = QTableWidget(0, 6)
@@ -218,11 +226,12 @@ class QuarantineView(QWidget):
         self.table_box = EmptyStack(self.table)
         v.addWidget(self.table_box, 1)
         row = QHBoxLayout()
-        self.restore_b = QPushButton("Restore", clicked=self.restore_selected)
+        self.restore_b = QPushButton("Restore", objectName="Primary", clicked=self.restore_selected)
         self.restore_b.setToolTip("Put the selected files back where they were")
         self.show_b = QPushButton("Show in Explorer", clicked=self._show)
         self.empty_b = QPushButton("Empty selected…", clicked=lambda: self._empty(self._selected()))
-        self.empty_all_b = QPushButton("Empty all…", clicked=lambda: self._empty(self._visible()))
+        self.empty_all_b = QPushButton("Empty all…", objectName="Danger",
+                                       clicked=lambda: self._empty(self._visible()))
         # Kept for a while, then offered for removal - never removed without asking.
         self.keep = QComboBox()
         for label, days in (("Keep set-aside files forever", 0), ("Offer to remove after 30 days", 30),
@@ -231,11 +240,16 @@ class QuarantineView(QWidget):
         from lunelis.settings import Settings
         self.keep.setCurrentIndex(max(0, self.keep.findData(Settings(self.conn).get("trash_keep_days"))))
         self.keep.currentIndexChanged.connect(self._keep_changed)
-        self.due_b = QPushButton("Remove what's past its time…", clicked=lambda: self._empty(self._due()))
+        # What is due is a status, said as text; the button beside it is always
+        # named for what it does (0.55: a greyed button read "Nothing past its time").
+        self.due_text = QLabel(objectName="Help")
+        self.due_b = QPushButton("Empty expired…", clicked=lambda: self._empty(self._due()))
+        self.due_b.setToolTip("Remove the files that have been here longer than the time chosen on the left")
         for b in (self.restore_b, self.show_b):
             row.addWidget(b)
         row.addStretch(1)
         row.addWidget(self.keep)
+        row.addWidget(self.due_text)
         row.addWidget(self.due_b)
         for b in (self.empty_b, self.empty_all_b):
             row.addWidget(b)
@@ -272,14 +286,15 @@ class QuarantineView(QWidget):
             return
         self.items = result
         per_drive = manage.summary(self.items)
+        n = len(self.items)
+        self.header.set_count(f"{n:,} file{'s' if n != 1 else ''} · {_size(sum(e.size for e in self.items))}"
+                              if n else "")
         if not self.items:
             self.summary.setText("Nothing in quarantine.")
         else:
-            total = sum(e.size for e in self.items)
             drives = ", ".join(f"{d} {n:,} file{'s' if n != 1 else ''} ({_size(b)})"
                                for d, (n, b) in per_drive.items())
-            n = len(self.items)
-            self.summary.setText(f"{n:,} file{'s' if n != 1 else ''} · {_size(total)} · on {drives}")
+            self.summary.setText(f"On {drives}")        # the total is beside the title (0.55)
         self._fill()
 
     def _due(self) -> list[manage.Entry]:
@@ -343,7 +358,7 @@ class QuarantineView(QWidget):
         self.empty_b.setEnabled(sel and idle)
         self.empty_all_b.setEnabled(bool(self._visible()) and idle)
         n = len(self._due())
-        self.due_b.setText(f"Remove {n:,} past their time…" if n else "Nothing past its time")
+        self.due_text.setText(f"{n:,} past {'their' if n != 1 else 'its'} time" if n else "Nothing past its time")
         self.due_b.setEnabled(bool(n) and idle)
 
     # --- actions ---

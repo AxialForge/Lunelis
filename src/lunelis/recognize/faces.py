@@ -237,7 +237,7 @@ def scan_files(conn: sqlite3.Connection, file_ids: list[int], be: Backend | None
     known people and groups aren't read again for every folder (see Memo)."""
     be = be or backend()
     if be is None:
-        raise RuntimeError("the face models aren't installed (Settings > Library > Faces)")
+        raise RuntimeError("the face models aren't installed (Settings > Recognition & autopilot > Faces)")
     looked = found = 0
     new_ids: list[int] = []
     if memo is not None:

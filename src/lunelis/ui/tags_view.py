@@ -79,13 +79,19 @@ class TagsView(QWidget):
         super().__init__(parent)
         self.conn = conn
         self.bg = Background(self, conn)
-        v = QVBoxLayout(self)
-        v.setContentsMargins(24, 16, 24, 16)
-        top = QHBoxLayout()
-        title = QLabel("Tags", objectName="SectionTitle")
-        top.addWidget(title)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        # The banded header every page has (0.55): title, the count beside it, the controls on the right.
+        from lunelis.ui.page_header import page_header
+        head, top = page_header("Tags")
+        outer.addWidget(head)
+        body = QWidget()
+        outer.addWidget(body, 1)
+        v = QVBoxLayout(body)
+        v.setContentsMargins(24, 12, 24, 16)
         self.summary = QLabel(objectName="Count")
-        top.addWidget(self.summary, 1)
+        top.insertWidget(head.LEFT, self.summary)
         self.search = QLineEdit(placeholderText="Find a tag…")
         self.search.setMaximumWidth(260)
         self.search.textChanged.connect(self._filter)
@@ -97,11 +103,11 @@ class TagsView(QWidget):
             top.addWidget(b)
         self.view_group.button(0).setChecked(True)
         self.view_group.idClicked.connect(lambda i: self.views.setCurrentIndex(i))
-        self.new_b = QPushButton("New tag…", clicked=lambda: self.new_tag(None))
+        # The page's one filled button; Cards / List are toggles, lit only when chosen (0.55).
+        self.new_b = QPushButton("New tag…", objectName="Primary", clicked=lambda: self.new_tag(None))
         top.addWidget(self.new_b)
-        v.addLayout(top)
         hint = QLabel("Double-click a tag to see its photos. Tag photos in the library with Ctrl+T, or in the "
-                      "photo view's Info panel. Right-click a tag to rename, merge or delete it.", objectName="Hint")
+                      "photo view's Info panel. Right-click a tag to rename, merge or delete it.", objectName="Help")
         hint.setWordWrap(True)
         v.addWidget(hint)
         self.tree = QTreeWidget()
@@ -146,7 +152,14 @@ class TagsView(QWidget):
         self.review.changed.connect(self.refresh)
         self.tabs.addTab(self.review, "Scene suggestions")
         self.tabs.currentChanged.connect(lambda i: self.review.refresh() if i == 1 else None)
+        self.tabs.currentChanged.connect(self._tab_changed)
         v.addWidget(self.tabs, 1)
+
+    def _tab_changed(self, i: int) -> None:
+        """The header's controls are for Your tags: on Scene suggestions they
+        step aside, so that tab's own Accept is the one filled button (0.55)."""
+        for w in (self.search, self.new_b, *self.view_group.buttons()):
+            w.setVisible(i == 0)
 
     def show_suggestions(self) -> None:
         self.tabs.setCurrentWidget(self.review)
