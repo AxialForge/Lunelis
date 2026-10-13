@@ -329,11 +329,21 @@ def test_backspace_in_the_library_leaves_an_album_for_the_page_it_came_from(tmp_
         def tile() -> AlbumTile:
             QApplication.processEvents()
             assert _pump(lambda: any(t.album.name == "shortcut audit 057" for t in w.albums_page.findChildren(AlbumTile)))
-            t = next(t for t in w.albums_page.findChildren(AlbumTile) if t.album.name == "shortcut audit 057")
-            t.setFocus()
-            QApplication.processEvents()
-            assert QApplication.focusWidget() is t
-            return t
+            # The page fills from a background load and may build its tiles more than
+            # once: focus whichever tile is there now, until it holds (on a slow
+            # runner the first one was gone again before it had the keyboard).
+            def focused() -> bool:
+                found = [t for t in w.albums_page.findChildren(AlbumTile)
+                         if t.album.name == "shortcut audit 057" and t.isVisible()]
+                if not found:
+                    return False
+                if QApplication.activeWindow() is not w:
+                    w.activateWindow()
+                found[-1].setFocus()
+                QApplication.processEvents()
+                return QApplication.focusWidget() is found[-1]
+            assert _pump(focused)
+            return QApplication.focusWidget()
         w.open_page("Albums")
         tile()
         press(K.Key_Return)                                                # Albums: Enter opens the album
