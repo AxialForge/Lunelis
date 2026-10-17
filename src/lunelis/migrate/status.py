@@ -30,6 +30,17 @@ class Progress:
     left: int = 0                   # left in place on purpose (unticked, damaged with an intact copy)
     kept: int = 0                   # originals waiting for "Release"
     released: int = 0
+    release_state: str = ""         # the release job, while there is one (0.58)
+    release_status: str = ""
+
+    @property
+    def releasing(self) -> bool:
+        return bool(self.release_state)
+
+    @property
+    def release_percent(self) -> int:
+        total = self.kept + self.released
+        return min(100, int(self.released * 100 / total)) if total else 0
 
     @property
     def percent(self) -> int:
@@ -53,6 +64,9 @@ class Progress:
             return "This migration was cancelled"
         if self.state == "released":
             return "Finished - the originals have been released"
+        if self.releasing:
+            return {"paused": "Release paused", "waiting": "Release waiting"}.get(self.release_state,
+                                                                                "Releasing the originals")
         if self.state == "done":
             return ("The copy is finished" if not self.failed
                     else f"The copy is finished, but {self.failed:,} file{'s' if self.failed != 1 else ''} failed")
@@ -95,6 +109,11 @@ def read(conn: sqlite3.Connection, migration_id: int) -> Progress:
                            (job,)).fetchone()
         if cur and p.state == "running":
             p.folder = cur[1] or "(top folder)"
+    from lunelis.migrate.execute import release_job
+    rj = release_job(conn, migration_id)
+    if rj is not None:
+        p.release_state, p.release_status = conn.execute("SELECT state, COALESCE(status, '') FROM jobs WHERE id = ?",
+                                                         (rj,)).fetchone()
     return p
 
 

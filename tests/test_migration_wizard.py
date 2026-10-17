@@ -47,7 +47,14 @@ def test_the_wizard_plans_runs_and_releases(lib, monkeypatch):
     assert "accounted for" in w.report_view.toPlainText() and w.release_b.isEnabled()
     w._do_release()
     w.wait()
-    assert "moved to the Trash" in w.status.text()
+    from lunelis.migrate import execute, status
+    rj = execute.release_job(conn, w.migration_id)                  # a background job now (0.58)
+    assert rj and "in the background" in w.status.text()
+    w._show_release()
+    p = status.read(conn, w.migration_id)
+    assert p.releasing and "Releasing" in w.release_panel.headline.text() and not w.release_b.isEnabled()
+    engine.run_job(conn, rj)
+    assert status.read(conn, w.migration_id).state == "released" and not execute.release_job(conn, w.migration_id)
     assert any("Trash" in p for p in all_files(target / "Lunelis"))
     w.close()
 
@@ -181,6 +188,7 @@ def test_start_over_is_refused_once_originals_were_moved_aside(lib, monkeypatch)
     w.wait()
     w._do_release()
     w.wait()
+    engine.run_job(conn, execute.release_job(conn, w.migration_id))
     import pytest
     with pytest.raises(execute.MigrationError):
         execute.start_over(conn, w.migration_id)
@@ -224,3 +232,18 @@ def test_a_cancelled_migration_opens_on_its_run_step_with_start_over(lib, monkey
     w = mw.MigrationWizard(conn)                                     # nothing left to start over
     assert w.pages.currentIndex() == 0
     w.close()
+
+
+def test_originals_go_aside_on_their_own_drive_when_the_lunelis_folder_is_elsewhere(lib, monkeypatch):
+    """0.58: a release into a Lunelis folder on another drive copied every original across the network."""
+    conn, tmp, a, b, target, ra, rb, ids = lib
+    from lunelis.migrate import execute
+    monkeypatch.setattr(execute, "_same_drive", lambda x, y: False)
+    Settings(conn).set("lunelis_folder", str(target / "Lunelis"))
+    base = execute.set_aside_base(conn, 1, "original", str(a))
+    assert base.startswith(str(a)) and execute.QUARANTINE_DIR in base
+    monkeypatch.setattr(execute, "_same_drive", lambda x, y: True)
+    assert execute.set_aside_base(conn, 1, "original", str(a)).startswith(str(target / "Lunelis"))
+    monkeypatch.undo()
+    assert execute._same_drive(r"D:\Takeout", r"D:\Lunelis\Trash")
+    assert not execute._same_drive(r"D:\Takeout", "//nas/share/Lunelis")

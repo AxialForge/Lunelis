@@ -141,6 +141,14 @@ def _same_bytes(a: str, b: str) -> bool:
                 return True
 
 
+def _same_drive(a: str, b: str) -> bool:
+    """Do two folders sit on one drive or share, so a move between them is a rename?"""
+    def key(p: str) -> str:
+        d = os.path.splitdrive(os.path.abspath(p))[0].lower()
+        return d.rstrip("\\/")
+    return key(a) == key(b)
+
+
 def set_aside_base(conn: sqlite3.Connection, migration_id: int, kind: str, root: str) -> str:
     """Where a set-aside file goes (0.41). With a Lunelis folder: its
     Duplicates (copies that weren't kept) or Trash (originals that were
@@ -150,6 +158,12 @@ def set_aside_base(conn: sqlite3.Connection, migration_id: int, kind: str, root:
     from lunelis.settings import Settings
     sub = lunelis_folder.DUPLICATES if kind == "duplicate" else lunelis_folder.TRASH
     base = lunelis_folder.path(Settings(conn), sub)
+    if base is not None and not _same_drive(root, str(base)):
+        # The Lunelis folder is on another drive (the migration's target, a NAS):
+        # setting a source's originals aside there copied every one across the
+        # network again - hours for a big source. On their own drive it's a
+        # rename (0.58). The Quarantine page finds them either way.
+        base = None
     if base is None:
         return os.path.join(root, QUARANTINE_DIR, f"migration-{migration_id}")
     leaf = os.path.basename(os.path.normpath(root)) or root.replace(":", "").strip("\\/")
@@ -841,28 +855,118 @@ def release(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | N
         snapshot(conn, backup_dir, "before-release")
     roots = dict(conn.execute("SELECT id, path FROM roots"))
     n = 0
-    for item_id, file_id, act, src_root, src_rel, size in conn.execute(
-            "SELECT id, file_id, action, src_root, src_rel, size FROM migration_items"
-            " WHERE migration_id = ? AND state = 'kept'", (migration_id,)).fetchall():
-        root = roots[src_root]
-        src = _abs(root, src_rel)
-        if not os.path.exists(src) or os.path.getsize(src) != size:
-            continue                               # gone or changed: not ours to move any more
-        if act == "move" and not _library_copy_ok(conn, migration_id, item_id):
-            continue                               # the copy doesn't check out: the original stays
-        # (A moved file's catalog sidecar name is the same at both ends.)
-        sidecar = conn.execute("SELECT sidecar FROM files WHERE id = ?", (file_id,)).fetchone()[0]
-        q = _quarantine_original(root, src_rel, sidecar, migration_id, set_aside_base(
-            conn, migration_id, "original" if act == "move" else "duplicate", root))
-        if act != "move":
-            conn.execute("UPDATE files SET quarantined_at = ?, quarantine_path = ? WHERE id = ?", (_now(), q, file_id))
-        conn.execute("UPDATE migration_items SET state = 'released', quarantine_path = ? WHERE id = ?", (q, item_id))
-        conn.commit()
-        n += 1
+    for row in conn.execute("SELECT id, file_id, action, src_root, src_rel, size FROM migration_items"
+                            " WHERE migration_id = ? AND state = 'kept'", (migration_id,)).fetchall():
+        n += _release_item(conn, migration_id, roots, row)
+    _released(conn, migration_id)
+    return n
+
+
+def _release_item(conn: sqlite3.Connection, migration_id: int, roots: dict, row) -> int:
+    """Set one kept original aside. 1 if it went, 0 if it stays (gone,
+    changed, or its Library copy doesn't check out)."""
+    item_id, file_id, act, src_root, src_rel, size = row
+    root = roots[src_root]
+    src = _abs(root, src_rel)
+    if not os.path.exists(src) or os.path.getsize(src) != size:
+        return 0                                   # gone or changed: not ours to move any more
+    if act == "move" and not _library_copy_ok(conn, migration_id, item_id):
+        return 0                                   # the copy doesn't check out: the original stays
+    # (A moved file's catalog sidecar name is the same at both ends.)
+    sidecar = conn.execute("SELECT sidecar FROM files WHERE id = ?", (file_id,)).fetchone()[0]
+    q = _quarantine_original(root, src_rel, sidecar, migration_id, set_aside_base(
+        conn, migration_id, "original" if act == "move" else "duplicate", root))
+    if act != "move":
+        conn.execute("UPDATE files SET quarantined_at = ?, quarantine_path = ? WHERE id = ?", (_now(), q, file_id))
+    conn.execute("UPDATE migration_items SET state = 'released', quarantine_path = ? WHERE id = ?", (q, item_id))
+    conn.commit()
+    return 1
+
+
+def _released(conn: sqlite3.Connection, migration_id: int) -> None:
+    from lunelis.migrate import logs
     conn.execute("UPDATE migrations SET state = 'released' WHERE id = ?", (migration_id,))
     conn.commit()
     logs.write_manifest(conn, migration_id)
-    return n
+
+
+def start_release(conn: sqlite3.Connection, migration_id: int, *, backup_dir: Path | None = None) -> int:
+    """Release as a background job (0.58): checked first like release(), then
+    the kept originals go aside folder by folder, with its progress on the
+    Jobs button and in the migration window. Returns the job id."""
+    from lunelis.jobs import engine
+    from lunelis.migrate import logs
+    if release_job(conn, migration_id) is not None:
+        raise MigrationError("the originals are already being released")
+    rep = logs.accounted(conn, migration_id)
+    if not rep.clean:
+        raise MigrationError(f"{len(rep.unaccounted):,} source file(s) aren't accounted for yet - see the "
+                             f"accounted-for report in {logs.logs_dir(conn, migration_id)}. Nothing was released.")
+    if backup_dir is not None:
+        from lunelis.catalog.backup import snapshot
+        snapshot(conn, backup_dir, "before-release")
+    folders: dict[tuple[int, str], int] = {}
+    for root_id, rel in conn.execute("SELECT src_root, src_rel FROM migration_items WHERE migration_id = ?"
+                                     " AND state = 'kept'", (migration_id,)):
+        key = (root_id, rel.rsplit("/", 1)[0] if "/" in rel else "")
+        folders[key] = folders.get(key, 0) + 1
+    if not folders:
+        _released(conn, migration_id)
+        return 0
+    return engine.create_job(conn, "release", f"Release the originals of migration {migration_id}", scope=[],
+                             options={"migration_id": migration_id, "workers": 1},
+                             folders=[(rid, f, n) for (rid, f), n in sorted(folders.items())])
+
+
+def release_job(conn: sqlite3.Connection, migration_id: int) -> int | None:
+    """The release job of this migration that hasn't finished, if any."""
+    for jid, options in conn.execute("SELECT id, options FROM jobs WHERE kind = 'release'"
+                                     " AND state NOT IN ('done', 'cancelled', 'failed')"):
+        if json.loads(options or "{}").get("migration_id") == migration_id:
+            return jid
+    return None
+
+
+def release_folder(conn: sqlite3.Connection, root_id: int, folder: str, *, options: dict, throttle=None,
+                   should_cancel=None, workers: int = 1, **_):
+    """The jobs-engine kind: the kept originals in one source folder."""
+    from lunelis.dupes.detect import FolderResult
+    result = FolderResult()
+    mid = options["migration_id"]
+    roots = dict(conn.execute("SELECT id, path FROM roots"))
+    if not os.path.isdir(roots.get(root_id, "")):
+        raise SourceOffline(roots.get(root_id, "?"))
+    rows = [r for r in conn.execute(
+        "SELECT id, file_id, action, src_root, src_rel, size FROM migration_items WHERE migration_id = ?"
+        " AND src_root = ? AND state = 'kept' ORDER BY src_rel", (mid, root_id))
+        if (r[4].rsplit("/", 1)[0] if "/" in r[4] else "") == folder]
+    for row in rows:
+        if should_cancel and should_cancel():
+            result.cancelled = True
+            return result
+        try:
+            if _release_item(conn, mid, roots, row):
+                result.hashed += 1
+                result.bytes_read += row[5]
+        except OSError as e:
+            if is_network_error(e):
+                conn.rollback()
+                raise SourceOffline(str(e)) from e
+            result.errors.append(f"{row[4]}: {e}")
+    return result
+
+
+def release_finished(conn: sqlite3.Connection, job_id: int) -> None:
+    mid = json.loads(conn.execute("SELECT options FROM jobs WHERE id = ?", (job_id,)).fetchone()[0]).get("migration_id")
+    if mid is None:
+        return
+    left = conn.execute("SELECT COUNT(*) FROM migration_items WHERE migration_id = ? AND state = 'kept'"
+                        " AND action = 'move'", (mid,)).fetchone()[0]
+    if not left:
+        _released(conn, mid)
+    else:
+        from lunelis.migrate import logs
+        logs.write_manifest(conn, mid)          # some stay (changed, or their copy didn't check out)
 
 
 def _library_copy_ok(conn: sqlite3.Connection, migration_id: int, item_id: int) -> bool:

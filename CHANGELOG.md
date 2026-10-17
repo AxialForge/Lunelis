@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-10-16
+
+### Changed
+
+- **Releasing the originals is quick.** When the Lunelis folder is on
+  another drive (the migration's target, a NAS), each original used to be
+  copied across the network into its Trash - hours for a big source. The
+  originals now go to a "_Lunelis Quarantine" folder on their own drive, a
+  rename. Nothing is deleted; the Quarantine page finds them as before.
+- **The release runs as a background job you can watch:** its progress is
+  on the Jobs button and in the migration window ("Releasing the
+  originals", how many are set aside of how many). It pauses, waits for a
+  drive that's away and carries on after a restart, like the copy.
+
+### Fixed
+
+- Files moved into the Lunelis folder on a NAS (Trash, Duplicates) are no
+  longer left hidden.
+
 ## [0.57.1] - 2026-10-12
 
 ### Added

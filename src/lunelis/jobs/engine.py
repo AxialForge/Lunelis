@@ -181,6 +181,16 @@ def _faces_folder(conn, root_id, folder, **kw):
     return job_folder(conn, root_id, folder, **kw)
 
 
+def _release_folder(conn, root_id, folder, **kw):
+    from lunelis.migrate.execute import release_folder
+    return release_folder(conn, root_id, folder, **kw)
+
+
+def _release_finish(conn, job_id):
+    from lunelis.migrate.execute import release_finished
+    release_finished(conn, job_id)
+
+
 def _backup_finish(conn, job_id):
     from lunelis.backups.core import finish
     finish(conn, job_id)
@@ -201,16 +211,18 @@ KINDS = {
     "backup_verify": _backup_verify_folder,
     "scene_tags": _scene_tags_folder,
     "faces": _faces_folder,
+    "release": _release_folder,
 }
 
 # Kinds that need the job's options (e.g. which backup set) passed in.
-OPTION_KINDS = {"backup", "backup_verify", "integrity"}
+OPTION_KINDS = {"backup", "backup_verify", "integrity", "release"}
 
 # Run once when a job's last folder is done (a kind that has an "afterwards").
 FINISHERS = {
     "migrate": _migrate_finish,
     "backup": _backup_finish,
     "backup_verify": _backup_finish,
+    "release": _release_finish,
 }
 
 

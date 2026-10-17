@@ -181,7 +181,8 @@ class JobsDialog(QDialog):
         for i, (jid, title, kind, state, status, done, total, read) in enumerate(rows):
             kind_text = {"duplicates": "Find duplicates", "verify": "Verify duplicates",
                          "full_hash": "Hash everything", "integrity": "Check integrity",
-                         "migrate": "Migration", "backup": "Backup", "backup_verify": "Verify backup",
+                         "migrate": "Migration", "release": "Release",
+                         "backup": "Backup", "backup_verify": "Verify backup",
                          "scene_tags": "Scene tags", "faces": "Find faces"}.get(kind, kind)
             self.table.setItem(i, 0, QTableWidgetItem(f"{kind_text}: {title}"))
             cell = QTableWidgetItem("\u25cf  " + STATE_TEXT.get(state, state))

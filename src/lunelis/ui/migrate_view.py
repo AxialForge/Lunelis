@@ -625,9 +625,15 @@ class MigrateView(QWidget):
         if QMessageBox.question(
                 self, "Release the originals?",
                 f"Move the {n:,} originals kept for review into quarantine (\"_Lunelis Quarantine\" on their own "
-                "drive, or the Lunelis folder's Trash when one is set)?\n\nThe accounted-for report checks every source file first; if any isn't accounted for, nothing is released. Nothing is deleted. The Quarantine page (sidebar > Keep safe) can put files back, or empty it once you're happy.",
+                "drive - a rename, so it's quick; the Lunelis folder's Trash when that's on the same drive)? It runs in the background, with its progress on the Jobs button.\n\nThe accounted-for report checks every source file first; if any isn't accounted for, nothing is released. Nothing is deleted. The Quarantine page (sidebar > Keep safe) can put files back, or empty it once you're happy.",
                 ) != QMessageBox.StandardButton.Yes:
             return
         mid = self.migration_id
         folder = backup.backup_dir(Settings(self.conn), paths.DATA_DIR)
-        self._run(lambda c: execute.release(c, mid, backup_dir=folder), lambda n: self.refresh())
+        def started(job) -> None:
+            if isinstance(job, Exception):
+                QMessageBox.warning(self, "Migration", str(job))
+            elif job:
+                self.job_started.emit(job)         # a background job with its progress in Jobs (0.58)
+            self.refresh()
+        self._run(lambda c: execute.start_release(c, mid, backup_dir=folder), started)

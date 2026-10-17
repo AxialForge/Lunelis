@@ -155,6 +155,8 @@ def move_one(src: str, dst: str) -> None:
         if not _same_bytes(src, tmp):
             raise OSError(f"the copy at {dst} didn't match the original - the original was left in place")
         os.replace(tmp, dst)
+        from lunelis.paths import unhide
+        unhide(dst, like=src)              # a NAS hides the dot-named temp file (0.55.1)
     except BaseException:
         try:
             os.remove(tmp)

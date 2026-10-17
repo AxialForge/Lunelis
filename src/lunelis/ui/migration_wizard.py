@@ -189,6 +189,17 @@ class ProgressPanel(QWidget):
     def show_progress(self, p) -> None:
         from lunelis.migrate.status import time_left
         self.headline.setText(p.headline())
+        if p.releasing:
+            total = p.kept + p.released
+            self.bar.setValue(p.release_percent)
+            self.bar.setFormat(f"{p.release_percent} %")
+            self.numbers.setText(f"<b>{p.released:,}</b> of {total:,} originals set aside")
+            self.detail.setText("Each Library copy is checked once more, then its original goes aside - "
+                                "nothing is deleted. It runs in the background: you can close this window."
+                                + (f"<br>{p.release_status}" if p.release_state == "waiting" and p.release_status
+                                   else ""))
+            self.detail.setVisible(True)
+            return
         self.bar.setValue(100 if p.state in ("done", "released") and not p.failed else p.percent)
         self.bar.setFormat(f"{self.bar.value()} %")
         self.numbers.setText(f"<b>{p.files_done:,}</b> of {p.files_total:,} files copied  ·  "
@@ -638,6 +649,12 @@ class MigrationWizard(QDialog):
         p = self._progress()
         self.release_panel.show_progress(p)
         self.check_b.setEnabled(not p.copying)
+        if p.releasing:
+            self.check_b.setEnabled(False)
+            self.release_b.setEnabled(False)
+            self.release_why.setText("Releasing - see the bar above, or the Jobs button.")
+            self._tick.start()
+            return
         if p.copying:
             self._checked_for = None
             self.release_b.setEnabled(False)
@@ -749,21 +766,26 @@ class MigrationWizard(QDialog):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(logs.logs_dir(self.conn, self.migration_id))))
 
     def _do_release(self) -> None:
-        if QMessageBox.question(self, "Release the originals?", "Move the originals kept for review to "
-                                "Lunelis\\Trash? Nothing is deleted - the Quarantine page can put them back.") \
+        if QMessageBox.question(self, "Release the originals?", "Set the originals kept for review aside? "
+                                "They go to a \"_Lunelis Quarantine\" folder on their own drive - a rename, "
+                                "so it's quick. Nothing is deleted - the Quarantine page can put them back.") \
                 != QMessageBox.StandardButton.Yes:
             return
         from lunelis.catalog import backup
         from lunelis.migrate import execute
         folder = backup.backup_dir(Settings(self.conn), paths.DATA_DIR)
         mid = self.migration_id
-        self._run(lambda c: execute.release(c, mid, backup_dir=folder), self._released)
+        self._run(lambda c: execute.start_release(c, mid, backup_dir=folder), self._released)
 
-    def _released(self, n) -> None:
-        if isinstance(n, Exception):
-            self.status.setText(str(n))
+    def _released(self, job) -> None:
+        if isinstance(job, Exception):
+            self.status.setText(str(job))
             return
-        self.status.setText(f"{n:,} originals moved to the Trash.")
+        if job:
+            self.job_started.emit(job)             # the release runs as a background job (0.58)
+            self.status.setText("Releasing the originals in the background - the bar shows how far it is.")
+        else:
+            self.status.setText("Nothing left to release.")
         self.library_changed.emit()
         self._checked_for = None
         self._show_release()
