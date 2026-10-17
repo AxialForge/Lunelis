@@ -71,8 +71,24 @@ def _lib(tmp_path, n=6, size=(600, 400), clip=False):
     return w, ids, vid
 
 
+def _keep_active() -> None:
+    """On a busy CI runner the offscreen window can lose activation between
+    two presses (another test's window closing): menu shortcuts like Ctrl+B
+    then reach nobody. Give it back, as a click on the window would."""
+    if QApplication.activeWindow() is not None:
+        return
+    from lunelis.ui.main_window import MainWindow
+    for top in QApplication.topLevelWidgets():
+        if isinstance(top, MainWindow) and top.isVisible():
+            top.raise_()
+            top.activateWindow()
+            QApplication.processEvents()
+            return
+
+
 def press(key, mods=NO) -> None:
     """The key, to whatever has the keyboard - as the keyboard would send it."""
+    _keep_active()
     target = QApplication.focusWidget()
     assert target is not None, "nothing has the keyboard"
     QTest.keyClick(target, key, mods)
