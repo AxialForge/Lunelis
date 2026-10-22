@@ -1,0 +1,6 @@
+{
+  "name": "lunelis-doc-kit",
+  "private": true,
+  "description": "Renders the Lunelis documentation set (docs/kit/README.md)",
+  "dependencies": { "@mermaid-js/mermaid-cli": "^11.4.2", "docx": "^9.5.0" }
+}

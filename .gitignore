@@ -75,3 +75,7 @@ assets/icons/icon_set_reference.png
 # locally and never committed.
 docs/release-package/
 ~$*
+
+# documentation kit: diagram and chart cache
+docs/manuals/.cache/
+docs/kit/node_modules/
