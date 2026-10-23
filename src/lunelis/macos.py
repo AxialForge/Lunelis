@@ -26,6 +26,10 @@ IS_MAC = sys.platform == "darwin"
 MNT_LOCAL = 0x00001000
 MNT_DONTBROWSE = 0x00100000
 VOLUMES = "/Volumes"
+# Since Catalina the boot disk is a read-only system volume at / plus a data
+# volume at /System/Volumes/Data that /Users, /private/var... are firmlinked
+# into. statfs names the data volume; to the user (and to every path) it's /.
+BOOT_DATA = "/System/Volumes/Data"
 
 # Filesystems where Finder keeps a Trash; others (FAT/exFAT cards) delete for good.
 TRASH_FS = ("apfs", "hfs")
@@ -73,7 +77,8 @@ def volume(path: str | os.PathLike) -> Volume | None:
     buf = _Statfs()
     if _statfs_fn()(os.fsencode(p), ctypes.byref(buf)) != 0:
         return None
-    return Volume(buf.f_mntonname.decode("utf-8", "replace"), buf.f_fstypename.decode("ascii", "replace"),
+    mount = buf.f_mntonname.decode("utf-8", "replace")
+    return Volume("/" if mount == BOOT_DATA else mount, buf.f_fstypename.decode("ascii", "replace"),
                   bool(buf.f_flags & MNT_LOCAL), not buf.f_flags & MNT_DONTBROWSE)
 
 
@@ -122,6 +127,10 @@ def drive_kind(mount: str) -> str:
 def mount_point(path: str | os.PathLike) -> str:
     """The mount point of the volume a path is (or would be) on - any Unix.
     A path that doesn't exist yet counts from its nearest existing parent."""
+    if IS_MAC:
+        v = volume(path)                  # statfs: st_dev can't see through firmlinks
+        if v is not None:
+            return v.mount
     p = os.path.abspath(path)
     while not os.path.exists(p) and os.path.dirname(p) != p:
         p = os.path.dirname(p)

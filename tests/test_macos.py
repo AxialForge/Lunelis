@@ -44,6 +44,17 @@ def test_split_mount(tmp_path):
 
 
 @mac_only
+def test_the_data_volume_counts_as_the_boot_disk(tmp_path):
+    """tmp_path is under /private/var, firmlinked into /System/Volumes/Data:
+    that's the boot disk to the user, and one drive with the home folder."""
+    assert macos.volume(tmp_path).mount == "/"
+    assert macos.mount_point(tmp_path) == macos.mount_point(os.path.expanduser("~")) == "/"
+    assert macos.drive_kind(str(tmp_path)) == "fixed"
+    from lunelis.migrate.execute import _same_drive
+    assert _same_drive(str(tmp_path), os.path.expanduser("~"))
+
+
+@mac_only
 def test_idle_seconds_reads_a_number():
     assert macos.idle_seconds() >= 0
 
