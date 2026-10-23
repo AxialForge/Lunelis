@@ -21,6 +21,7 @@ suggestion (keyed by what it is, not by id) doesn't come back.
 """
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 import time
@@ -164,7 +165,7 @@ def _runs(items: list[tuple[int, str]], gap: timedelta) -> list[list[tuple[int, 
 
 
 def root_path_join(root: str, rel: str) -> str:
-    return root.rstrip("\\/") + "\\" + rel.replace("/", "\\") if rel else root
+    return root.rstrip("\\/") + os.sep + rel.replace("/", os.sep) if rel else root
 
 
 def suggest(conn: sqlite3.Connection, *, gap_hours: float = 18, min_photos: int = 30) -> SuggestResult:

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -166,6 +167,9 @@ def _drive(path: str) -> str:
     if p.startswith("\\\\"):
         parts = p.split("\\")
         return "\\\\" + "\\".join(parts[2:4])
+    if sys.platform != "win32":
+        from lunelis.macos import mount_point
+        return mount_point(p)
     return os.path.splitdrive(p)[0] or p
 
 
@@ -195,7 +199,11 @@ def _is_network(path: str) -> bool:
 
 
 def _recycle(path: str) -> None:
-    """Send a local file to the Recycle Bin (SHFileOperation with undo)."""
+    """Send a local file to the Recycle Bin (SHFileOperation with undo) / the Mac's Trash."""
+    if sys.platform == "darwin":
+        from lunelis import macos
+        macos.trash(path)
+        return
     import ctypes
     from ctypes import wintypes
 

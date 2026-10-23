@@ -2,6 +2,8 @@
 import os
 from pathlib import Path
 
+import sys
+
 import pytest
 from PIL import Image
 
@@ -326,6 +328,7 @@ def test_catalog_only_mode_writes_nothing_new(lib, tmp_path):
     assert not (tmp_path / "store").exists() and pending_count(conn) == 0
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive letters and shares")
 def test_root_key_handles_drive_roots():
     assert sync.root_key(3, "D:\\") == "3-D"
     assert sync.root_key(2, r"\\nas\share\Photos") == "2-Photos"

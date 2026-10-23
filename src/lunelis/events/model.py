@@ -188,7 +188,7 @@ def import_file_ids(conn: sqlite3.Connection, import_id: int, roots=None) -> lis
                                 (import_id,)):
         norm = os.path.normcase(os.path.normpath(dest))
         for rid, base in roots:
-            if norm.startswith(base.rstrip("\\") + "\\"):
+            if norm.startswith(base.rstrip("\\/") + os.sep):
                 rel = os.path.relpath(os.path.normpath(dest), base).replace("\\", "/")
                 row = conn.execute("SELECT id FROM files WHERE root_id = ? AND rel_path = ?",
                                    (rid, rel)).fetchone() or conn.execute(

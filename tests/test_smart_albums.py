@@ -58,11 +58,11 @@ def test_any_numbers_text_dates_kinds_and_flags(lib):
     assert found(conn, [{"field": "camera", "op": "is", "value": "ilce-7m4"},
                         {"field": "aperture", "op": "<=", "value": 1.8}], match="any") == sorted([ids[2], ids[3], ids[4], ids[5]])
     assert found(conn, [{"field": "date", "op": "on or after", "value": "2025-01-01"},
-                        {"field": "date", "op": "on or before", "value": "2025-12-31"}]) == [ids[2], ids[3]]
-    assert found(conn, [{"field": "flag", "op": "is", "value": "pick"}]) == [ids[0], ids[1], ids[3]]
+                        {"field": "date", "op": "on or before", "value": "2025-12-31"}]) == sorted([ids[2], ids[3]])
+    assert found(conn, [{"field": "flag", "op": "is", "value": "pick"}]) == sorted([ids[0], ids[1], ids[3]])
     assert found(conn, [{"field": "shutter_s", "op": ">=", "value": 1}]) == [ids[3]]
     assert found(conn, [{"field": "lens", "op": "is not", "value": "FE 85mm F1.4 GM"},
-                        {"field": "focal", "op": ">=", "value": 24}]) == [ids[0], ids[1], ids[5]]
+                        {"field": "focal", "op": ">=", "value": 24}]) == sorted([ids[0], ids[1], ids[5]])
     assert len(found(conn, [{"field": "kind", "op": "is", "value": "photo"}])) == 6
 
 

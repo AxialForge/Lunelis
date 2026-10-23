@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
 )
 
-from lunelis import paths
+from lunelis import desktop, paths
 from lunelis.raw.thumbnails import cache_rel_path
 from lunelis.ui import photoinfo
 from lunelis.ui import theme as themes
@@ -975,8 +975,7 @@ class InfoPanel(QScrollArea):
 
     def _show_in_folder(self) -> None:
         if self.info:
-            import subprocess
-            subprocess.Popen(["explorer", "/select,", os.path.normpath(self.info.path)])
+            desktop.reveal(self.info.path)
 
     def _open(self) -> None:
         if self.info:

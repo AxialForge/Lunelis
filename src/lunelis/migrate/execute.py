@@ -30,6 +30,7 @@ import json
 import os
 import shutil
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -143,6 +144,10 @@ def _same_bytes(a: str, b: str) -> bool:
 
 def _same_drive(a: str, b: str) -> bool:
     """Do two folders sit on one drive or share, so a move between them is a rename?"""
+    if sys.platform != "win32":
+        from lunelis.macos import mount_point
+        return mount_point(a) == mount_point(b)
+
     def key(p: str) -> str:
         d = os.path.splitdrive(os.path.abspath(p))[0].lower()
         return d.rstrip("\\/")

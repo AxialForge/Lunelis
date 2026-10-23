@@ -132,7 +132,8 @@ def load_settings(conn: sqlite3.Connection, data_dir: Path) -> Settings_:
 def volume_info(root: str) -> tuple[str | None, str | None]:
     """(serial, label) of the volume holding `root` - identifies a card."""
     if sys.platform != "win32":
-        return None, None
+        from lunelis import macos
+        return macos.volume_info(root)
     drive = os.path.splitdrive(os.path.abspath(root))[0] + "\\"
     label = ctypes.create_unicode_buffer(261)
     serial = ctypes.c_uint32()
@@ -149,6 +150,10 @@ def removable_drives_with_media() -> list[str]:
 def removable_drives() -> dict[str, bool]:
     """Every removable drive with a disk in it: {root: has camera media}.
     True = a memory card (DCIM / PRIVATE); False = a USB stick or drive."""
+    if sys.platform == "darwin":
+        from lunelis import macos
+        return {root: _has_card_media(root) for root in macos.mounted_volumes()
+                if macos.drive_kind(root) == "removable"}
     if sys.platform != "win32":
         return {}
     out = {}
@@ -161,8 +166,12 @@ def removable_drives() -> dict[str, bool]:
             continue
         if not os.path.isdir(root):                              # an empty card reader slot
             continue
-        out[root] = any(os.path.isdir(os.path.join(root, d.split("/")[0])) for d in CARD_MEDIA_DIRS)
+        out[root] = _has_card_media(root)
     return out
+
+
+def _has_card_media(root: str) -> bool:
+    return any(os.path.isdir(os.path.join(root, d.split("/")[0])) for d in CARD_MEDIA_DIRS)
 
 
 DRIVE_KINDS = {2: "removable", 3: "fixed", 4: "network", 5: "cd"}
@@ -171,16 +180,18 @@ DRIVE_KINDS = {2: "removable", 3: "fixed", 4: "network", 5: "cd"}
 def all_drives() -> list[tuple[str, str, str | None, int | None, int | None]]:
     # [(root, kind, label, free bytes, total bytes)] for every drive letter:
     # kind = card (removable with camera media) | removable | fixed | network.
-    if sys.platform != "win32":
+    if sys.platform == "darwin":
+        from lunelis import macos
+        roots = [("/", "fixed")] + [(r, macos.drive_kind(r)) for r in macos.mounted_volumes()]
+    elif sys.platform == "win32":
+        mask = ctypes.windll.kernel32.GetLogicalDrives()
+        roots = [(f"{chr(65 + i)}:\\", DRIVE_KINDS.get(ctypes.windll.kernel32.GetDriveTypeW(f"{chr(65 + i)}:\\")))
+                 for i in range(26) if mask & (1 << i)]
+    else:
         return []
     cards = set(removable_drives_with_media())
     out = []
-    mask = ctypes.windll.kernel32.GetLogicalDrives()
-    for i in range(26):
-        if not mask & (1 << i):
-            continue
-        root = f"{chr(65 + i)}:\\"
-        kind = DRIVE_KINDS.get(ctypes.windll.kernel32.GetDriveTypeW(root))
+    for root, kind in roots:
         if kind is None or kind == "cd":
             continue
         if root in cards:

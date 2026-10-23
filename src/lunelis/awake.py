@@ -26,6 +26,15 @@ def _set(flags: int) -> None:
 @contextmanager
 def awake():
     """Holds sleep back for the calling thread until the block ends."""
+    if sys.platform == "darwin":
+        from lunelis import macos
+        proc = macos.keep_awake()                 # caffeinate, ended with the block
+        try:
+            yield
+        finally:
+            if proc is not None:
+                proc.terminate()
+        return
     _set(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
     try:
         yield

@@ -15,7 +15,13 @@ on:
 
 jobs:
   test:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    # The Mac port is in progress: its run reports, but doesn't block a release yet.
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     # A hung Qt test used to hold the runner until GitHub's own 6-hour limit.
     timeout-minutes: 60
     steps:
@@ -165,3 +171,43 @@ jobs:
             Lunelis-*-windows.zip*
             Lunelis-*-setup.exe*
           body_path: release-notes.md
+
+  build-mac:
+    # The Mac port (in progress): Lunelis.app in a .dmg, built by
+    # packaging/build_mac.sh. On a tag it's attached to the release; run the
+    # workflow by hand (Actions > Run workflow) to get a test .dmg as an artifact.
+    # Its failure never holds back the Windows release.
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install . pyinstaller==6.22.3
+
+      - name: Build, self-test and package the .dmg
+        run: bash packaging/build_mac.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Lunelis-macos
+          path: Lunelis-*-macos-*.dmg*
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: Lunelis-*-macos-*.dmg*

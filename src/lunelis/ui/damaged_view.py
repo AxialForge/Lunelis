@@ -7,7 +7,6 @@ call (and, later, a safe-transfer job).
 from __future__ import annotations
 
 import os
-import subprocess
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
@@ -15,7 +14,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from lunelis import paths
+from lunelis import desktop, paths
 from lunelis.catalog.schema import open_catalog
 from lunelis.damage.check import NO_MOOV, PROBLEM_TEXT, check, survivors
 
@@ -53,7 +52,7 @@ class CheckWorker(QObject):
 
 
 def _explorer(path: str) -> None:
-    subprocess.Popen(["explorer", "/select,", path])
+    desktop.reveal(path)
 
 
 class DamagedView(QWidget):

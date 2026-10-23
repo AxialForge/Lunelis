@@ -14,6 +14,7 @@ gone), it says that - and that nothing was changed - instead of a bare
 from __future__ import annotations
 
 import os
+import sys
 import threading
 
 
@@ -38,6 +39,9 @@ def _root_of(path: str) -> str:
     if p.startswith("\\\\"):
         parts = p.split("\\")
         return "\\\\" + "\\".join(parts[2:4])
+    if sys.platform != "win32" and not p.startswith("//"):
+        from lunelis.macos import mount_point
+        return mount_point(p)
     drive, _ = os.path.splitdrive(p)
     return drive + "\\" if drive else p
 

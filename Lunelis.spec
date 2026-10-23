@@ -1,9 +1,11 @@
 # PyInstaller build of Lunelis: a one-folder app (dist\Lunelis\Lunelis.exe +
-# its libraries). One-folder rather than one-file: a one-file exe unpacks
+# its libraries; on a Mac dist/Lunelis.app, see packaging/build_mac.sh). One-folder rather than one-file: a one-file exe unpacks
 # ~150 MB of Qt to a temp folder on EVERY start, and trips antivirus more.
 #
 #   pyinstaller --noconfirm Lunelis.spec
 #   dist\Lunelis\Lunelis.exe --self-test report.txt      (checks the build)
+import sys
+
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules, copy_metadata
 
 datas = [("assets", "assets"), ("src/lunelis/darktable/lunelis.lua", "lunelis/darktable"),
@@ -37,14 +39,41 @@ a = Analysis(
     noarchive=False,
 )
 pyz = PYZ(a.pure)
+MAC = sys.platform == "darwin"
 exe = EXE(
     pyz,
     a.scripts,
     [],
     exclude_binaries=True,
     name="Lunelis",
-    icon="assets/icons/lunelis.ico",
+    icon="packaging/mac/Lunelis.icns" if MAC else "assets/icons/lunelis.ico",
     console=False,
-    version="packaging/version_info.txt",
+    version=None if MAC else "packaging/version_info.txt",
 )
 coll = COLLECT(exe, a.binaries, a.datas, name="Lunelis")
+if MAC:
+    from importlib.metadata import version as _version
+    _v = _version("lunelis")
+    app = BUNDLE(
+        coll,
+        name="Lunelis.app",
+        icon="packaging/mac/Lunelis.icns",
+        bundle_identifier="com.axialforge.lunelis",
+        version=_v,
+        info_plist={
+            "CFBundleName": "Lunelis",
+            "CFBundleDisplayName": "Lunelis",
+            "CFBundleShortVersionString": _v,
+            "CFBundleVersion": _v,
+            "LSMinimumSystemVersion": "12.0",
+            "NSHighResolutionCapable": True,
+            "LSApplicationCategoryType": "public.app-category.photography",
+            "NSHumanReadableCopyright": "MIT licence",
+            # Asked by macOS the first time Lunelis reads these places:
+            "NSRemovableVolumesUsageDescription": "Lunelis reads photos from memory cards and USB drives.",
+            "NSNetworkVolumesUsageDescription": "Lunelis reads photos from folders on your network storage.",
+            "NSDesktopFolderUsageDescription": "Lunelis reads photos from folders you add to the library.",
+            "NSDocumentsFolderUsageDescription": "Lunelis reads photos from folders you add to the library.",
+            "NSDownloadsFolderUsageDescription": "Lunelis reads photos from folders you add to the library.",
+        },
+    )

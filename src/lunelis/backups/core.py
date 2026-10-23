@@ -107,6 +107,9 @@ def all_sets(conn: sqlite3.Connection) -> list[BackupSet]:
 
 
 def _is_local_drive(path: str) -> bool:
+    if sys.platform == "darwin":
+        from lunelis import macos
+        return not macos.is_network(path)
     return bool(os.path.splitdrive(os.path.abspath(path))[0]) and not path.startswith(("\\\\", "//"))
 
 
@@ -144,6 +147,9 @@ def forget_set(conn: sqlite3.Connection, set_id: int) -> None:
 
 
 def _drive_letters() -> list[str]:
+    if sys.platform == "darwin":
+        from lunelis import macos                 # the Mac's "letters": its volumes
+        return ["/"] + [v for v in macos.mounted_volumes() if macos.drive_kind(v) != "network"]
     if sys.platform != "win32":
         return []
     import ctypes
@@ -160,13 +166,23 @@ def resolve_dest(conn: sqlite3.Connection, set_id: int) -> str | None:
         return s.dest_path if os.path.isdir(s.dest_path) else None
     if os.path.isdir(s.dest_path) and volume_info(s.dest_path)[0] == s.volume_serial:
         return s.dest_path
-    tail = os.path.splitdrive(s.dest_path)[1]
+    if sys.platform == "darwin":
+        from lunelis import macos                 # a renamed volume comes back under /Volumes/<new name>
+        tail = macos.split_mount(s.dest_path)[1] if os.path.exists(s.dest_path) else _volume_tail(s.dest_path)
+    else:
+        tail = os.path.splitdrive(s.dest_path)[1]
     for drive in _drive_letters():
         if volume_info(drive)[0] == s.volume_serial:
             moved = os.path.join(drive, tail.lstrip("\\/"))
             if os.path.isdir(moved):
                 return moved
     return None
+
+
+def _volume_tail(path: str) -> str:
+    """'/Volumes/Backup/Lunelis' -> 'Lunelis' for a drive that isn't mounted now."""
+    parts = os.path.normpath(path).split(os.sep)
+    return os.path.join(*parts[3:]) if len(parts) > 3 and parts[1] == "Volumes" else path
 
 
 def sets_on_drive(conn: sqlite3.Connection, drive: str) -> list[int]:

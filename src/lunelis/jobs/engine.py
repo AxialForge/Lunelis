@@ -274,9 +274,10 @@ def next_runnable(conn: sqlite3.Connection) -> int | None:
 # --- schedule -------------------------------------------------------------------------
 
 def idle_seconds() -> float:
-    """Seconds since the last keyboard/mouse input (Windows); 0 elsewhere."""
+    """Seconds since the last keyboard/mouse input (Windows, Mac); 0 elsewhere."""
     if sys.platform != "win32":
-        return 0.0
+        from lunelis import macos
+        return macos.idle_seconds()
 
     class LASTINPUTINFO(ctypes.Structure):
         _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]

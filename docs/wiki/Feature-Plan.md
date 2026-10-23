@@ -249,7 +249,7 @@ window says what Lunelis sends over the network.
 | Encrypted backups | Optional encryption of photo backups. |
 | RAW look matching the camera | Default RAW rendering that matches the camera's own JPEG. |
 | Smaller download | AI and lens components as optional add-ons. |
-| Mac version | The same library on macOS. |
+| Mac version | The same library on macOS. In progress (2026-10-23, the owner asked): platform layer `lunelis/macos.py` + macOS CI; then a `.app`/`.dmg` build, start at login, updates. |
 
 ## Rules every new feature keeps
 

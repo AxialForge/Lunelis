@@ -1,4 +1,6 @@
 """0.43: the migration wizard - nine steps, nothing moves before step 8."""
+import sys
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -245,5 +247,8 @@ def test_originals_go_aside_on_their_own_drive_when_the_lunelis_folder_is_elsewh
     monkeypatch.setattr(execute, "_same_drive", lambda x, y: True)
     assert execute.set_aside_base(conn, 1, "original", str(a)).startswith(str(target / "Lunelis"))
     monkeypatch.undo()
+    if sys.platform != "win32":
+        assert execute._same_drive(str(a), str(tmp / "Lunelis" / "Trash"))
+        return
     assert execute._same_drive(r"D:\Takeout", r"D:\Lunelis\Trash")
     assert not execute._same_drive(r"D:\Takeout", "//nas/share/Lunelis")

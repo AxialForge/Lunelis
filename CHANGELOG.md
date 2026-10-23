@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Groundwork for a Mac version.** Lunelis now runs from source on macOS:
+  the data folder is in `~/Library/Application Support/Lunelis`; drives,
+  memory cards and backup drives are found under `/Volumes`; network shares
+  are recognised; emptying the quarantine uses the Trash; long jobs keep the
+  Mac awake; "Show in folder" opens Finder. The tests now also run on macOS
+  in CI. There is no Mac download yet.
+
+### Fixed
+
+- Path checks that assumed Windows' `\` separator (photos of a named import
+  joining their event, folder matches in Jobs, Create and Settings, darktable
+  paths) now work with `/` paths too.
+
 ## [0.58.1] - 2026-10-16
 
 ### Changed

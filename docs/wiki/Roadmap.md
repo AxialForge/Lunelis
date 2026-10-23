@@ -91,6 +91,7 @@ In short:
 ## Later
 
 A full-screen slideshow viewer, Canon CR3 details, editing layers, encrypted
-backups, a camera-matched RAW look, a smaller download, a Mac version. (Scene
+backups, a camera-matched RAW look, a smaller download, a Mac version (in progress:
+Lunelis runs from source on macOS; no Mac download yet). (Scene
 recognition, the map, the timeline, natural-language search, faces and places
 are built - 0.20, 0.26, 0.4, 0.21, 0.35 and 0.36.)

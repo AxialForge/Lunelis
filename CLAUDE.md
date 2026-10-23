@@ -1016,6 +1016,23 @@ rules → albums/tags → basic editing. Schema v1 doesn't yet cover things the 
 later (color labels, nested albums, hierarchical tags, stacks, RAW+JPEG
 pairing); each lands as a new migration when its step arrives.
 
+## macOS port (in progress, started 2026-10-23)
+
+- Windows code keeps its own kernel32/shell32/winreg calls; the Mac side is
+  `lunelis/macos.py` (statfs volumes, `/Volumes` drives, diskutil volume UUID
+  as the "serial", Trash via QFile.moveToTrash, HIDIdleTime, caffeinate) and
+  `lunelis/desktop.py` (Explorer/Finder: open_path, reveal, open_text). New
+  OS-specific code goes in one of those, behind `sys.platform`, never inline.
+- Never build a filesystem path or prefix check with a literal `\\`
+  (`base + "\\"`): use `os.sep` / `os.path`. Storage templates are the
+  exception - `\\` is their own separator, split before touching the disk.
+- Mac data folder `~/Library/Application Support/Lunelis`; location.json and
+  setup.json in `~/Library/Preferences/Lunelis` (must be OUTSIDE the data
+  folder, which can move).
+- CI runs the tests on macos-latest too (`continue-on-error` until the port
+  ships). Still to do: `.app`/`.dmg` from Lunelis.spec, start at login
+  (LaunchAgent), the updater on Mac, wiki Getting started for Mac.
+
 ## Packaging (Windows build)
 
 - `Lunelis.spec` (repo root, named after the repo for the template's CI):

@@ -55,8 +55,14 @@ def launch_command(*args: str) -> tuple[str, list[str]]:
         exe = exe[:-len("python.exe")] + "pythonw.exe"
     return exe, ["-m", "lunelis", *args]
 
-_APPDATA = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
-_LOCALAPPDATA = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+if sys.platform == "darwin":
+    # The Mac: the library in Application Support, the small "where is it"
+    # files in Preferences - never inside the data folder, which can move.
+    _APPDATA = Path.home() / "Library" / "Preferences"
+    _LOCALAPPDATA = Path.home() / "Library" / "Application Support"
+else:
+    _APPDATA = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+    _LOCALAPPDATA = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
 LOCATION_FILE = _APPDATA / "Lunelis" / "location.json"
 
 
@@ -161,6 +167,9 @@ def is_network_path(path: str | os.PathLike) -> bool:
         if drive:
             import ctypes
             return ctypes.windll.kernel32.GetDriveTypeW(drive + "\\") == 4     # DRIVE_REMOTE
+    elif sys.platform == "darwin":
+        from lunelis import macos
+        return macos.is_network(p)
     return False
 
 
@@ -170,6 +179,9 @@ def has_recycle_bin(path: str | os.PathLike) -> bool:
     there a "recycle" is a permanent delete that still reports success."""
     if is_network_path(path):
         return False
+    if sys.platform == "darwin":
+        from lunelis import macos
+        return macos.has_trash(path)
     if sys.platform != "win32":
         return False
     import ctypes

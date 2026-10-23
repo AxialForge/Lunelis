@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 from lunelis.ui.round_slider import RoundSlider  # noqa: E402  true circles (0.52)
 
-from lunelis import paths
+from lunelis import desktop, paths
 from lunelis.log import LOG
 from lunelis.catalog import backup, ratings
 from lunelis.catalog.schema import open_catalog
@@ -998,7 +998,7 @@ class MainWindow(QMainWindow):
         help_menu.addAction(QAction("&Welcome…", self, triggered=self.show_welcome))
         help_menu.addAction(QAction("&About Lunelis", self, triggered=self.about))
         help_menu.addAction(QAction("&Open the data folder", self,
-                                    triggered=lambda: os.startfile(str(paths.DATA_DIR))))
+                                    triggered=lambda: desktop.open_path(str(paths.DATA_DIR))))
         help_menu.addAction(QAction("Open the &log folder", self, triggered=self._open_logs))
         help_menu.addSeparator()
         help_menu.addAction(QAction("&Report a problem…", self, triggered=self.report_problem))
@@ -1639,7 +1639,7 @@ class MainWindow(QMainWindow):
     def _open_logs(self) -> None:
         from lunelis import log
         log.log_dir().mkdir(parents=True, exist_ok=True)
-        os.startfile(str(log.log_dir()))
+        desktop.open_path(str(log.log_dir()))
 
     def report_problem(self) -> None:
         # Everything needed to look into a problem, ready to copy.
@@ -1705,8 +1705,7 @@ class MainWindow(QMainWindow):
         if box.clickedButton() is notices:
             path = paths.PROJECT_ROOT / "THIRD-PARTY-LICENSES.md"
             if path.exists():
-                import subprocess                         # Notepad: .md often has no app set
-                subprocess.Popen(["notepad.exe", str(path)])
+                desktop.open_text(str(path))              # a text editor: .md often has no app set
             else:
                 QMessageBox.information(self, "Third-party licences",
                                         "The list is at github.com/AxialForge/Lunelis in THIRD-PARTY-LICENSES.md.")
@@ -2036,7 +2035,7 @@ class MainWindow(QMainWindow):
         root_id = None
         for rid, path in self.conn.execute("SELECT id, path FROM roots"):
             base = os.path.normcase(os.path.normpath(path))
-            if norm == base or norm.startswith(base.rstrip("\\") + "\\"):
+            if norm == base or norm.startswith(base.rstrip("\\/") + os.sep):
                 root_id = rid
                 break
         if root_id is None:
@@ -2424,7 +2423,7 @@ class MainWindow(QMainWindow):
         box.addButton(QMessageBox.StandardButton.Ok)
         box.exec()
         if box.clickedButton() is show:
-            os.startfile(folder)
+            desktop.open_path(folder)
 
     # --- tags ----------------------------------------------------------------------------------
 
@@ -2570,7 +2569,7 @@ class MainWindow(QMainWindow):
         box.addButton(QMessageBox.StandardButton.Ok)
         box.exec()
         if box.clickedButton() is show:
-            os.startfile(os.path.dirname(path))
+            desktop.open_path(os.path.dirname(path))
 
     def render_edits(self, ids: list[int]) -> None:
         """Proxies + thumbnails for many photos, in the background."""

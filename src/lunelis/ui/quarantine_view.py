@@ -8,7 +8,6 @@ whose kept copy is missing).
 from __future__ import annotations
 
 import os
-import subprocess
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtGui import QPixmap
@@ -17,7 +16,7 @@ from PySide6.QtWidgets import (
     QProgressDialog, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from lunelis import paths
+from lunelis import desktop, paths
 from lunelis.dupes import manage
 from lunelis.dupes.quarantine import QuarantineRefused
 from lunelis.ui.background import unless_closed
@@ -367,7 +366,7 @@ class QuarantineView(QWidget):
         sel = self._selected()
         if sel:
             path = sel[0].now if sel[0].present else os.path.dirname(sel[0].now)
-            subprocess.Popen(["explorer", "/select,", path])
+            desktop.reveal(path)
 
     def restore_selected(self) -> None:
         sel = self._selected()

@@ -167,7 +167,7 @@ class PhotoPicker(QWidget):
         norm = os.path.normcase(os.path.normpath(picked))
         for rid, path in self.conn.execute("SELECT id, path FROM roots"):
             base = os.path.normcase(os.path.normpath(path))
-            if norm == base or norm.startswith(base.rstrip("\\") + "\\"):
+            if norm == base or norm.startswith(base.rstrip("\\/") + os.sep):
                 rel = os.path.relpath(os.path.normpath(picked), path).replace("\\", "/")
                 self._folder = (rid, "" if rel == "." else rel)
                 self.scope.setText(picked)

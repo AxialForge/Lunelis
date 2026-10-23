@@ -309,7 +309,7 @@ class ScopeDialog(QDialog):
         for i in range(self.roots.count()):
             rid, path = self.roots.item(i).data(Qt.ItemDataRole.UserRole)
             base = os.path.normcase(os.path.normpath(path))
-            if norm == base or norm.startswith(base.rstrip("\\") + "\\"):
+            if norm == base or norm.startswith(base.rstrip("\\/") + os.sep):
                 rel = os.path.relpath(os.path.normpath(picked), path).replace("\\", "/")
                 self.folder = (rid, "" if rel == "." else rel)
                 self.folder_label.setText(f"Just this folder: {picked}")
@@ -327,13 +327,13 @@ class ScopeDialog(QDialog):
             else:                                       # the source itself: its own name, not the first one's
                 path = next(self.roots.item(i).data(Qt.ItemDataRole.UserRole)[1] for i in range(self.roots.count())
                             if self.roots.item(i).data(Qt.ItemDataRole.UserRole)[0] == rid)
-                names.append(os.path.basename(path.rstrip("\\")) or path)
+                names.append(os.path.basename(path.rstrip("\\/")) or path)
         for i in range(self.roots.count()):
             item = self.roots.item(i)
             if item.checkState() == Qt.CheckState.Checked:
                 rid, path = item.data(Qt.ItemDataRole.UserRole)
                 scope.append((rid, None))
-                names.append(os.path.basename(path.rstrip("\\")) or path)
+                names.append(os.path.basename(path.rstrip("\\/")) or path)
         if not scope:
             QMessageBox.information(self, "Nothing chosen", "Tick a source or choose a folder.")
             return

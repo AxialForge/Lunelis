@@ -75,3 +75,4 @@ assets/icons/icon_set_reference.png
 # locally and never committed.
 docs/release-package/
 ~$*
+packaging/mac/Lunelis.icns
