@@ -69,6 +69,9 @@ Status: ✅ done (version) · 🧪 test written · 🔍 needs a real Mac · — 
 | O18 | Permissions (TCC) | First access to removable / network volumes, Desktop, Documents, Downloads asks the user; the .app carries the reasons (Info.plist). Photos library package is out of scope. | real Mac | 🔍 |
 | O19 | Start at login / tray | Settings tick box is disabled off Windows today; Mac needs a LaunchAgent and the menu-bar icon behaviour | — | — |
 | O20 | Updater | Disabled on Mac (status points at the .dmg); in-place update later | test | ✅ |
+| O21 | Packaging | Two FFmpeg builds in one process: PyAV (libavdevice 62) and OpenCV's (61) both load; the Objective-C runtime warns about duplicate classes ("may cause mysterious crashes"). Seen in the first .app self-test. Options: an OpenCV wheel without FFmpeg, or load cv2 only where needed. | real Mac, video + faces together | — |
+| O22 | Packaging | lensfun's database not found inside the .app (code and data in different bundle folders) | self-test | ✅ 0.59 (dev) |
+| O23 | Packaging | Two libintl copies (OpenCV, lensfun): the .app kept the older, OpenCV didn't load | self-test | ✅ 0.59 (dev) |
 
 ## Pass 3 - usability
 
@@ -78,7 +81,7 @@ Status: ✅ done (version) · 🧪 test written · 🔍 needs a real Mac · — 
 | U2 | Menu bar: Qt moves the menus to the Mac's top bar; About / Settings / Quit need menu roles to land in the Lunelis menu (none set today) | setMenuRole | — |
 | U3 | Wording: "Recycle Bin" (14 lines), "Explorer" (11), "Windows" (63), "%LOCALAPPDATA%" in UI text | Trash / Finder / macOS per platform | — |
 | U4 | Theme: Fusion + token palette is pinned app-wide (on purpose, Windows dark mode leak); check it on macOS light/dark | keep or follow the system | 🔍 |
-| U5 | Fonts: one hardcoded Segoe UI; Retina scaling of the grid and thumbnails (devicePixelRatio) | | 🔍 |
+| U5 | Fonts: text scaling assumed Windows' 9 pt base - on the Mac (13 pt) every hand-sized label came out 44 % too big (✅ 0.59 dev); Consolas falls back to Menlo (✅); Retina scaling of the grid and thumbnails (devicePixelRatio) | | 🔍 |
 | U6 | Trackpad: pinch to zoom the grid / photo, two-finger scroll speed in the grid and filmstrip | | 🔍 |
 | U7 | Drag a folder from Finder onto the library to add it | | 🔍 |
 | U8 | Window: full screen (green button), the Dock icon, closing the window vs quitting (Cmd+Q) and the tray | | 🔍 |
