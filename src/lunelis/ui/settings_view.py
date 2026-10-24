@@ -50,7 +50,7 @@ EXAMPLE = Context(datetime(2026, 6, 19, 14, 3), camera="ILCE-7RM5", import_name=
 def _inside(child: str, parent: str) -> bool:
     c = os.path.normcase(os.path.normpath(child))
     p = os.path.normcase(os.path.normpath(parent))
-    return c == p or c.startswith(p.rstrip("\\") + "\\")
+    return c == p or c.startswith(p.rstrip("\\/") + os.sep)
 
 
 class FolderMove(QObject):
@@ -1115,7 +1115,11 @@ class SettingsView(QWidget):
         from lunelis.updater import safe_markdown
         self.update_notes.setMarkdown(safe_markdown(rel.notes) or "(no release notes)")
         self.update_notes.show()
-        if paths.FROZEN:
+        if paths.FROZEN and sys.platform == "darwin":
+            # No in-place update on the Mac yet: the swap script is Windows-only.
+            self.update_status.setText(self.update_status.text() + " Download the new .dmg from the releases "
+                                       "page and drag Lunelis to Applications again.")
+        elif paths.FROZEN:
             self.install_b.setText(f"Download and install {rel.version}")
             self.install_b.show()
         else:

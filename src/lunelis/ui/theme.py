@@ -12,6 +12,7 @@ read it at paint time; everything else is styled by `stylesheet()` +
 """
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -221,7 +222,10 @@ def _arrow_icon(t: Theme, up: bool) -> str:
     return path.as_posix()
 
 
+MONO_FONT = "Menlo, monospace" if sys.platform == "darwin" else "Consolas, monospace"   # each OS's own
 BASE_POINT_SIZE = 9.0          # Windows' message font at 100 % text size (Segoe UI 9 pt)
+if sys.platform == "darwin":
+    BASE_POINT_SIZE = 13.0     # the Mac's system font (SF 13 pt): not "bigger text", just the Mac
 
 
 def text_scale() -> float:
@@ -549,7 +553,7 @@ def _stylesheet(t: Theme | None = None) -> str:
     QLabel#DialogHeading {{ font-size: 15px; font-weight: 700; padding: 0 0 2px 0; }}
     QLabel#Help {{ color: {t.text_muted}; font-size: 12px; }}
     QLabel#EmptyNote {{ color: {t.text_muted}; font-size: 14px; }}
-    QLabel#Example {{ color: {t.text_muted}; font-size: 12px; font-family: Consolas, monospace; }}
+    QLabel#Example {{ color: {t.text_muted}; font-size: 12px; font-family: {MONO_FONT}; }}
     QLabel#Error {{ color: {red}; font-size: 12px; }}
     QLabel#ThemeSwatch {{ border: 1px solid {t.border}; border-radius: 6px; }}
     QWidget#DetailPanel {{ background: {t.surface}; }}

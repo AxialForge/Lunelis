@@ -3,6 +3,7 @@ explained, each photo shows whether it's backed up, and regular file checks
 re-read the library a little at a time."""
 import errno
 import os
+import sys
 from datetime import datetime, timedelta
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -36,6 +37,7 @@ def test_reachable(tmp_path):
     assert not reach.reachable(str(tmp_path / "gone"))
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive letters and shares")
 def test_a_vanished_drive_is_explained_in_words(tmp_path):
     from lunelis.dupes.hashing import SourceOffline
     text = reach.explain(SourceOffline(errno.EIO, "gone"), "exporting", r"\\nas\photos\2024\a.jpg")
@@ -46,6 +48,7 @@ def test_a_vanished_drive_is_explained_in_words(tmp_path):
     assert plain == "Couldn't finish exporting: bad"
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive letters and shares")
 def test_share_and_drive_roots():
     assert reach._root_of(r"\\server\share\a\b.jpg") == r"\\server\share"
     assert reach._root_of(r"D:\Photos\a.jpg") == "D:\\"

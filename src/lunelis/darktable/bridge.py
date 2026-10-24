@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,6 +36,8 @@ def exchange_dir(conn: sqlite3.Connection) -> Path:
 
 def darktable_config_dir() -> Path:
     """darktable's own settings folder (where luarc and lua/ live)."""
+    if sys.platform != "win32":
+        return Path.home() / ".config" / "darktable"
     return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "darktable"
 
 
@@ -78,8 +81,8 @@ class ImportResult:
 def _find(conn, path: str) -> int | None:
     norm = os.path.normcase(os.path.normpath(path))
     for rid, root in conn.execute("SELECT id, path FROM roots"):
-        base = os.path.normcase(os.path.normpath(root)).rstrip("\\")
-        if norm.startswith(base + "\\"):
+        base = os.path.normcase(os.path.normpath(root)).rstrip("\\/")
+        if norm.startswith(base + os.sep):
             rel = os.path.relpath(os.path.normpath(path), os.path.normpath(root)).replace("\\", "/")
             row = conn.execute("SELECT id FROM files WHERE root_id = ? AND rel_path = ?", (rid, rel)).fetchone() \
                 or conn.execute("SELECT id FROM files WHERE root_id = ? AND rel_path = ? COLLATE NOCASE",

@@ -25,8 +25,10 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
+import sys
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 
@@ -140,7 +142,30 @@ def _db():
 def _db_cached():
     import lensfunpy
     good = [str(p) for p in user_profiles() if check_profile(p)[1] is None]
+    bundled = _app_bundle_db()
+    if bundled:
+        return lensfunpy.Database(paths=bundled + good, load_bundled=False)
     return lensfunpy.Database(paths=good) if good else lensfunpy.Database()
+
+
+def _app_bundle_db() -> list[str]:
+    """In the Mac .app, lensfunpy's own lookup (next to its compiled module)
+    misses its database: the build puts code in Contents/Frameworks and data
+    in Contents/Resources. Hand it the XML files instead. [] elsewhere."""
+    if sys.platform != "darwin" or not getattr(sys, "frozen", False):
+        return []
+    import lensfunpy
+    base = Path(getattr(sys, "_MEIPASS", ""))
+    contents = Path(sys.executable).resolve().parent.parent          # Lunelis.app/Contents
+    candidates = [Path(lensfunpy.__file__).parent / "db_files", base / "lensfunpy" / "db_files",
+                  contents / "Resources" / "lensfunpy" / "db_files",
+                  contents / "Frameworks" / "lensfunpy" / "db_files"]
+    candidates += sorted(contents.rglob("db_files"))                  # wherever the build put it
+    for d in candidates:
+        files = sorted(str(f) for f in d.glob("*.xml")) if d.is_dir() else []
+        if files:
+            return files
+    return []
 
 
 def _clean(lens: str) -> list[str]:

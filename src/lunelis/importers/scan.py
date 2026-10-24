@@ -101,6 +101,10 @@ def root_kind(path: str) -> str:
         DRIVE_REMOTE = 4
         if ctypes.windll.kernel32.GetDriveTypeW(path[:2] + "\\") == DRIVE_REMOTE:
             return "nas"
+    if sys.platform == "darwin":
+        from lunelis import macos
+        if macos.is_network(path):
+            return "nas"
     return "local"
 
 

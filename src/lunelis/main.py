@@ -42,11 +42,18 @@ def _finish_data_move() -> None:
 def _wait_for_previous() -> None:
     """`--after PID`: a restart from Settings. Wait (up to a minute) for the
     old Lunelis to exit, so its catalog is closed before anything moves it."""
-    if "--after" not in sys.argv or sys.platform != "win32":
+    if "--after" not in sys.argv:
         return
     try:
         pid = int(sys.argv[sys.argv.index("--after") + 1])
     except (IndexError, ValueError):
+        return
+    if sys.platform != "win32":
+        import time
+        from lunelis.macos import process_running
+        deadline = time.monotonic() + 60
+        while process_running(pid) and time.monotonic() < deadline:
+            time.sleep(0.2)
         return
     import ctypes
     k32 = ctypes.windll.kernel32

@@ -3,6 +3,8 @@
 button, empty tables that say why, and the per-page tidying."""
 import time
 
+import sys
+
 import pytest
 from PIL import Image
 from PySide6.QtCore import QRect, QSize, Qt
@@ -200,6 +202,7 @@ def test_duplicates_summary_is_one_bold_line_with_a_quiet_second(lib):
     page.deleteLater()
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive letters and shares")
 def test_near_duplicates_lists_a_picture_a_name_and_a_source_not_a_path():
     from lunelis.ui import near_view
     assert near_view._source("D:\\Photos\\2024\\") == "2024"

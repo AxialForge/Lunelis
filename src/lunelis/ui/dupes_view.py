@@ -21,7 +21,6 @@ enforces that too). Nothing here deletes anything.
 from __future__ import annotations
 
 import os
-import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -32,7 +31,7 @@ from PySide6.QtWidgets import (
     QTableView, QTabWidget, QVBoxLayout, QWidget,
 )
 
-from lunelis import paths
+from lunelis import desktop, paths
 from lunelis.catalog.schema import open_catalog
 from lunelis.dupes import detect
 from lunelis.dupes.quarantine import QUARANTINE_DIR, QuarantineRefused, quarantine
@@ -479,7 +478,7 @@ class DuplicatesView(QWidget):
         text.setToolTip(os.path.join(root, *rel.split("/")))
         h.addWidget(text, 1)
         full = os.path.join(root, *rel.split("/"))
-        h.addWidget(QPushButton("Show", clicked=lambda _=False, p=full: subprocess.Popen(["explorer", "/select,", p])))
+        h.addWidget(QPushButton("Show", clicked=lambda _=False, p=full: desktop.reveal(p)))
         if not kept:
             h.addWidget(QPushButton("Keep this one", clicked=lambda _=False: self._keep(g, fid)))
         return w

@@ -229,7 +229,7 @@ def test_build_it_hands_the_frames_to_the_merge_and_only_a_finished_merge_counts
         w._noticed_pending = sid
         w._merge_thread = type("T", (), {"quit": lambda s: None, "wait": lambda s: None})()
         opened = []
-        monkeypatch.setattr(mw.os, "startfile", lambda p: opened.append(p), raising=False)
+        monkeypatch.setattr(mw.desktop, "open_path", lambda p: opened.append(p))
         monkeypatch.setattr(mw.QMessageBox, "exec", lambda self: 0)
         w._merge_done(None, str(tmp_path / "elsewhere.tif"), "")
         assert noticed.open_suggestions(conn) == []
