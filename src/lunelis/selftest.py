@@ -145,7 +145,10 @@ def run(report: str | None, samples: list[str] | None = None) -> int:
         from lunelis.edit import lens
         name = lens.profile_name(lens.LensInfo("SONY", "ILCE-7RM5", "FE 24-105mm F4 G OSS", 24.0, 4.0))
         if not name:
-            raise RuntimeError("the lens database has no Sony FE 24-105mm")
+            import lensfunpy
+            raise RuntimeError(f"the lens database has no Sony FE 24-105mm (bundled XML found: "
+                               f"{len(lens._app_bundle_db())}; lensfunpy at {lensfunpy.__file__}; "
+                               f"problem: {lens.unavailable()})")
         import cv2
         return f"{name}; OpenCV {cv2.__version__}"
     check("Lens profiles (lensfun) + OpenCV", lenses)

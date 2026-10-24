@@ -156,8 +156,12 @@ def _app_bundle_db() -> list[str]:
         return []
     import lensfunpy
     base = Path(getattr(sys, "_MEIPASS", ""))
-    for d in (Path(lensfunpy.__file__).parent / "db_files", base / "lensfunpy" / "db_files",
-              base.parent / "Resources" / "lensfunpy" / "db_files"):
+    contents = Path(sys.executable).resolve().parent.parent          # Lunelis.app/Contents
+    candidates = [Path(lensfunpy.__file__).parent / "db_files", base / "lensfunpy" / "db_files",
+                  contents / "Resources" / "lensfunpy" / "db_files",
+                  contents / "Frameworks" / "lensfunpy" / "db_files"]
+    candidates += sorted(contents.rglob("db_files"))                  # wherever the build put it
+    for d in candidates:
         files = sorted(str(f) for f in d.glob("*.xml")) if d.is_dir() else []
         if files:
             return files
