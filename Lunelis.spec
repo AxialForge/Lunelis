@@ -4,6 +4,7 @@
 #
 #   pyinstaller --noconfirm Lunelis.spec
 #   dist\Lunelis\Lunelis.exe --self-test report.txt      (checks the build)
+import os
 import sys
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules, copy_metadata
@@ -38,8 +39,21 @@ a = Analysis(
               "PySide6.Qt3DCore", "PySide6.QtPdf", "PySide6.QtCharts"],
     noarchive=False,
 )
-pyz = PYZ(a.pure)
 MAC = sys.platform == "darwin"
+if MAC:
+    # opencv-python-headless and lensfunpy each bundle libintl.8.dylib and
+    # PyInstaller keeps one of them; lensfun's older copy lacks
+    # libintl_bindtextdomain, which OpenCV's libgnutls needs (the self-test's
+    # "dlopen ... Symbol not found" on the first Mac build). OpenCV's newer
+    # gettext is a superset: every libintl in the bundle is that one.
+    import glob
+    import importlib.util
+    _cv2 = importlib.util.find_spec("cv2").submodule_search_locations[0]
+    _intl = (glob.glob(os.path.join(_cv2, ".dylibs", "libintl.8.dylib")) or [None])[0]
+    if _intl:
+        a.binaries = [(d, _intl if os.path.basename(d) == "libintl.8.dylib" else src, kind)
+                      for d, src, kind in a.binaries]
+pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
